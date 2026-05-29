@@ -528,7 +528,9 @@ export function HostView({ session, productId }: { session: PokerSession; produc
                     const aid = ticketAssignees[pendingTicket.id] ?? pendingTicket.assigneeId;
                     return aid ? session.product.members.find((m) => m.id === aid) ?? null : null;
                   })()}
+                  jiraAssigneeName={pendingTicket.jiraAssigneeName}
                   jiraBaseUrl={session.product.jiraBaseUrl}
+                  priority={pendingTicket.priority}
                 />
                 <textarea
                   value={contextNote}
@@ -565,7 +567,9 @@ export function HostView({ session, productId }: { session: PokerSession; produc
               <TicketNode
                 ticket={currentTicket}
                 assignee={currentAssignee}
+                jiraAssigneeName={currentTicket.jiraAssigneeName}
                 jiraBaseUrl={session.product.jiraBaseUrl}
+                priority={currentTicket.priority}
               />
 
               {/* Context note display */}
@@ -728,6 +732,61 @@ export function HostView({ session, productId }: { session: PokerSession; produc
           setTicketAssignees((prev) => ({ ...prev, ...map }));
         }}
       />
+
+      {/* Summary modal */}
+      {summaryModalOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+          onClick={(e) => { if (e.target === e.currentTarget) setSummaryModalOpen(false); }}
+        >
+          <div className="bg-[#111] border border-white/15 rounded-2xl shadow-2xl p-6 w-full max-w-sm space-y-4">
+            <h3 className="text-white font-semibold text-base">Post Sprint Summary to JIRA</h3>
+            <input
+              type="text"
+              placeholder="JIRA issue key (e.g. PROJ-123)"
+              value={summaryIssueKey}
+              onChange={(e) => setSummaryIssueKey(e.target.value)}
+              className="w-full rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-white/20 focus:border-violet-500 focus:outline-none"
+              disabled={summaryState === "loading"}
+            />
+            {summaryState === "success" && (
+              <p className="text-emerald-400 text-sm flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4" /> Posted successfully!
+              </p>
+            )}
+            {summaryState === "error" && (
+              <p className="text-red-400 text-sm flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4" /> Failed to post. Check the issue key.
+              </p>
+            )}
+            <div className="flex gap-2">
+              <Button
+                variant="success"
+                disabled={!summaryIssueKey.trim() || summaryState === "loading"}
+                onClick={async () => {
+                  setSummaryState("loading");
+                  try {
+                    const res = await fetch(`/api/sessions/${session.id}/summary`, {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ jiraIssueKey: summaryIssueKey.trim() }),
+                    });
+                    const data = await res.json();
+                    setSummaryState(data.success ? "success" : "error");
+                  } catch {
+                    setSummaryState("error");
+                  }
+                }}
+              >
+                {summaryState === "loading" ? "Posting…" : "Post to JIRA"}
+              </Button>
+              <Button variant="ghost" onClick={() => { setSummaryModalOpen(false); setSummaryState("idle"); setSummaryIssueKey(""); }}>
+                Cancel
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

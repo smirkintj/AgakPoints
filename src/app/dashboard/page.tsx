@@ -12,15 +12,21 @@ export default async function DashboardPage() {
   const session = await auth();
   if (!session?.user?.id) redirect("/login");
 
-  const products = await prisma.product.findMany({
-    where: { adminId: session.user.id },
-    include: {
-      members: true,
-      pokerSessions: { orderBy: { createdAt: "desc" }, take: 1 },
-      _count: { select: { pokerSessions: true, members: true } },
-    },
-    orderBy: { createdAt: "desc" },
-  });
+  let products;
+  try {
+    products = await prisma.product.findMany({
+      where: { adminId: session.user.id },
+      include: {
+        members: true,
+        pokerSessions: { orderBy: { createdAt: "desc" }, take: 1 },
+        _count: { select: { pokerSessions: true, members: true } },
+      },
+      orderBy: { createdAt: "desc" },
+    });
+  } catch (err) {
+    console.error("[dashboard] prisma error:", err);
+    throw err;
+  }
 
   return (
     <div className="min-h-screen">

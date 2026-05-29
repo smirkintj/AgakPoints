@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Plus, Users, Layers } from "lucide-react";
+import { SignOutButton } from "@/components/layout/SignOutButton";
 
 export default async function DashboardPage() {
   const session = await auth();
@@ -31,11 +32,7 @@ export default async function DashboardPage() {
         </div>
         <div className="flex items-center gap-3">
           <span className="text-sm text-white/50">{session.user.email}</span>
-          <form action="/api/auth/signout" method="POST">
-            <button className="text-sm text-white/50 hover:text-white transition-colors">
-              Sign out
-            </button>
-          </form>
+          <SignOutButton />
         </div>
       </header>
 

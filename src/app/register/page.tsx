@@ -7,9 +7,9 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Loader2 } from "lucide-react";
 
-export default function LoginPage() {
+export default function RegisterPage() {
   const router = useRouter();
-  const [form, setForm] = useState({ email: "", password: "" });
+  const [form, setForm] = useState({ name: "", email: "", password: "", confirm: "" });
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -18,19 +18,26 @@ export default function LoginPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
+    if (form.password !== form.confirm) {
+      setError("Passwords don't match.");
+      return;
+    }
     setLoading(true);
     try {
-      const res = await signIn("credentials", {
-        email: form.email,
-        password: form.password,
-        redirect: false,
+      const res = await fetch("/api/auth/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: form.name, email: form.email, password: form.password }),
       });
-      if (res?.error) {
-        setError("Invalid email or password.");
-      } else {
-        router.push("/dashboard");
-        router.refresh();
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error ?? "Registration failed.");
+        return;
       }
+      // Auto sign in after registration
+      await signIn("credentials", { email: form.email, password: form.password, redirect: false });
+      router.push("/dashboard");
+      router.refresh();
     } finally {
       setLoading(false);
     }
@@ -45,13 +52,23 @@ export default function LoginPage() {
         <div className="text-center mb-8">
           <div className="text-5xl mb-4">🃏</div>
           <h1 className="text-3xl font-bold text-white mb-2">AgakPoints</h1>
-          <p className="text-white/50 text-sm">Gamified scrum poker for teams that ship</p>
+          <p className="text-white/50 text-sm">Create your admin account</p>
         </div>
 
         <div className="rounded-2xl border border-white/10 bg-white/5 backdrop-blur-sm p-6">
-          <h2 className="text-white font-semibold mb-5">Sign In</h2>
+          <h2 className="text-white font-semibold mb-5">Register</h2>
 
           <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <label className="text-sm text-white/60 mb-1.5 block">Name</label>
+              <Input
+                placeholder="Your name"
+                value={form.name}
+                onChange={(e) => update("name", e.target.value)}
+                required
+                autoComplete="name"
+              />
+            </div>
             <div>
               <label className="text-sm text-white/60 mb-1.5 block">Email</label>
               <Input
@@ -67,34 +84,39 @@ export default function LoginPage() {
               <label className="text-sm text-white/60 mb-1.5 block">Password</label>
               <Input
                 type="password"
-                placeholder="••••••••"
+                placeholder="Min 8 characters"
                 value={form.password}
                 onChange={(e) => update("password", e.target.value)}
                 required
-                autoComplete="current-password"
+                autoComplete="new-password"
+              />
+            </div>
+            <div>
+              <label className="text-sm text-white/60 mb-1.5 block">Confirm Password</label>
+              <Input
+                type="password"
+                placeholder="Repeat password"
+                value={form.confirm}
+                onChange={(e) => update("confirm", e.target.value)}
+                required
+                autoComplete="new-password"
               />
             </div>
 
-            {error && (
-              <p className="text-red-400 text-sm">{error}</p>
-            )}
+            {error && <p className="text-red-400 text-sm">{error}</p>}
 
             <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Sign In"}
+              {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Create Account"}
             </Button>
           </form>
 
           <p className="text-center text-white/30 text-sm mt-4">
-            No account?{" "}
-            <Link href="/register" className="text-violet-400 hover:text-violet-300">
-              Register here
+            Already have an account?{" "}
+            <Link href="/login" className="text-violet-400 hover:text-violet-300">
+              Sign in
             </Link>
           </p>
         </div>
-
-        <p className="text-white/20 text-xs text-center mt-4">
-          Team members don&apos;t need to sign in — they join via session link.
-        </p>
       </div>
     </div>
   );

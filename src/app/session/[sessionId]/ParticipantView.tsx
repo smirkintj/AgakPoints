@@ -9,7 +9,12 @@ import { RevealCard } from "@/components/session/RevealCard";
 import { EmojiReaction } from "@/components/session/EmojiReaction";
 import { FIBONACCI_VALUES, isConsensus } from "@/lib/utils";
 import { MemberAvatar } from "@/components/session/MemberAvatar";
+import { TicketTypeIcon } from "@/components/session/TicketTypeIcon";
 import { Check, Clock, Sparkles } from "lucide-react";
+
+const PRIORITY_COLORS: Record<string, string> = {
+  Highest: "#ef4444", High: "#f97316", Medium: "#eab308", Low: "#3b82f6", Lowest: "#6b7280",
+};
 import confetti from "canvas-confetti";
 
 type SessionWithDetails = PokerSession & {
@@ -20,7 +25,7 @@ type SessionWithDetails = PokerSession & {
 export function ParticipantView({ session }: { session: SessionWithDetails }) {
   const [member, setMember] = useState<Member | null>(null);
   const [checkedIn, setCheckedIn] = useState<CheckedInMember[]>([]);
-  const [currentTicket, setCurrentTicket] = useState<{ ticketId: string; jiraKey: string; title: string; contextNote?: string } | null>(null);
+  const [currentTicket, setCurrentTicket] = useState<{ ticketId: string; jiraKey: string; title: string; contextNote?: string; issueType?: string; priority?: string } | null>(null);
   const [myVote, setMyVote] = useState<number | null>(null);
   const [votedMemberIds, setVotedMemberIds] = useState<string[]>([]);
   const [revealedVotes, setRevealedVotes] = useState<RevealedVote[] | null>(null);
@@ -38,7 +43,7 @@ export function ParticipantView({ session }: { session: SessionWithDetails }) {
       case "STATE_SYNC": {
         const s = msg.state;
         setCheckedIn(s.checkedIn);
-        setCurrentTicket(s.currentTicket ? { ticketId: s.currentTicket.ticketId, jiraKey: s.currentTicket.jiraKey, title: s.currentTicket.title, contextNote: s.currentTicket.contextNote } : null);
+        setCurrentTicket(s.currentTicket ? { ticketId: s.currentTicket.ticketId, jiraKey: s.currentTicket.jiraKey, title: s.currentTicket.title, contextNote: s.currentTicket.contextNote, issueType: s.currentTicket.issueType, priority: s.currentTicket.priority } : null);
         setVotedMemberIds(s.votedMemberIds);
         setRevealedVotes(s.revealedVotes);
         setLockedTickets(new Set(s.lockedTickets));
@@ -57,7 +62,7 @@ export function ParticipantView({ session }: { session: SessionWithDetails }) {
         setCheckedIn(msg.checkedIn);
         break;
       case "TICKET_OPENED":
-        setCurrentTicket({ ticketId: msg.ticketId, jiraKey: msg.jiraKey, title: msg.title, contextNote: msg.contextNote });
+        setCurrentTicket({ ticketId: msg.ticketId, jiraKey: msg.jiraKey, title: msg.title, contextNote: msg.contextNote, issueType: msg.issueType, priority: msg.priority });
         setMyVote(null);
         setVotedMemberIds([]);
         setRevealedVotes(null);
@@ -155,8 +160,21 @@ export function ParticipantView({ session }: { session: SessionWithDetails }) {
               className="w-full max-w-lg space-y-8"
             >
               {/* Ticket info */}
-              <div className="text-center">
-                <p className="text-violet-400 font-mono text-sm mb-2 font-bold">{currentTicket.jiraKey}</p>
+              <div className="rounded-2xl border border-white/10 bg-white/5 backdrop-blur-sm px-6 py-5 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <TicketTypeIcon type={currentTicket.issueType} size={13} />
+                    <span className="text-white/40 text-xs">{currentTicket.issueType ?? "Story"}</span>
+                    <span className="text-white/20 text-xs">·</span>
+                    <span className="font-mono text-violet-400 text-xs font-semibold">{currentTicket.jiraKey}</span>
+                  </div>
+                  {currentTicket.priority && (
+                    <span className="flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full"
+                      style={{ color: PRIORITY_COLORS[currentTicket.priority] ?? "#6b7280", backgroundColor: (PRIORITY_COLORS[currentTicket.priority] ?? "#6b7280") + "22" }}>
+                      {currentTicket.priority}
+                    </span>
+                  )}
+                </div>
                 <h2 className="text-xl font-bold text-white leading-snug">{currentTicket.title}</h2>
               </div>
               {currentTicket.contextNote && (

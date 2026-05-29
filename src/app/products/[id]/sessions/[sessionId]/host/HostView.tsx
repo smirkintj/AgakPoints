@@ -1,5 +1,6 @@
 "use client";
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { usePartyRoom } from "@/hooks/usePartyRoom";
 import type { MsgOut, CheckedInMember, RevealedVote, PublicState } from "@/types/partykit";
@@ -154,6 +155,7 @@ function JiraSyncBadge({ status }: { status: "idle" | "saving" | "synced" | "par
 // ── Main Component ────────────────────────────────────────────────────────────
 
 export function HostView({ session, productId }: { session: PokerSession; productId: string }) {
+  const router = useRouter();
   const [sessionStatus, setSessionStatus] = useState<"WAITING" | "ACTIVE" | "COMPLETED">(
     session.status as "WAITING" | "ACTIVE" | "COMPLETED"
   );
@@ -187,7 +189,13 @@ export function HostView({ session, productId }: { session: PokerSession; produc
   const [summaryIssueKey, setSummaryIssueKey] = useState("");
   const [summaryState, setSummaryState] = useState<"idle" | "loading" | "success" | "error">("idle");
   const [recapOpen, setRecapOpen] = useState(false);
-  const [calendarOpen, setCalendarOpen] = useState(false);
+
+  // Auto-redirect to product page when recap is closed
+  const closeRecap = () => {
+    setRecapOpen(false);
+    router.push(`/products/${productId}`);
+  };
+
   const sessionStartedAt = useRef<Date | null>(null);
 
   const joinUrl = typeof window !== "undefined" ? `${window.location.origin}/join/${session.id}` : "";
@@ -249,7 +257,7 @@ export function HostView({ session, productId }: { session: PokerSession; produc
   const openTicket = (t: TicketWithVotes, note: string) => {
     setPendingTicket(null);
     setContextNote(note);
-    send({ type: "OPEN_TICKET", ticketId: t.id, jiraKey: t.jiraKey, title: t.title, description: t.description ?? undefined, contextNote: note || undefined });
+    send({ type: "OPEN_TICKET", ticketId: t.id, jiraKey: t.jiraKey, title: t.title, description: t.description ?? undefined, contextNote: note || undefined, issueType: t.issueType ?? undefined, priority: t.priority ?? undefined });
   };
 
   const reveal = () => send({ type: "REVEAL_VOTES" });
@@ -356,13 +364,6 @@ export function HostView({ session, productId }: { session: PokerSession; produc
             </Button>
           )}
           <button
-            onClick={() => setCalendarOpen((o) => !o)}
-            className={`flex items-center gap-2 text-xs transition-colors border rounded-lg px-3 py-1.5 ${calendarOpen ? "text-violet-300 border-violet-500/50 bg-violet-600/10" : "text-white/40 hover:text-white border-white/10"}`}
-          >
-            <Eye className="w-3.5 h-3.5" />
-            Calendar
-          </button>
-          <button
             onClick={copyLink}
             className="flex items-center gap-2 text-xs text-white/40 hover:text-white transition-colors border border-white/10 rounded-lg px-3 py-1.5"
           >
@@ -375,29 +376,6 @@ export function HostView({ session, productId }: { session: PokerSession; produc
           </div>
         </div>
       </header>
-
-      {/* Calendar panel — slide down from header */}
-      <AnimatePresence initial={false}>
-        {calendarOpen && (
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: "auto", opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.2 }}
-            className="overflow-hidden border-b border-white/8 bg-black/20 shrink-0"
-          >
-            <div className="px-6 py-4 overflow-x-auto">
-              <SprintCalendar
-                sessionId={session.id}
-                startDate={sprintStart}
-                endDate={sprintEnd}
-                members={session.product.members}
-                checkedIn={checkedIn}
-              />
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
 
       {/* Body */}
       <div className="flex flex-1 min-h-0 overflow-hidden">
@@ -525,6 +503,17 @@ export function HostView({ session, productId }: { session: PokerSession; produc
         {/* ── Main canvas ── */}
         <main className="flex-1 flex flex-col overflow-y-auto">
 
+          {/* Sprint Calendar — always on top, full width */}
+          <div className="shrink-0 px-6 pt-5 pb-2 border-b border-white/8">
+            <SprintCalendar
+              sessionId={session.id}
+              startDate={sprintStart}
+              endDate={sprintEnd}
+              members={session.product.members}
+              checkedIn={checkedIn}
+            />
+          </div>
+
           {/* WAITING */}
           {sessionStatus === "WAITING" && (
             <div className="flex flex-col items-center gap-8 p-12 flex-1">
@@ -554,16 +543,6 @@ export function HostView({ session, productId }: { session: PokerSession; produc
                 Start session ({checkedIn.length} checked in)
               </Button>
 
-              {/* Sprint Calendar */}
-              <div className="w-full max-w-3xl">
-                <SprintCalendar
-                  sessionId={session.id}
-                  startDate={sprintStart}
-                  endDate={sprintEnd}
-                  members={session.product.members}
-                  checkedIn={checkedIn}
-                />
-              </div>
             </div>
           )}
 
@@ -870,7 +849,7 @@ export function HostView({ session, productId }: { session: PokerSession; produc
                   <FileText className="w-3.5 h-3.5" />
                   Post to JIRA
                 </Button>
-                <Button variant="ghost" onClick={() => setRecapOpen(false)}>
+                <Button variant="ghost" onClick={closeRecap}>
                   Close
                 </Button>
               </div>

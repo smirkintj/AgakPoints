@@ -10,12 +10,20 @@ interface PublicHoliday {
 }
 
 interface SprintCalendarProps {
+  sessionId: string;
   startDate: Date | null;
   endDate: Date | null;
   members: Member[];
   checkedIn: CheckedInMember[];
   countryCode?: string;
 }
+
+const COUNTRY_OPTIONS = [
+  { code: "MY", label: "MY" },
+  { code: "SG", label: "SG" },
+  { code: "US", label: "US" },
+  { code: "GB", label: "GB" },
+];
 
 function isoDate(d: Date): string {
   return d.toISOString().split("T")[0];
@@ -32,25 +40,86 @@ function isWeekend(d: Date): boolean {
   return day === 0 || day === 6;
 }
 
-export function SprintCalendar({ startDate, endDate, members, checkedIn, countryCode = "MY" }: SprintCalendarProps) {
+export function SprintCalendar({ sessionId, startDate, endDate, members, checkedIn, countryCode: defaultCountry = "MY" }: SprintCalendarProps) {
   const [holidays, setHolidays] = useState<Set<string>>(new Set());
   const [holidayNames, setHolidayNames] = useState<Record<string, string>>({});
   const [leaveMap, setLeaveMap] = useState<Record<string, Set<string>>>({}); // memberId → set of ISO dates on leave
+  const [selectedCountry, setSelectedCountry] = useState(defaultCountry);
 
+  // Load persisted leaves on mount
+  useEffect(() => {
+    fetch(`/api/sessions/${sessionId}/leave`)
+      .then((r) => r.json())
+      .then((data: { leaves: { memberId: string; date: string }[] }) => {
+        const map: Record<string, Set<string>> = {};
+        for (const l of data.leaves) {
+          if (!map[l.memberId]) map[l.memberId] = new Set();
+          map[l.memberId].add(l.date);
+        }
+        setLeaveMap(map);
+      })
+      .catch(() => {});
+  }, [sessionId]);
+
+  // Load or fetch holidays
   useEffect(() => {
     if (!startDate) return;
-    const year = startDate.getFullYear();
-    fetch(`https://date.nager.at/api/v3/PublicHolidays/${year}/${countryCode}`)
+
+    const applyHolidays = (list: PublicHoliday[]) => {
+      const set = new Set(list.map((h) => h.date));
+      const names: Record<string, string> = {};
+      for (const h of list) names[h.date] = h.name;
+      setHolidays(set);
+      setHolidayNames(names);
+    };
+
+    // First try DB
+    fetch(`/api/sessions/${sessionId}/holidays`)
       .then((r) => r.json())
-      .then((data: PublicHoliday[]) => {
-        const set = new Set(data.map((h) => h.date));
+      .then((data: { holidays: PublicHoliday[] }) => {
+        if (data.holidays.length > 0) {
+          applyHolidays(data.holidays);
+        } else {
+          // Fetch from nager.at and persist
+          const year = startDate.getFullYear();
+          fetch(`https://date.nager.at/api/v3/PublicHolidays/${year}/${selectedCountry}`)
+            .then((r) => r.json())
+            .then((list: PublicHoliday[]) => {
+              applyHolidays(list);
+              fetch(`/api/sessions/${sessionId}/holidays`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ holidays: list }),
+              }).catch(() => {});
+            })
+            .catch(() => {});
+        }
+      })
+      .catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionId, startDate]);
+
+  // When country changes, re-fetch from nager.at and update DB
+  const handleCountryChange = (code: string) => {
+    setSelectedCountry(code);
+    if (!startDate) return;
+    const year = startDate.getFullYear();
+    fetch(`https://date.nager.at/api/v3/PublicHolidays/${year}/${code}`)
+      .then((r) => r.json())
+      .then((list: PublicHoliday[]) => {
+        const set = new Set(list.map((h) => h.date));
         const names: Record<string, string> = {};
-        for (const h of data) names[h.date] = h.name;
+        for (const h of list) names[h.date] = h.name;
         setHolidays(set);
         setHolidayNames(names);
+        fetch(`/api/sessions/${sessionId}/holidays`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ holidays: list }),
+        }).catch(() => {});
       })
-      .catch(() => { /* ignore */ });
-  }, [startDate, countryCode]);
+      .catch(() => {});
+  };
 
   if (!startDate || !endDate) return null;
 
@@ -68,8 +137,14 @@ export function SprintCalendar({ startDate, endDate, members, checkedIn, country
   const toggleLeave = (memberId: string, dateStr: string) => {
     setLeaveMap((prev) => {
       const set = new Set(prev[memberId] ?? []);
-      if (set.has(dateStr)) set.delete(dateStr);
-      else set.add(dateStr);
+      const active = !set.has(dateStr);
+      if (active) set.add(dateStr);
+      else set.delete(dateStr);
+      fetch(`/api/sessions/${sessionId}/leave`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ memberId, date: dateStr, active }),
+      }).catch(() => {});
       return { ...prev, [memberId]: set };
     });
   };
@@ -94,11 +169,22 @@ export function SprintCalendar({ startDate, endDate, members, checkedIn, country
     <div className="rounded-2xl border border-white/10 bg-white/5 backdrop-blur-sm p-4">
       <div className="flex items-center justify-between mb-3">
         <p className="text-xs text-white/40 font-medium uppercase tracking-widest">Sprint Calendar</p>
-        <div className="flex items-center gap-3 text-[10px] text-white/30">
-          <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-emerald-500/50 inline-block" /> Workday</span>
-          <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-white/10 inline-block" /> Weekend</span>
-          <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-red-500/50 inline-block" /> Holiday</span>
-          <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-yellow-500/50 inline-block" /> Leave</span>
+        <div className="flex items-center gap-3">
+          <select
+            value={selectedCountry}
+            onChange={(e) => handleCountryChange(e.target.value)}
+            className="text-[10px] bg-white/5 border border-white/15 rounded px-1.5 py-0.5 text-white/50 focus:outline-none focus:border-white/30"
+          >
+            {COUNTRY_OPTIONS.map((c) => (
+              <option key={c.code} value={c.code}>{c.label}</option>
+            ))}
+          </select>
+          <div className="flex items-center gap-3 text-[10px] text-white/30">
+            <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-emerald-500/50 inline-block" /> Workday</span>
+            <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-white/10 inline-block" /> Weekend</span>
+            <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-red-500/50 inline-block" /> Holiday</span>
+            <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-yellow-500/50 inline-block" /> Leave</span>
+          </div>
         </div>
       </div>
 

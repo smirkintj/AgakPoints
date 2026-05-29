@@ -11,12 +11,6 @@ interface MemberAvatarProps {
 
 export function MemberAvatar({ name, role, avatarUrl, size = 36, showRing = false, dimmed = false }: MemberAvatarProps) {
   const { hex } = getRoleColor(role);
-  const initials = name
-    .split(" ")
-    .map((w) => w[0])
-    .join("")
-    .slice(0, 2)
-    .toUpperCase();
 
   return (
     <div
@@ -24,7 +18,6 @@ export function MemberAvatar({ name, role, avatarUrl, size = 36, showRing = fals
       style={{
         width: size,
         height: size,
-        fontSize: size * 0.35,
         backgroundColor: hex + "33",
         border: `2px solid ${showRing ? hex : hex + "55"}`,
         boxShadow: showRing ? `0 0 0 2px ${hex}44` : undefined,
@@ -34,7 +27,12 @@ export function MemberAvatar({ name, role, avatarUrl, size = 36, showRing = fals
         // eslint-disable-next-line @next/next/no-img-element
         <img src={avatarUrl} alt={name} className="w-full h-full object-cover" />
       ) : (
-        <span style={{ color: hex }}>{initials}</span>
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={`https://api.dicebear.com/9.x/thumbs/svg?seed=${encodeURIComponent(name)}&backgroundColor=transparent`}
+          alt={name}
+          style={{ width: size, height: size, borderRadius: "50%" }}
+        />
       )}
     </div>
   );

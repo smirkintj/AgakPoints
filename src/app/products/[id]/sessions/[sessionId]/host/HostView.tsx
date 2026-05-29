@@ -313,6 +313,11 @@ export function HostView({ session, productId }: { session: PokerSession; produc
           </div>
           <div className="flex items-center gap-2">
             <span className="text-white font-semibold text-sm">{session.sprintName}</span>
+            {sprintStart && sprintEnd && (
+              <span className="text-white/40 text-xs">
+                {sprintStart.toLocaleDateString("en-MY", { day: "numeric", month: "short" })} – {sprintEnd.toLocaleDateString("en-MY", { day: "numeric", month: "short" })}
+              </span>
+            )}
             <span className="text-white/20 text-sm">·</span>
             <span className="text-white/40 text-xs">Refinement</span>
           </div>
@@ -321,6 +326,18 @@ export function HostView({ session, productId }: { session: PokerSession; produc
           </Badge>
         </div>
         <div className="flex items-center gap-2">
+          {sessionStatus === "ACTIVE" && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={async () => {
+                await fetch(`/api/sessions/${session.id}/end`, { method: "POST" });
+                setSessionStatus("COMPLETED");
+              }}
+            >
+              End Session
+            </Button>
+          )}
           {estimatedTickets.length > 0 && (
             <Button variant="ghost" size="sm" onClick={() => setSummaryModalOpen(true)}>
               <FileText className="w-3.5 h-3.5" />
@@ -507,6 +524,7 @@ export function HostView({ session, productId }: { session: PokerSession; produc
               {(sprintStart || sprintEnd) && (
                 <div className="w-full max-w-3xl">
                   <SprintCalendar
+                    sessionId={session.id}
                     startDate={sprintStart}
                     endDate={sprintEnd}
                     members={session.product.members}

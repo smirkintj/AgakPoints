@@ -36,7 +36,7 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
   if (!product) notFound();
 
   return (
-    <div className="min-h-screen bg-zinc-950">
+    <div className="min-h-screen">
       <header className="border-b border-white/10 px-6 py-4 flex items-center justify-between">
         <Link href="/dashboard" className="flex items-center gap-2 text-white/40 hover:text-white transition-colors">
           <ArrowLeft className="w-4 h-4" />

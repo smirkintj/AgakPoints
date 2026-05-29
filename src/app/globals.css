@@ -1,48 +1,21 @@
 @import "tailwindcss";
 
 :root {
-  --background: #09090b;
   --foreground: #fafafa;
 }
 
 body {
-  background: var(--background);
+  background: #0f0c29;
+  background: linear-gradient(135deg, #0f0c29 0%, #1a1040 40%, #24243e 100%);
+  background-attachment: fixed;
   color: var(--foreground);
   font-family: system-ui, -apple-system, sans-serif;
   min-height: 100vh;
 }
 
-.card-flip {
-  perspective: 1000px;
-}
-
-.card-flip-inner {
-  transition: transform 0.6s cubic-bezier(0.4, 0, 0.2, 1);
-  transform-style: preserve-3d;
-  position: relative;
-}
-
-.card-flip-inner.flipped {
-  transform: rotateY(180deg);
-}
-
-.card-face {
-  backface-visibility: hidden;
-  position: absolute;
-  inset: 0;
-}
-
-.card-back {
-  transform: rotateY(180deg);
-}
-
 @keyframes float-up {
   0% { opacity: 1; transform: translateY(0) scale(1); }
   100% { opacity: 0; transform: translateY(-80px) scale(1.5); }
-}
-
-.float-emoji {
-  animation: float-up 1.5s ease-out forwards;
 }
 
 @keyframes pulse-glow {

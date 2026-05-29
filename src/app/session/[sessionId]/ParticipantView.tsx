@@ -92,7 +92,7 @@ export function ParticipantView({ session }: { session: SessionWithDetails }) {
 
   if (!member) {
     return (
-      <div className="min-h-screen bg-zinc-950 flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
           <p className="text-4xl mb-4">🤔</p>
           <p className="text-white/60 mb-4">Who are you?</p>
@@ -105,7 +105,7 @@ export function ParticipantView({ session }: { session: SessionWithDetails }) {
   }
 
   return (
-    <div className="min-h-screen bg-zinc-950 flex flex-col">
+    <div className="min-h-screen flex flex-col">
       <header className="border-b border-white/10 px-6 py-3 flex items-center justify-between">
         <div>
           <p className="text-white font-semibold text-sm">{session.product.name}</p>

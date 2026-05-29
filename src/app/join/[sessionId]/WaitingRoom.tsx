@@ -47,7 +47,7 @@ export function WaitingRoom({ session }: { session: SessionWithDetails }) {
   const amCheckedIn = selectedMember && isIn(selectedMember.id);
 
   return (
-    <div className="min-h-screen bg-zinc-950 flex flex-col items-center justify-center px-6 py-10 relative overflow-hidden">
+    <div className="min-h-screen flex flex-col items-center justify-center px-6 py-10 relative overflow-hidden">
       <div className="absolute top-1/3 left-1/4 w-64 h-64 bg-violet-600/10 rounded-full blur-3xl" />
       <div className="absolute bottom-1/3 right-1/4 w-64 h-64 bg-indigo-600/10 rounded-full blur-3xl" />
 

@@ -133,9 +133,9 @@ export function HostView({ session, productId: _productId }: { session: PokerSes
   };
 
   return (
-    <div className="min-h-screen bg-zinc-950 flex flex-col">
+    <div className="min-h-screen flex flex-col">
       {/* Header */}
-      <header className="border-b border-white/10 px-6 py-3 flex items-center justify-between shrink-0">
+      <header className="border-b border-white/10 bg-white/5 backdrop-blur-sm px-6 py-3 flex items-center justify-between shrink-0">
         <div className="flex items-center gap-4">
           <span className="text-lg">🃏</span>
           <div>
@@ -158,15 +158,15 @@ export function HostView({ session, productId: _productId }: { session: PokerSes
         </div>
       </header>
 
-      <div className="flex flex-1 min-h-0">
+      <div className="flex flex-1 min-h-0 overflow-hidden">
         {/* Ticket sidebar */}
-        <aside className="w-72 border-r border-white/10 flex flex-col">
+        <aside className="w-72 border-r border-white/10 bg-white/3 backdrop-blur-sm flex flex-col h-full">
           <div className="p-4 border-b border-white/10 shrink-0">
             <p className="text-xs text-white/40 font-medium uppercase tracking-wider">
               Tickets ({session.tickets.length})
             </p>
           </div>
-          <div className="flex-1 overflow-y-auto p-2">
+          <div className="overflow-y-auto flex-1 p-2">
             {session.tickets.map((ticket) => {
               const isLocked = lockedTickets.has(ticket.id) || ticket.status === "ESTIMATED";
               const isCurrent = currentTicketId === ticket.id;

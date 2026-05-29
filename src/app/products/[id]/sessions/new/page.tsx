@@ -53,7 +53,7 @@ export default function NewSessionPage({ params }: { params: Promise<{ id: strin
   };
 
   return (
-    <div className="min-h-screen bg-zinc-950 max-w-2xl mx-auto px-6 py-10">
+    <div className="min-h-screen max-w-2xl mx-auto px-6 py-10">
       <Link href={`/products/${id}`} className="flex items-center gap-2 text-white/40 hover:text-white text-sm mb-8 transition-colors">
         <ArrowLeft className="w-4 h-4" />
         Back to Product

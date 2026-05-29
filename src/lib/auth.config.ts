@@ -16,6 +16,7 @@ export const authConfig: NextAuthConfig = {
         pathname.startsWith("/login") ||
         pathname.startsWith("/register") ||
         pathname.startsWith("/join") ||
+        pathname.startsWith("/session") ||
         pathname.startsWith("/api/auth");
 
       if (isPublic) return true;

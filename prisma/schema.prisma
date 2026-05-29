@@ -65,16 +65,18 @@ enum MemberRole {
 }
 
 model PokerSession {
-  id           String               @id @default(cuid())
-  productId    String
-  product      Product              @relation(fields: [productId], references: [id], onDelete: Cascade)
-  sprintId     String
-  sprintName   String
-  status       SessionStatus        @default(WAITING)
-  tickets      Ticket[]
-  participants SessionParticipant[]
-  createdAt    DateTime             @default(now())
-  completedAt  DateTime?
+  id              String               @id @default(cuid())
+  productId       String
+  product         Product              @relation(fields: [productId], references: [id], onDelete: Cascade)
+  sprintId        String
+  sprintName      String
+  status          SessionStatus        @default(WAITING)
+  sprintStartDate DateTime?
+  sprintEndDate   DateTime?
+  tickets         Ticket[]
+  participants    SessionParticipant[]
+  createdAt       DateTime             @default(now())
+  completedAt     DateTime?
 }
 
 enum SessionStatus {
@@ -106,10 +108,14 @@ model Ticket {
   finalEstimate Int?
   adminNote     String?
   order         Int
-  assigneeId    String?
-  assignee      Member?      @relation("TicketAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
-  votes         Vote[]
-  createdAt     DateTime     @default(now())
+  assigneeId            String?
+  assignee              Member?      @relation("TicketAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
+  issueType             String?
+  jiraAssigneeName      String?
+  jiraAssigneeAccountId String?
+  contextNote           String?
+  votes                 Vote[]
+  createdAt             DateTime     @default(now())
 }
 
 enum TicketStatus {

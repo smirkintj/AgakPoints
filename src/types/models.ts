@@ -39,6 +39,8 @@ export interface PokerSession {
   sprintId: string;
   sprintName: string;
   status: SessionStatus;
+  sprintStartDate: Date | null;
+  sprintEndDate: Date | null;
   createdAt: Date;
   completedAt: Date | null;
 }
@@ -60,8 +62,12 @@ export interface Ticket {
   status: TicketStatus;
   finalEstimate: number | null;
   adminNote: string | null;
+  contextNote: string | null;
   order: number;
   assigneeId: string | null;
+  issueType: string | null;
+  jiraAssigneeName: string | null;
+  jiraAssigneeAccountId: string | null;
   createdAt: Date;
 }
 

@@ -21,7 +21,8 @@ export async function POST(
 
   const product = ticket.session.product;
 
-  // Write back to JIRA asynchronously (don't block the response)
+  const jiraSync = { points: false, comment: false, assignee: false };
+
   if (product.jiraBaseUrl && product.jiraEmail && product.jiraApiToken) {
     const participants = ticket.session.participants
       .filter((p: { checkedIn: boolean }) => p.checkedIn)
@@ -35,16 +36,24 @@ export async function POST(
       note,
     });
 
-    // Fire and forget — JIRA writes can be slow
-    const jiraOps = [
-      updateStoryPoints(product.jiraBaseUrl, product.jiraEmail, product.jiraApiToken, ticket.jiraKey, value).catch(console.error),
-      postSessionComment(product.jiraBaseUrl, product.jiraEmail, product.jiraApiToken, ticket.jiraKey, commentText).catch(console.error),
-    ];
-    if (assigneeId) {
-      jiraOps.push(updateAssignee(product.jiraBaseUrl, product.jiraEmail, product.jiraApiToken, ticket.jiraKey, assigneeId).catch(console.error));
+    const [pointsResult, commentResult] = await Promise.allSettled([
+      updateStoryPoints(product.jiraBaseUrl, product.jiraEmail, product.jiraApiToken, ticket.jiraKey, value),
+      postSessionComment(product.jiraBaseUrl, product.jiraEmail, product.jiraApiToken, ticket.jiraKey, commentText),
+    ]);
+    jiraSync.points = pointsResult.status === "fulfilled";
+    jiraSync.comment = commentResult.status === "fulfilled";
+
+    // Write back assignee using jiraAssigneeAccountId from ticket (not internal memberId)
+    if (ticket.jiraAssigneeAccountId) {
+      try {
+        await updateAssignee(product.jiraBaseUrl, product.jiraEmail, product.jiraApiToken, ticket.jiraKey, ticket.jiraAssigneeAccountId);
+        jiraSync.assignee = true;
+      } catch {
+        jiraSync.assignee = false;
+      }
     }
-    Promise.all(jiraOps);
   }
 
-  return NextResponse.json({ success: true });
+  void sessionId; // used implicitly via ticket relation
+  return NextResponse.json({ success: true, jiraSync });
 }

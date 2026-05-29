@@ -41,7 +41,13 @@ export default function NewSessionPage({ params }: { params: Promise<{ id: strin
       const res = await fetch("/api/sessions", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ productId: id, sprintId: selected.id, sprintName: selected.name }),
+        body: JSON.stringify({
+          productId: id,
+          sprintId: selected.id,
+          sprintName: selected.name,
+          sprintStartDate: selected.startDate,
+          sprintEndDate: selected.endDate,
+        }),
       });
       if (!res.ok) throw new Error("Failed");
       const data = await res.json();

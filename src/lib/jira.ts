@@ -12,6 +12,8 @@ export interface JiraIssue {
   fields: {
     summary: string;
     description?: { content?: unknown[] } | null;
+    issuetype?: { name: string; iconUrl?: string } | null;
+    assignee?: { accountId: string; displayName: string } | null;
     story_points?: number;
     [key: string]: unknown;
   };
@@ -48,7 +50,7 @@ export async function fetchSprintIssues(
   sprintId: string
 ): Promise<JiraIssue[]> {
   const res = await fetch(
-    `${baseUrl}/rest/agile/1.0/sprint/${sprintId}/issue?maxResults=100&fields=summary,description`,
+    `${baseUrl}/rest/agile/1.0/sprint/${sprintId}/issue?maxResults=100&fields=summary,description,issuetype,assignee`,
     {
       headers: {
         Authorization: authHeader(email, token),

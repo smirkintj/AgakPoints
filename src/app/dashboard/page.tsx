@@ -12,21 +12,15 @@ export default async function DashboardPage() {
   const session = await auth();
   if (!session?.user?.id) redirect("/login");
 
-  let products;
-  try {
-    products = await prisma.product.findMany({
-      where: { adminId: session.user.id },
-      include: {
-        members: true,
-        pokerSessions: { orderBy: { createdAt: "desc" }, take: 1 },
-        _count: { select: { pokerSessions: true, members: true } },
-      },
-      orderBy: { createdAt: "desc" },
-    });
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    return <pre style={{ color: "red", padding: 24, whiteSpace: "pre-wrap" }}>{msg}</pre>;
-  }
+  const products = await prisma.product.findMany({
+    where: { adminId: session.user.id },
+    include: {
+      members: true,
+      pokerSessions: { orderBy: { createdAt: "desc" }, take: 1 },
+      _count: { select: { pokerSessions: true, members: true } },
+    },
+    orderBy: { createdAt: "desc" },
+  });
 
   return (
     <div className="min-h-screen">

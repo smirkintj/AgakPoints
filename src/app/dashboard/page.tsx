@@ -5,7 +5,7 @@ import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Plus, Users, Layers } from "lucide-react";
+import { Plus, Users, Layers, LayoutGrid } from "lucide-react";
 import { SignOutButton } from "@/components/layout/SignOutButton";
 
 export default async function DashboardPage() {
@@ -54,7 +54,9 @@ export default async function DashboardPage() {
 
         {products.length === 0 ? (
           <div className="text-center py-24 rounded-2xl border border-dashed border-white/10">
-            <div className="text-4xl mb-4">📦</div>
+            <div className="w-12 h-12 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center mx-auto mb-4">
+              <LayoutGrid className="w-5 h-5 text-white/30" />
+            </div>
             <h2 className="text-white font-semibold mb-2">No products yet</h2>
             <p className="text-white/40 text-sm mb-6">
               Create a product to connect your team, JIRA sprint, and start estimating.

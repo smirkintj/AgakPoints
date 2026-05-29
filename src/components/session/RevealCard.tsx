@@ -3,6 +3,7 @@ import { motion } from "framer-motion";
 import { cn, calcMedian, getVoteColor } from "@/lib/utils";
 import { RoleBadge } from "./RoleBadge";
 import { getRoleColor } from "@/lib/roles";
+import { Flame } from "lucide-react";
 
 interface RevealCardProps {
   memberName: string;
@@ -37,7 +38,7 @@ export function RevealCard({ memberName, value, median, delay = 0, role }: Revea
       </div>
       <span className="text-xs text-white/50 text-center max-w-[64px] truncate">{memberName}</span>
       {role && <RoleBadge role={role} size="sm" />}
-      {isOutlier && <span className="text-xs">🌶️</span>}
+      {isOutlier && <Flame className="w-3 h-3 text-orange-400" />}
     </motion.div>
   );
 }

@@ -5,6 +5,9 @@ import { motion, AnimatePresence } from "framer-motion";
 import { usePartyRoom } from "@/hooks/usePartyRoom";
 import type { MsgOut, CheckedInMember } from "@/types/partykit";
 import type { Member, PokerSession, Product, SessionParticipant } from "@/types/models";
+import { Check, Layers } from "lucide-react";
+import { MemberAvatar } from "@/components/session/MemberAvatar";
+import { RoleBadge } from "@/components/session/RoleBadge";
 
 type SessionWithDetails = PokerSession & {
   product: Product & { members: Member[] };
@@ -53,7 +56,9 @@ export function WaitingRoom({ session }: { session: SessionWithDetails }) {
 
       <div className="relative z-10 w-full max-w-md">
         <div className="text-center mb-8">
-          <div className="text-4xl mb-3">🃏</div>
+          <div className="w-10 h-10 rounded-xl bg-violet-600 flex items-center justify-center mx-auto mb-3">
+            <Layers className="w-5 h-5 text-white" />
+          </div>
           <h1 className="text-2xl font-bold text-white">{session.product.name}</h1>
           <p className="text-white/40 text-sm mt-1">{session.sprintName}</p>
         </div>
@@ -64,7 +69,9 @@ export function WaitingRoom({ session }: { session: SessionWithDetails }) {
             animate={{ scale: 1, opacity: 1 }}
             className="text-center p-8 rounded-2xl border border-emerald-500/30 bg-emerald-600/10"
           >
-            <div className="text-4xl mb-3">✅</div>
+            <div className="w-10 h-10 rounded-full bg-emerald-600/30 border border-emerald-500/30 flex items-center justify-center mx-auto mb-3">
+              <Check className="w-5 h-5 text-emerald-400" />
+            </div>
             <h2 className="text-white font-bold text-lg">You&apos;re in!</h2>
             <p className="text-white/50 text-sm mt-2">Hey {selectedMember.name}, waiting for the host to start...</p>
             <div className="flex justify-center gap-1.5 mt-5">
@@ -104,16 +111,14 @@ export function WaitingRoom({ session }: { session: SessionWithDetails }) {
                           : "border-white/10 hover:border-violet-500 hover:bg-violet-600/10 cursor-pointer active:scale-[0.98]"
                       }`}
                     >
-                      <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm shrink-0 ${
-                        inRoom ? "bg-emerald-600/30 text-emerald-400" : "bg-white/10 text-white"
-                      }`}>
-                        {member.name[0]?.toUpperCase()}
-                      </div>
+                      <MemberAvatar name={member.name} role={member.role} size={40} showRing={inRoom} dimmed={false} />
                       <div className="text-left flex-1 min-w-0">
-                        <p className={`font-medium truncate ${inRoom ? "text-emerald-300" : "text-white"}`}>{member.name}</p>
-                        <p className="text-xs text-white/30">{member.role}</p>
+                        <div className="flex items-center gap-2">
+                          <p className={`font-medium truncate ${inRoom ? "text-emerald-300" : "text-white"}`}>{member.name}</p>
+                          <RoleBadge role={member.role} size="sm" />
+                        </div>
                       </div>
-                      {inRoom && <span className="text-emerald-400 text-sm shrink-0">✓</span>}
+                      {inRoom && <Check className="w-4 h-4 text-emerald-400 shrink-0" />}
                     </motion.button>
                   );
                 })}

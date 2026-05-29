@@ -8,12 +8,16 @@ import { Badge } from "@/components/ui/badge";
 import { RevealCard } from "@/components/session/RevealCard";
 import { EmojiReaction } from "@/components/session/EmojiReaction";
 import { MemberAvatar } from "@/components/session/MemberAvatar";
+import { RoleBadge } from "@/components/session/RoleBadge";
 import { AssignmentPicker } from "@/components/session/AssignmentPicker";
 import { BandwidthRail } from "@/components/session/BandwidthRail";
 import { BulkAssignDrawer } from "@/components/session/BulkAssignDrawer";
 import type { Ticket, Member, SessionParticipant, Vote } from "@/types/models";
 import { FIBONACCI_VALUES } from "@/lib/utils";
-import { Check, ChevronRight, Copy, Eye, GitMerge, Lock, Play, Users } from "lucide-react";
+import {
+  Check, ChevronRight, Copy, Eye, ExternalLink,
+  GitMerge, Layers, Lock, Play, Sparkles, Users,
+} from "lucide-react";
 import confetti from "canvas-confetti";
 
 type TicketWithVotes = Ticket & { votes: (Vote & { member: Member })[] };
@@ -27,6 +31,72 @@ interface PokerSession {
   participants: ParticipantWithMember[];
   product: { id: string; members: Member[]; jiraBaseUrl?: string | null };
 }
+
+// ── Ticket Node Card ─────────────────────────────────────────────────────────
+
+function TicketNode({
+  ticket,
+  assignee,
+  jiraBaseUrl,
+  children,
+}: {
+  ticket: TicketWithVotes;
+  assignee: Member | null;
+  jiraBaseUrl?: string | null;
+  children?: React.ReactNode;
+}) {
+  const jiraUrl = jiraBaseUrl ? `${jiraBaseUrl}/browse/${ticket.jiraKey}` : null;
+
+  return (
+    <div className="rounded-2xl border border-white/10 bg-white/5 backdrop-blur-sm shadow-2xl w-full max-w-2xl">
+      {/* Card header */}
+      <div className="flex items-center justify-between px-6 pt-5 pb-3 border-b border-white/8">
+        <div className="flex items-center gap-2">
+          <div className="w-3 h-3 rounded-sm bg-violet-500" />
+          <span className="text-white/40 text-xs">Story</span>
+          <span className="text-white/20 text-xs">·</span>
+          <span className="font-mono text-violet-400 text-xs font-semibold tracking-wide">{ticket.jiraKey}</span>
+        </div>
+        <div className="flex items-center gap-2">
+          {assignee && (
+            <div className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-white/5 border border-white/10">
+              <MemberAvatar name={assignee.name} role={assignee.role} size={18} />
+              <span className="text-[11px] text-white/60">{assignee.name.split(" ")[0]}</span>
+              <RoleBadge role={assignee.role} size="sm" />
+            </div>
+          )}
+          {jiraUrl && (
+            <a
+              href={jiraUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="p-1.5 rounded-lg text-white/30 hover:text-white/70 hover:bg-white/5 transition-colors"
+            >
+              <ExternalLink className="w-3.5 h-3.5" />
+            </a>
+          )}
+        </div>
+      </div>
+
+      {/* Title + description */}
+      <div className="px-6 py-5">
+        <h2 className="text-xl font-bold text-white leading-snug tracking-tight mb-3">
+          {ticket.title}
+        </h2>
+        {ticket.description && (
+          <p className="text-sm text-white/50 leading-relaxed line-clamp-4">
+            {ticket.description}
+          </p>
+        )}
+      </div>
+
+      {/* Footer */}
+      {children && <div className="px-6 pb-5">{children}</div>}
+    </div>
+  );
+}
+
+// ── Main Component ────────────────────────────────────────────────────────────
 
 export function HostView({ session, productId: _productId }: { session: PokerSession; productId: string }) {
   const [sessionStatus, setSessionStatus] = useState<"WAITING" | "ACTIVE" | "COMPLETED">(
@@ -47,8 +117,6 @@ export function HostView({ session, productId: _productId }: { session: PokerSes
   const [copied, setCopied] = useState(false);
   const [savingLock, setSavingLock] = useState(false);
   const [bulkDrawerOpen, setBulkDrawerOpen] = useState(false);
-
-  // Local tickets state (mutable for bulk assign updates)
   const [tickets, setTickets] = useState(session.tickets);
 
   const joinUrl = typeof window !== "undefined" ? `${window.location.origin}/join/${session.id}` : "";
@@ -75,29 +143,17 @@ export function HostView({ session, productId: _productId }: { session: PokerSes
 
   const { send } = usePartyRoom(session.id, useCallback((msg: MsgOut) => {
     switch (msg.type) {
-      case "STATE_SYNC":
-        applyState(msg.state);
-        break;
-      case "PRESENCE_UPDATE":
-        setCheckedIn(msg.checkedIn);
-        break;
-      case "SESSION_STARTED":
-        setSessionStatus("ACTIVE");
-        break;
+      case "STATE_SYNC": applyState(msg.state); break;
+      case "PRESENCE_UPDATE": setCheckedIn(msg.checkedIn); break;
+      case "SESSION_STARTED": setSessionStatus("ACTIVE"); break;
       case "TICKET_OPENED":
         setCurrentTicketId(msg.ticketId);
-        setVotedMemberIds([]);
-        setVotedCount(0);
-        setRevealedVotes(null);
-        setRevealMeta(null);
-        setSelectedEstimate(null);
-        setSelectedAssigneeId(null);
-        setNote("");
+        setVotedMemberIds([]); setVotedCount(0);
+        setRevealedVotes(null); setRevealMeta(null);
+        setSelectedEstimate(null); setSelectedAssigneeId(null); setNote("");
         break;
       case "VOTE_PROGRESS":
-        setVotedMemberIds(msg.votedMemberIds);
-        setVotedCount(msg.votedCount);
-        break;
+        setVotedMemberIds(msg.votedMemberIds); setVotedCount(msg.votedCount); break;
       case "VOTES_REVEALED":
         setRevealedVotes(msg.votes);
         setRevealMeta({ median: msg.median, isConsensus: msg.isConsensus });
@@ -106,35 +162,23 @@ export function HostView({ session, productId: _productId }: { session: PokerSes
       case "ESTIMATE_LOCKED":
         setLockedTickets((l) => new Set([...l, msg.ticketId]));
         if (msg.assigneeId) setTicketAssignees((a) => ({ ...a, [msg.ticketId]: msg.assigneeId! }));
-        setCurrentTicketId(null);
-        setRevealedVotes(null);
-        setRevealMeta(null);
+        setCurrentTicketId(null); setRevealedVotes(null); setRevealMeta(null);
         break;
-      case "REACTION_RECEIVED":
-        setReactions((r) => [...r.slice(-20), msg]);
-        break;
+      case "REACTION_RECEIVED": setReactions((r) => [...r.slice(-20), msg]); break;
     }
   }, [applyState]));
 
   const currentTicket = tickets.find((t) => t.id === currentTicketId) ?? null;
 
   const startSession = () => send({ type: "START_SESSION" });
-
   const openTicket = (t: TicketWithVotes) =>
     send({ type: "OPEN_TICKET", ticketId: t.id, jiraKey: t.jiraKey, title: t.title, description: t.description ?? undefined });
-
   const reveal = () => send({ type: "REVEAL_VOTES" });
 
   const lockEstimate = async () => {
     if (!currentTicket || selectedEstimate === null) return;
     setSavingLock(true);
-    send({
-      type: "LOCK_ESTIMATE",
-      ticketId: currentTicket.id,
-      value: selectedEstimate,
-      note: note || undefined,
-      assigneeId: selectedAssigneeId ?? undefined,
-    });
+    send({ type: "LOCK_ESTIMATE", ticketId: currentTicket.id, value: selectedEstimate, note: note || undefined, assigneeId: selectedAssigneeId ?? undefined });
     await fetch(`/api/sessions/${session.id}/tickets/${currentTicket.id}/lock`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -149,64 +193,68 @@ export function HostView({ session, productId: _productId }: { session: PokerSes
     setTimeout(() => setCopied(false), 2000);
   };
 
-  // Bandwidth rail data: use checkedIn to filter product members to those present
+  const enrichedTickets = tickets.map((t) => ({ ...t, assigneeId: ticketAssignees[t.id] ?? t.assigneeId }));
+
   const presentMembers = session.product.members
     .filter((m) => checkedIn.some((c) => c.memberId === m.id))
     .map((m) => ({
-      memberId: m.id,
-      memberName: m.name,
-      role: m.role,
+      memberId: m.id, memberName: m.name, role: m.role,
       capacity: (m as Member & { capacity?: number }).capacity ?? 20,
     }));
 
-  // Enrich tickets with current assignee state
-  const enrichedTickets = tickets.map((t) => ({
-    ...t,
-    assigneeId: ticketAssignees[t.id] ?? t.assigneeId,
-  }));
+  const currentAssigneeId = currentTicket ? (ticketAssignees[currentTicket.id] ?? currentTicket.assigneeId) : null;
+  const currentAssignee = currentAssigneeId ? session.product.members.find((m) => m.id === currentAssigneeId) ?? null : null;
 
   return (
-    <div className="min-h-screen flex flex-col">
+    <div className="h-screen flex flex-col">
       {/* Header */}
-      <header className="border-b border-white/10 bg-white/5 backdrop-blur-sm px-6 py-3 flex items-center justify-between shrink-0">
-        <div className="flex items-center gap-4">
-          <span className="text-lg">🃏</span>
-          <div>
-            <p className="text-white font-semibold text-sm">{session.sprintName}</p>
-            <p className="text-white/40 text-xs">Host View</p>
+      <header className="border-b border-white/8 bg-black/20 backdrop-blur-sm px-5 py-3 flex items-center justify-between shrink-0">
+        <div className="flex items-center gap-3">
+          <div className="w-7 h-7 rounded-lg bg-violet-600 flex items-center justify-center">
+            <Layers className="w-4 h-4 text-white" />
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-white font-semibold text-sm">{session.sprintName}</span>
+            <span className="text-white/20 text-sm">·</span>
+            <span className="text-white/40 text-xs">Refinement</span>
           </div>
           <Badge variant={sessionStatus === "ACTIVE" ? "warning" : sessionStatus === "COMPLETED" ? "success" : "ghost"}>
             {sessionStatus}
           </Badge>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
           {lockedTickets.size > 0 && (
             <Button variant="ghost" size="sm" onClick={() => setBulkDrawerOpen(true)}>
               <GitMerge className="w-3.5 h-3.5" />
               Bulk Assign
-              <span className="ml-1 text-violet-400">{lockedTickets.size}</span>
+              <span className="ml-1 text-violet-400 font-mono text-xs">{lockedTickets.size}</span>
             </Button>
           )}
-          <button onClick={copyLink} className="flex items-center gap-2 text-xs text-white/50 hover:text-white transition-colors border border-white/10 rounded-lg px-3 py-1.5">
+          <button
+            onClick={copyLink}
+            className="flex items-center gap-2 text-xs text-white/40 hover:text-white transition-colors border border-white/10 rounded-lg px-3 py-1.5"
+          >
             {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-            {copied ? "Copied!" : "Share Link"}
+            {copied ? "Copied" : "Share link"}
           </button>
-          <div className="flex items-center gap-1.5 text-sm text-white/40">
-            <Users className="w-4 h-4" />
-            {checkedIn.length}/{session.product.members.length}
+          <div className="flex items-center gap-1.5 text-sm text-white/30">
+            <Users className="w-3.5 h-3.5" />
+            <span className="text-xs tabular-nums">{checkedIn.length}/{session.product.members.length}</span>
           </div>
         </div>
       </header>
 
+      {/* Body */}
       <div className="flex flex-1 min-h-0 overflow-hidden">
-        {/* Ticket sidebar */}
-        <aside className="w-72 border-r border-white/10 bg-white/3 backdrop-blur-sm flex flex-col h-full">
-          <div className="p-4 border-b border-white/10 shrink-0">
-            <p className="text-xs text-white/40 font-medium uppercase tracking-wider">
-              Tickets ({tickets.length})
+
+        {/* ── Ticket sidebar ── */}
+        <aside className="w-68 shrink-0 border-r border-white/8 bg-black/10 flex flex-col h-full">
+          <div className="px-4 py-3 border-b border-white/8 shrink-0">
+            <p className="text-[11px] text-white/30 font-medium uppercase tracking-widest">
+              Issues · {tickets.length}
             </p>
           </div>
-          <div className="overflow-y-auto flex-1 p-2">
+          <div className="overflow-y-auto flex-1 py-1">
             {tickets.map((ticket) => {
               const isLocked = lockedTickets.has(ticket.id) || ticket.status === "ESTIMATED";
               const isCurrent = currentTicketId === ticket.id;
@@ -217,18 +265,30 @@ export function HostView({ session, productId: _productId }: { session: PokerSes
                   key={ticket.id}
                   onClick={() => !isLocked && sessionStatus === "ACTIVE" && openTicket(ticket)}
                   disabled={isLocked || sessionStatus !== "ACTIVE"}
-                  className={`w-full text-left p-3 rounded-lg mb-1 transition-all ${
-                    isCurrent ? "bg-violet-600/20 border border-violet-500/50"
-                    : isLocked ? "opacity-40 cursor-not-allowed border border-transparent"
-                    : "hover:bg-white/5 border border-transparent"
+                  className={`w-full text-left px-3 py-2.5 transition-all border-l-2 ${
+                    isCurrent
+                      ? "bg-violet-600/15 border-l-violet-500"
+                      : isLocked
+                      ? "opacity-35 cursor-not-allowed border-l-transparent"
+                      : "hover:bg-white/4 border-l-transparent"
                   }`}
                 >
                   <div className="flex items-start gap-2">
-                    <span className="text-xs font-mono text-violet-400 shrink-0 mt-0.5">{ticket.jiraKey}</span>
-                    <span className="text-xs text-white/70 leading-relaxed line-clamp-2 flex-1">{ticket.title}</span>
-                    <div className="flex items-center gap-1 shrink-0 ml-auto mt-0.5">
-                      {assignee && <MemberAvatar name={assignee.name} role={assignee.role} size={16} />}
-                      {isLocked && <Check className="w-3.5 h-3.5 text-emerald-400" />}
+                    <div className={`w-2.5 h-2.5 rounded-sm mt-0.5 shrink-0 ${isLocked ? "bg-emerald-500/60" : "bg-violet-500/60"}`} />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5 mb-0.5">
+                        <span className="text-[10px] font-mono text-violet-400/80 shrink-0">{ticket.jiraKey}</span>
+                        {ticket.finalEstimate != null && (
+                          <span className="text-[10px] font-mono text-emerald-400/80 ml-auto">{ticket.finalEstimate}pt</span>
+                        )}
+                      </div>
+                      <p className="text-[11px] text-white/60 leading-snug line-clamp-2">{ticket.title}</p>
+                      {assignee && (
+                        <div className="flex items-center gap-1 mt-1">
+                          <MemberAvatar name={assignee.name} role={assignee.role} size={12} />
+                          <span className="text-[9px] text-white/30">{assignee.name.split(" ")[0]}</span>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </button>
@@ -237,140 +297,137 @@ export function HostView({ session, productId: _productId }: { session: PokerSes
           </div>
         </aside>
 
-        {/* Main game area */}
-        <main className="flex-1 overflow-y-auto">
+        {/* ── Main canvas ── */}
+        <main className="flex-1 flex flex-col overflow-y-auto">
+
           {/* WAITING */}
           {sessionStatus === "WAITING" && (
-            <div className="flex flex-col items-center justify-center gap-8 p-12 h-full">
+            <div className="flex flex-col items-center justify-center gap-8 p-12 flex-1">
               <div className="text-center">
                 <h2 className="text-2xl font-bold text-white mb-2">Waiting for team</h2>
-                <p className="text-white/40 text-sm">Share the link — members click their name to check in</p>
+                <p className="text-white/40 text-sm">Share the join link — members select their name to check in.</p>
               </div>
-              <div className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-xl px-4 py-3 max-w-md w-full">
-                <span className="text-white/60 text-sm truncate flex-1">{joinUrl}</span>
+              <div className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-xl px-4 py-3 w-full max-w-sm">
+                <span className="text-white/50 text-xs truncate flex-1 font-mono">{joinUrl}</span>
                 <button onClick={copyLink} className="text-violet-400 hover:text-violet-300 shrink-0">
-                  {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                  {copied ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
                 </button>
               </div>
-              {/* Presence list with role-aware avatars */}
-              <div className="flex flex-wrap gap-3 justify-center max-w-md">
+              <div className="flex flex-wrap gap-3 justify-center max-w-sm">
                 {session.product.members.map((m) => {
                   const isIn = checkedIn.some((c) => c.memberId === m.id);
                   return (
-                    <motion.div
-                      key={m.id}
-                      animate={isIn ? { scale: [1, 1.1, 1] } : {}}
-                      className="flex items-center gap-2"
-                    >
-                      <MemberAvatar name={m.name} role={m.role} size={36} showRing={isIn} dimmed={!isIn} />
+                    <motion.div key={m.id} animate={isIn ? { scale: [1, 1.1, 1] } : {}} className="flex flex-col items-center gap-1">
+                      <MemberAvatar name={m.name} role={m.role} size={40} showRing={isIn} dimmed={!isIn} />
+                      <span className="text-[10px] text-white/30">{m.name.split(" ")[0]}</span>
                     </motion.div>
                   );
                 })}
               </div>
               <Button onClick={startSession} size="lg" disabled={checkedIn.length === 0}>
                 <Play className="w-4 h-4" />
-                Start Session ({checkedIn.length} checked in)
+                Start session ({checkedIn.length} checked in)
               </Button>
             </div>
           )}
 
-          {/* ACTIVE — no ticket selected */}
+          {/* ACTIVE — no ticket */}
           {sessionStatus === "ACTIVE" && !currentTicket && (
-            <div className="flex items-center justify-center h-full text-white/30">
-              <p>← Pick a ticket to open voting</p>
+            <div className="flex items-center justify-center flex-1 text-white/20 text-sm">
+              Select a ticket from the sidebar to start voting
             </div>
           )}
 
           {/* ACTIVE — ticket open */}
           {sessionStatus === "ACTIVE" && currentTicket && (
-            <div className="p-8 flex flex-col gap-6 max-w-3xl">
-              {/* Ticket info */}
-              <div>
-                <div className="flex items-center gap-3 mb-2">
-                  <span className="text-violet-400 font-mono text-sm font-bold">{currentTicket.jiraKey}</span>
-                  <Badge variant={revealedVotes ? "success" : "warning"}>
+            <div className="flex flex-col items-center gap-6 px-8 py-8 flex-1">
+
+              {/* Ticket node — centered card */}
+              <TicketNode
+                ticket={currentTicket}
+                assignee={currentAssignee}
+                jiraBaseUrl={session.product.jiraBaseUrl}
+              />
+
+              {/* Vote progress */}
+              <div className="w-full max-w-2xl space-y-4">
+                <div className="flex items-center gap-3">
+                  <div className="flex-1 h-1.5 bg-white/8 rounded-full overflow-hidden">
+                    <motion.div
+                      className="h-full bg-violet-500 rounded-full"
+                      animate={{ width: checkedIn.length > 0 ? `${(votedCount / checkedIn.length) * 100}%` : "0%" }}
+                      transition={{ type: "spring", stiffness: 200, damping: 20 }}
+                    />
+                  </div>
+                  <span className="text-xs text-white/30 shrink-0 tabular-nums font-mono">
+                    {votedCount}/{checkedIn.length}
+                  </span>
+                  <Badge variant={revealedVotes ? "success" : "warning"} >
                     {revealedVotes ? "Revealed" : "Voting"}
                   </Badge>
                 </div>
-                <h2 className="text-xl font-bold text-white leading-snug">{currentTicket.title}</h2>
-              </div>
 
-              {/* Vote progress bar */}
-              <div className="flex items-center gap-4">
-                <div className="flex-1 h-2 bg-white/10 rounded-full overflow-hidden">
-                  <motion.div
-                    className="h-full bg-violet-500 rounded-full"
-                    animate={{ width: checkedIn.length > 0 ? `${(votedCount / checkedIn.length) * 100}%` : "0%" }}
-                    transition={{ type: "spring", stiffness: 200, damping: 20 }}
-                  />
+                {/* Member vote indicators */}
+                <div className="flex flex-wrap gap-3">
+                  {checkedIn.map((m) => {
+                    const hasVoted = votedMemberIds.includes(m.memberId);
+                    return (
+                      <div key={m.memberId} className="flex flex-col items-center gap-1">
+                        <MemberAvatar name={m.memberName} role={m.role} size={38} showRing={hasVoted} dimmed={!hasVoted} />
+                        <span className="text-[9px] text-white/25 max-w-[40px] truncate text-center">
+                          {m.memberName.split(" ")[0]}
+                        </span>
+                      </div>
+                    );
+                  })}
                 </div>
-                <span className="text-sm text-white/50 shrink-0 tabular-nums">
-                  {votedCount}/{checkedIn.length} voted
-                </span>
+
+                {/* Reveal button */}
+                {!revealedVotes && (
+                  <Button onClick={reveal} variant="success" disabled={votedCount === 0} className="self-start">
+                    <Eye className="w-4 h-4" />
+                    Reveal votes
+                    {votedCount > 0 && <span className="opacity-50 font-mono text-xs ml-1">({votedCount})</span>}
+                  </Button>
+                )}
               </div>
 
-              {/* Member vote indicators with role avatars */}
-              <div className="flex flex-wrap gap-3">
-                {checkedIn.map((m) => {
-                  const hasVoted = votedMemberIds.includes(m.memberId);
-                  return (
-                    <div key={m.memberId} className="flex flex-col items-center gap-1">
-                      <MemberAvatar name={m.memberName} role={m.role} size={40} showRing={hasVoted} dimmed={!hasVoted} />
-                      <span className="text-[10px] text-white/30 max-w-[40px] truncate text-center">{m.memberName.split(" ")[0]}</span>
-                    </div>
-                  );
-                })}
-              </div>
-
-              {/* Before reveal */}
-              {!revealedVotes && (
-                <Button onClick={reveal} variant="success" size="lg" disabled={votedCount === 0} className="self-start">
-                  <Eye className="w-4 h-4" />
-                  Reveal Votes
-                  {votedCount > 0 && <span className="ml-1 opacity-60">({votedCount})</span>}
-                </Button>
-              )}
-
-              {/* After reveal */}
+              {/* Post-reveal */}
               {revealedVotes && revealMeta && (
-                <div className="space-y-6">
-                  <div className="flex flex-wrap gap-4">
+                <div className="w-full max-w-2xl space-y-5">
+                  {/* Flip cards */}
+                  <div className="flex flex-wrap gap-3">
                     {revealedVotes.map((vote, i) => {
                       const member = checkedIn.find((c) => c.memberId === vote.memberId);
                       return (
-                        <RevealCard
-                          key={vote.memberId}
-                          memberName={vote.memberName}
-                          value={vote.value}
-                          median={revealMeta.median}
-                          delay={i * 0.08}
-                          role={member?.role}
-                        />
+                        <RevealCard key={vote.memberId} memberName={vote.memberName} value={vote.value}
+                          median={revealMeta.median} delay={i * 0.08} role={member?.role} />
                       );
                     })}
                   </div>
 
+                  {/* Stats row */}
                   <div className="flex items-center gap-4 text-sm">
-                    <span className="text-white/40">
-                      Median: <span className="text-white font-bold">{revealMeta.median}</span>
+                    <span className="text-white/30">
+                      Median <span className="text-white font-bold font-mono">{revealMeta.median}</span>
                     </span>
                     {revealMeta.isConsensus && (
-                      <span className="text-emerald-400 font-semibold">🎉 Full consensus!</span>
+                      <span className="flex items-center gap-1.5 text-emerald-400 font-semibold text-sm">
+                        <Sparkles className="w-4 h-4" /> Full consensus
+                      </span>
                     )}
                   </div>
 
-                  <div>
-                    <p className="text-xs text-white/30 mb-2 uppercase tracking-wider">Reactions</p>
-                    <EmojiReaction
-                      reactions={reactions}
-                      onReact={(emoji) => send({ type: "REACTION", memberId: "host", memberName: "Host", emoji })}
-                    />
-                  </div>
+                  {/* Reactions */}
+                  <EmojiReaction
+                    reactions={reactions}
+                    onReact={(emoji) => send({ type: "REACTION", memberId: "host", memberName: "Host", emoji })}
+                  />
 
                   {/* Lock estimate */}
                   {!lockedTickets.has(currentTicket.id) ? (
-                    <div className="border-t border-white/10 pt-6 space-y-4">
-                      <p className="text-sm text-white/50 font-medium">Lock final estimate</p>
+                    <div className="border-t border-white/8 pt-5 space-y-4">
+                      <p className="text-xs text-white/30 uppercase tracking-widest font-medium">Lock estimate</p>
                       <div className="flex gap-2 flex-wrap">
                         {FIBONACCI_VALUES.map((v) => (
                           <button
@@ -378,8 +435,8 @@ export function HostView({ session, productId: _productId }: { session: PokerSes
                             onClick={() => setSelectedEstimate(v)}
                             className={`w-11 h-16 rounded-xl border-2 font-bold text-lg transition-all ${
                               selectedEstimate === v
-                                ? "border-violet-400 bg-violet-600 text-white scale-110"
-                                : "border-white/20 text-white/60 hover:border-violet-400 hover:text-white hover:scale-105"
+                                ? "border-violet-400 bg-violet-600/40 text-white scale-110"
+                                : "border-white/15 text-white/40 hover:border-violet-400/60 hover:text-white hover:scale-105"
                             }`}
                           >
                             {v}
@@ -388,31 +445,22 @@ export function HostView({ session, productId: _productId }: { session: PokerSes
                       </div>
                       <input
                         type="text"
-                        placeholder="Note (optional — will be posted to JIRA)"
+                        placeholder="Note (optional, posted to JIRA)"
                         value={note}
                         onChange={(e) => setNote(e.target.value)}
-                        className="w-full rounded-lg border border-white/20 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-white/30 focus:border-violet-500 focus:outline-none"
+                        className="w-full rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-white/20 focus:border-violet-500 focus:outline-none"
                       />
-                      <AssignmentPicker
-                        members={checkedIn}
-                        selectedMemberId={selectedAssigneeId}
-                        onChange={setSelectedAssigneeId}
-                      />
-                      <Button
-                        onClick={lockEstimate}
-                        disabled={selectedEstimate === null || savingLock}
-                        variant="success"
-                        size="lg"
-                      >
+                      <AssignmentPicker members={checkedIn} selectedMemberId={selectedAssigneeId} onChange={setSelectedAssigneeId} />
+                      <Button onClick={lockEstimate} disabled={selectedEstimate === null || savingLock} variant="success">
                         <Lock className="w-4 h-4" />
-                        {savingLock ? "Saving..." : `Lock ${selectedEstimate ? `— ${selectedEstimate} pts` : ""}`}
+                        {savingLock ? "Saving..." : `Lock${selectedEstimate ? ` — ${selectedEstimate} pts` : ""}`}
                         <ChevronRight className="w-4 h-4" />
                       </Button>
                     </div>
                   ) : (
                     <div className="flex items-center gap-2 text-emerald-400 pt-2">
                       <Check className="w-4 h-4" />
-                      <span className="text-sm font-medium">Locked & synced to JIRA</span>
+                      <span className="text-sm font-medium">Locked and synced to JIRA</span>
                     </div>
                   )}
                 </div>
@@ -421,7 +469,7 @@ export function HostView({ session, productId: _productId }: { session: PokerSes
           )}
         </main>
 
-        {/* Bandwidth rail */}
+        {/* ── Bandwidth rail ── */}
         {sessionStatus !== "WAITING" && (
           <BandwidthRail
             members={presentMembers}

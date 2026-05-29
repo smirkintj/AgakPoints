@@ -9,6 +9,7 @@ import { RevealCard } from "@/components/session/RevealCard";
 import { EmojiReaction } from "@/components/session/EmojiReaction";
 import { FIBONACCI_VALUES, isConsensus } from "@/lib/utils";
 import { MemberAvatar } from "@/components/session/MemberAvatar";
+import { Check, Clock, Sparkles } from "lucide-react";
 import confetti from "canvas-confetti";
 
 type SessionWithDetails = PokerSession & {
@@ -95,7 +96,9 @@ export function ParticipantView({ session }: { session: SessionWithDetails }) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
-          <p className="text-4xl mb-4">🤔</p>
+          <div className="w-12 h-12 rounded-full bg-white/5 border border-white/10 flex items-center justify-center mx-auto mb-4">
+            <Clock className="w-5 h-5 text-white/40" />
+          </div>
           <p className="text-white/60 mb-4">Who are you?</p>
           <a href={`/join/${session.id}`} className="text-violet-400 hover:text-violet-300 underline underline-offset-2">
             Go back to check-in
@@ -122,8 +125,10 @@ export function ParticipantView({ session }: { session: SessionWithDetails }) {
         <AnimatePresence mode="wait">
           {!currentTicket ? (
             <motion.div key="waiting" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="text-center">
-              <div className="text-5xl mb-4">⏳</div>
-              <h2 className="text-xl font-bold text-white mb-2">Waiting for host...</h2>
+              <div className="w-12 h-12 rounded-full bg-violet-600/20 border border-violet-500/30 flex items-center justify-center mx-auto mb-4">
+                <Clock className="w-5 h-5 text-violet-400" />
+              </div>
+              <h2 className="text-xl font-bold text-white mb-2">Waiting for host</h2>
               <p className="text-white/40 text-sm">The host will open a ticket to vote on.</p>
               <div className="flex justify-center gap-1.5 mt-6">
                 {[0, 150, 300].map((d) => (
@@ -196,7 +201,11 @@ export function ParticipantView({ session }: { session: SessionWithDetails }) {
                   </div>
                   <div className="text-center text-sm text-white/40">
                     Median: <span className="text-white font-bold">{revealMeta.median}</span>
-                    {revealMeta.isConsensus && <span className="ml-2 text-emerald-400 font-semibold">🎉 Consensus!</span>}
+                    {revealMeta.isConsensus && (
+                      <span className="ml-2 flex items-center gap-1 text-emerald-400 font-semibold">
+                        <Sparkles className="w-3.5 h-3.5" /> Consensus
+                      </span>
+                    )}
                   </div>
                   <div className="border-t border-white/10 pt-4 flex justify-center">
                     <EmojiReaction reactions={reactions} onReact={sendReaction} />
@@ -205,7 +214,9 @@ export function ParticipantView({ session }: { session: SessionWithDetails }) {
               )}
 
               {lockedTickets.has(currentTicket.ticketId) && (
-                <p className="text-center text-emerald-400 text-sm font-medium">✓ Estimate locked by host</p>
+                <p className="text-center text-emerald-400 text-sm font-medium flex items-center justify-center gap-1.5">
+                  <Check className="w-4 h-4" /> Estimate locked by host
+                </p>
               )}
             </motion.div>
           )}

@@ -1,5 +1,5 @@
 "use client";
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { usePartyRoom } from "@/hooks/usePartyRoom";
 import type { MsgOut, CheckedInMember, RevealedVote, PublicState } from "@/types/partykit";
@@ -17,7 +17,7 @@ import { SprintCalendar } from "@/components/session/SprintCalendar";
 import type { Ticket, Member, SessionParticipant, Vote } from "@/types/models";
 import { FIBONACCI_VALUES } from "@/lib/utils";
 import {
-  AlertTriangle, Check, CheckCircle2, ChevronDown, ChevronRight, Copy, Eye, ExternalLink,
+  AlertTriangle, Award, Check, CheckCircle2, ChevronDown, ChevronRight, Clock, Copy, Eye, ExternalLink,
   GitMerge, Layers, Lock, Play, Sparkles, Users, FileText,
 } from "lucide-react";
 import confetti from "canvas-confetti";
@@ -186,6 +186,9 @@ export function HostView({ session, productId }: { session: PokerSession; produc
   const [summaryModalOpen, setSummaryModalOpen] = useState(false);
   const [summaryIssueKey, setSummaryIssueKey] = useState("");
   const [summaryState, setSummaryState] = useState<"idle" | "loading" | "success" | "error">("idle");
+  const [recapOpen, setRecapOpen] = useState(false);
+  const [calendarOpen, setCalendarOpen] = useState(false);
+  const sessionStartedAt = useRef<Date | null>(null);
 
   const joinUrl = typeof window !== "undefined" ? `${window.location.origin}/join/${session.id}` : "";
 
@@ -214,7 +217,7 @@ export function HostView({ session, productId }: { session: PokerSession; produc
     switch (msg.type) {
       case "STATE_SYNC": applyState(msg.state); break;
       case "PRESENCE_UPDATE": setCheckedIn(msg.checkedIn); break;
-      case "SESSION_STARTED": setSessionStatus("ACTIVE"); break;
+      case "SESSION_STARTED": setSessionStatus("ACTIVE"); sessionStartedAt.current = new Date(); break;
       case "TICKET_OPENED":
         setCurrentTicketId(msg.ticketId);
         setContextNote(msg.contextNote ?? "");
@@ -333,6 +336,7 @@ export function HostView({ session, productId }: { session: PokerSession; produc
               onClick={async () => {
                 await fetch(`/api/sessions/${session.id}/end`, { method: "POST" });
                 setSessionStatus("COMPLETED");
+                setRecapOpen(true);
               }}
             >
               End Session
@@ -352,6 +356,13 @@ export function HostView({ session, productId }: { session: PokerSession; produc
             </Button>
           )}
           <button
+            onClick={() => setCalendarOpen((o) => !o)}
+            className={`flex items-center gap-2 text-xs transition-colors border rounded-lg px-3 py-1.5 ${calendarOpen ? "text-violet-300 border-violet-500/50 bg-violet-600/10" : "text-white/40 hover:text-white border-white/10"}`}
+          >
+            <Eye className="w-3.5 h-3.5" />
+            Calendar
+          </button>
+          <button
             onClick={copyLink}
             className="flex items-center gap-2 text-xs text-white/40 hover:text-white transition-colors border border-white/10 rounded-lg px-3 py-1.5"
           >
@@ -364,6 +375,29 @@ export function HostView({ session, productId }: { session: PokerSession; produc
           </div>
         </div>
       </header>
+
+      {/* Calendar panel — slide down from header */}
+      <AnimatePresence initial={false}>
+        {calendarOpen && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="overflow-hidden border-b border-white/8 bg-black/20 shrink-0"
+          >
+            <div className="px-6 py-4 overflow-x-auto">
+              <SprintCalendar
+                sessionId={session.id}
+                startDate={sprintStart}
+                endDate={sprintEnd}
+                members={session.product.members}
+                checkedIn={checkedIn}
+              />
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Body */}
       <div className="flex flex-1 min-h-0 overflow-hidden">
@@ -521,17 +555,15 @@ export function HostView({ session, productId }: { session: PokerSession; produc
               </Button>
 
               {/* Sprint Calendar */}
-              {(sprintStart || sprintEnd) && (
-                <div className="w-full max-w-3xl">
-                  <SprintCalendar
-                    sessionId={session.id}
-                    startDate={sprintStart}
-                    endDate={sprintEnd}
-                    members={session.product.members}
-                    checkedIn={checkedIn}
-                  />
-                </div>
-              )}
+              <div className="w-full max-w-3xl">
+                <SprintCalendar
+                  sessionId={session.id}
+                  startDate={sprintStart}
+                  endDate={sprintEnd}
+                  members={session.product.members}
+                  checkedIn={checkedIn}
+                />
+              </div>
             </div>
           )}
 
@@ -750,6 +782,102 @@ export function HostView({ session, productId }: { session: PokerSession; produc
           setTicketAssignees((prev) => ({ ...prev, ...map }));
         }}
       />
+
+      {/* Session Recap overlay */}
+      <AnimatePresence>
+        {recapOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-6"
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              transition={{ type: "spring", stiffness: 300, damping: 25 }}
+              className="bg-[#0d0b1a] border border-white/15 rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden"
+            >
+              {/* Header */}
+              <div className="px-8 py-6 border-b border-white/10 flex items-start justify-between">
+                <div>
+                  <div className="flex items-center gap-2 mb-1">
+                    <Award className="w-5 h-5 text-violet-400" />
+                    <h2 className="text-xl font-bold text-white">Session Complete</h2>
+                  </div>
+                  <p className="text-white/40 text-sm">{session.sprintName}</p>
+                </div>
+                <div className="text-right text-xs text-white/30">
+                  {sprintStart && sprintEnd && (
+                    <p>{sprintStart.toLocaleDateString("en-MY", { day: "numeric", month: "short" })} – {sprintEnd.toLocaleDateString("en-MY", { day: "numeric", month: "short" })}</p>
+                  )}
+                  {sessionStartedAt.current && (
+                    <p className="flex items-center gap-1 justify-end mt-0.5">
+                      <Clock className="w-3 h-3" />
+                      Duration: {Math.round((Date.now() - sessionStartedAt.current.getTime()) / 60000)} min
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              <div className="px-8 py-6 space-y-6 max-h-[60vh] overflow-y-auto">
+                {/* Attendance */}
+                <div>
+                  <p className="text-[10px] text-white/30 font-semibold uppercase tracking-widest mb-3">Team · {checkedIn.length} attended</p>
+                  <div className="flex flex-wrap gap-3">
+                    {checkedIn.map((m) => {
+                      const member = session.product.members.find((x) => x.id === m.memberId);
+                      return (
+                        <div key={m.memberId} className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/5 border border-white/10">
+                          <MemberAvatar name={m.memberName} role={m.role} size={22} />
+                          <span className="text-xs text-white/70">{m.memberName}</span>
+                          {member && <RoleBadge role={member.role} size="sm" />}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Estimated tickets */}
+                <div>
+                  <p className="text-[10px] text-white/30 font-semibold uppercase tracking-widest mb-3">
+                    Estimated · {estimatedTickets.length} tickets · {estimatedTickets.reduce((s, t) => s + (t.finalEstimate ?? 0), 0)} pts total
+                  </p>
+                  <div className="space-y-1.5">
+                    {estimatedTickets.map((t) => {
+                      const aid = ticketAssignees[t.id] ?? t.assigneeId;
+                      const assignee = aid ? session.product.members.find((m) => m.id === aid) : null;
+                      return (
+                        <div key={t.id} className="flex items-center gap-3 px-3 py-2 rounded-lg bg-white/3 border border-white/8">
+                          <TicketTypeIcon type={t.issueType} size={12} />
+                          <span className="font-mono text-[10px] text-violet-400/70 shrink-0">{t.jiraKey}</span>
+                          <span className="text-xs text-white/60 flex-1 truncate">{t.title}</span>
+                          {assignee && <MemberAvatar name={assignee.name} role={assignee.role} size={18} />}
+                          <span className="font-mono text-xs text-emerald-400 shrink-0">{t.finalEstimate ?? "—"} pts</span>
+                        </div>
+                      );
+                    })}
+                    {toEstimateTickets.length > 0 && (
+                      <p className="text-xs text-amber-400/60 pt-1">{toEstimateTickets.length} ticket{toEstimateTickets.length > 1 ? "s" : ""} not estimated</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="px-8 py-4 border-t border-white/10 flex items-center justify-between">
+                <Button variant="ghost" size="sm" onClick={() => setSummaryModalOpen(true)}>
+                  <FileText className="w-3.5 h-3.5" />
+                  Post to JIRA
+                </Button>
+                <Button variant="ghost" onClick={() => setRecapOpen(false)}>
+                  Close
+                </Button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Summary modal */}
       {summaryModalOpen && (

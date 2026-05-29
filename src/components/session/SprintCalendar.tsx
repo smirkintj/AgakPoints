@@ -121,7 +121,13 @@ export function SprintCalendar({ sessionId, startDate, endDate, members, checked
       .catch(() => {});
   };
 
-  if (!startDate || !endDate) return null;
+  if (!startDate || !endDate) {
+    return (
+      <div className="rounded-2xl border border-white/10 bg-white/5 backdrop-blur-sm p-4 text-center text-xs text-white/30 py-6">
+        No sprint dates set for this session. Sprint dates are fetched from JIRA when creating a session.
+      </div>
+    );
+  }
 
   // Build array of all days in sprint
   const days: Date[] = [];

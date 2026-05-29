@@ -24,8 +24,8 @@ export default async function DashboardPage() {
       orderBy: { createdAt: "desc" },
     });
   } catch (err) {
-    console.error("[dashboard] prisma error:", err);
-    throw err;
+    const msg = err instanceof Error ? err.message : String(err);
+    return <pre style={{ color: "red", padding: 24, whiteSpace: "pre-wrap" }}>{msg}</pre>;
   }
 
   return (

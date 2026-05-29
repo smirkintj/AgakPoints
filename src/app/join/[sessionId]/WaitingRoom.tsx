@@ -2,8 +2,8 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { useSessionChannel } from "@/hooks/useSessionChannel";
-import type { SessionEvent } from "@/types/ably";
+import { usePartyRoom } from "@/hooks/usePartyRoom";
+import type { MsgOut, CheckedInMember } from "@/types/partykit";
 import type { Member, PokerSession, Product, SessionParticipant } from "@/types/models";
 
 type SessionWithDetails = PokerSession & {
@@ -11,50 +11,40 @@ type SessionWithDetails = PokerSession & {
   participants: (SessionParticipant & { member: Member })[];
 };
 
-interface WaitingRoomProps {
-  session: SessionWithDetails;
-}
-
-export function WaitingRoom({ session }: WaitingRoomProps) {
+export function WaitingRoom({ session }: { session: SessionWithDetails }) {
   const router = useRouter();
-  const [checkedIn, setCheckedIn] = useState<{ memberId: string; memberName: string }[]>(
+  const [checkedIn, setCheckedIn] = useState<CheckedInMember[]>(
     session.participants
-      .filter((p: SessionParticipant & { member: Member }) => p.checkedIn)
-      .map((p: SessionParticipant & { member: Member }) => ({
-        memberId: p.member.id,
-        memberName: p.member.name,
-      }))
+      .filter((p) => p.checkedIn)
+      .map((p) => ({ memberId: p.member.id, memberName: p.member.name, role: p.member.role }))
   );
   const [selectedMember, setSelectedMember] = useState<Member | null>(null);
-  const [checkingIn, setCheckingIn] = useState(false);
+  const [busy, setBusy] = useState(false);
 
-  useSessionChannel(session.id, (event: SessionEvent) => {
-    if (event.type === "PRESENCE_UPDATE") {
-      setCheckedIn(event.checkedIn);
-    }
-    if (event.type === "SESSION_STARTED") {
-      router.push(`/session/${session.id}`);
-    }
+  const { send } = usePartyRoom(session.id, (msg: MsgOut) => {
+    if (msg.type === "PRESENCE_UPDATE") setCheckedIn(msg.checkedIn);
+    if (msg.type === "STATE_SYNC") setCheckedIn(msg.state.checkedIn);
+    if (msg.type === "SESSION_STARTED") router.push(`/session/${session.id}`);
   });
 
-  const handleCheckin = async (member: Member) => {
-    if (checkingIn || isCheckedIn(member.id)) return;
-    setCheckingIn(true);
+  const checkin = async (member: Member) => {
+    if (busy || isIn(member.id)) return;
+    setBusy(true);
     setSelectedMember(member);
     sessionStorage.setItem(`agakpoints_member_${session.id}`, JSON.stringify(member));
-    try {
-      await fetch(`/api/sessions/${session.id}/checkin`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ memberId: member.id }),
-      });
-    } finally {
-      setCheckingIn(false);
-    }
+    // DB record
+    await fetch(`/api/sessions/${session.id}/checkin`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ memberId: member.id }),
+    });
+    // Tell the room
+    send({ type: "CHECKIN", memberId: member.id, memberName: member.name, role: member.role });
+    setBusy(false);
   };
 
-  const isCheckedIn = (memberId: string) => checkedIn.some((c) => c.memberId === memberId);
-  const amICheckedIn = selectedMember && isCheckedIn(selectedMember.id);
+  const isIn = (id: string) => checkedIn.some((c) => c.memberId === id);
+  const amCheckedIn = selectedMember && isIn(selectedMember.id);
 
   return (
     <div className="min-h-screen bg-zinc-950 flex flex-col items-center justify-center px-6 py-10 relative overflow-hidden">
@@ -68,54 +58,62 @@ export function WaitingRoom({ session }: WaitingRoomProps) {
           <p className="text-white/40 text-sm mt-1">{session.sprintName}</p>
         </div>
 
-        {amICheckedIn ? (
+        {amCheckedIn ? (
           <motion.div
             initial={{ scale: 0.9, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             className="text-center p-8 rounded-2xl border border-emerald-500/30 bg-emerald-600/10"
           >
             <div className="text-4xl mb-3">✅</div>
-            <h2 className="text-white font-bold text-lg">You&apos;re checked in!</h2>
-            <p className="text-white/50 text-sm mt-2">
-              Hi {selectedMember.name}! Waiting for the session to start...
-            </p>
-            <div className="flex items-center justify-center gap-1.5 mt-4">
-              {[0, 150, 300].map((delay) => (
-                <div key={delay} className="w-2 h-2 bg-emerald-400 rounded-full animate-bounce" style={{ animationDelay: `${delay}ms` }} />
+            <h2 className="text-white font-bold text-lg">You&apos;re in!</h2>
+            <p className="text-white/50 text-sm mt-2">Hey {selectedMember.name}, waiting for the host to start...</p>
+            <div className="flex justify-center gap-1.5 mt-5">
+              {[0, 150, 300].map((d) => (
+                <div key={d} className="w-2 h-2 bg-emerald-400 rounded-full animate-bounce" style={{ animationDelay: `${d}ms` }} />
               ))}
             </div>
+            {/* Show who else is in */}
+            {checkedIn.length > 1 && (
+              <div className="mt-5 flex flex-wrap gap-1.5 justify-center">
+                {checkedIn.filter((c) => c.memberId !== selectedMember.id).map((c) => (
+                  <span key={c.memberId} className="text-xs px-2 py-1 bg-white/10 rounded-full text-white/50">
+                    {c.memberName}
+                  </span>
+                ))}
+              </div>
+            )}
           </motion.div>
         ) : (
           <div>
-            <p className="text-white/60 text-sm text-center mb-6">Click your name to check in</p>
+            <p className="text-white/60 text-sm text-center mb-5">Click your name to check in</p>
             <div className="space-y-2">
               <AnimatePresence>
                 {session.product.members.map((member) => {
-                  const inRoom = isCheckedIn(member.id);
+                  const inRoom = isIn(member.id);
                   return (
                     <motion.button
                       key={member.id}
                       layout
-                      initial={{ opacity: 0, y: 10 }}
+                      initial={{ opacity: 0, y: 8 }}
                       animate={{ opacity: 1, y: 0 }}
-                      onClick={() => handleCheckin(member)}
-                      disabled={inRoom || checkingIn}
+                      onClick={() => checkin(member)}
+                      disabled={inRoom || busy}
                       className={`w-full flex items-center gap-4 p-4 rounded-xl border transition-all ${
                         inRoom
-                          ? "border-emerald-500/40 bg-emerald-600/10 cursor-not-allowed"
-                          : "border-white/10 hover:border-violet-400 hover:bg-violet-600/10 cursor-pointer"
+                          ? "border-emerald-500/40 bg-emerald-600/10 cursor-default"
+                          : "border-white/10 hover:border-violet-500 hover:bg-violet-600/10 cursor-pointer active:scale-[0.98]"
                       }`}
                     >
-                      <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm ${
+                      <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm shrink-0 ${
                         inRoom ? "bg-emerald-600/30 text-emerald-400" : "bg-white/10 text-white"
                       }`}>
                         {member.name[0]?.toUpperCase()}
                       </div>
-                      <div className="text-left flex-1">
-                        <p className={`font-medium ${inRoom ? "text-emerald-300" : "text-white"}`}>{member.name}</p>
+                      <div className="text-left flex-1 min-w-0">
+                        <p className={`font-medium truncate ${inRoom ? "text-emerald-300" : "text-white"}`}>{member.name}</p>
                         <p className="text-xs text-white/30">{member.role}</p>
                       </div>
-                      {inRoom && <span className="text-emerald-400 text-sm">✓ Checked in</span>}
+                      {inRoom && <span className="text-emerald-400 text-sm shrink-0">✓</span>}
                     </motion.button>
                   );
                 })}
@@ -124,11 +122,9 @@ export function WaitingRoom({ session }: WaitingRoomProps) {
           </div>
         )}
 
-        {checkedIn.length > 0 && (
-          <p className="text-center text-white/30 text-xs mt-6">
-            {checkedIn.length} of {session.product.members.length} members checked in
-          </p>
-        )}
+        <p className="text-center text-white/20 text-xs mt-6">
+          {checkedIn.length}/{session.product.members.length} checked in
+        </p>
       </div>
     </div>
   );

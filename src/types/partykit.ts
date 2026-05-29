@@ -1,28 +1,43 @@
-export type PartyClientMessage =
-  | { type: "CHECKIN"; memberId: string; memberName: string }
-  | { type: "VOTE_CAST"; memberId: string; value: number }
-  | { type: "REACTION"; memberId: string; emoji: string }
+// Messages sent client → server
+export type MsgIn =
+  | { type: "CHECKIN"; memberId: string; memberName: string; role: string }
   | { type: "START_SESSION" }
-  | { type: "OPEN_TICKET"; ticketId: string }
+  | { type: "OPEN_TICKET"; ticketId: string; jiraKey: string; title: string; description?: string }
+  | { type: "VOTE_CAST"; memberId: string; value: number }
+  | { type: "REACTION"; memberId: string; memberName: string; emoji: string }
   | { type: "REVEAL_VOTES" }
   | { type: "LOCK_ESTIMATE"; ticketId: string; value: number; note?: string }
-  | { type: "NEXT_TICKET" };
+  | { type: "REQUEST_STATE" };
 
-export type PartyServerMessage =
-  | { type: "PRESENCE_UPDATE"; checkedIn: { memberId: string; memberName: string }[] }
+// Messages sent server → client
+export type MsgOut =
+  | { type: "PRESENCE_UPDATE"; checkedIn: CheckedInMember[] }
   | { type: "SESSION_STARTED" }
   | { type: "TICKET_OPENED"; ticketId: string; jiraKey: string; title: string; description?: string }
   | { type: "VOTE_PROGRESS"; votedCount: number; totalCount: number; votedMemberIds: string[] }
-  | { type: "VOTES_REVEALED"; votes: { memberId: string; memberName: string; value: number }[] }
+  | { type: "VOTES_REVEALED"; votes: RevealedVote[]; median: number; isConsensus: boolean }
   | { type: "ESTIMATE_LOCKED"; ticketId: string; value: number }
   | { type: "REACTION_RECEIVED"; memberId: string; memberName: string; emoji: string }
-  | { type: "SESSION_COMPLETED" };
+  | { type: "STATE_SYNC"; state: PublicState };
 
-export interface RoomState {
-  status: "WAITING" | "ACTIVE" | "COMPLETED";
-  currentTicketId: string | null;
-  checkedIn: { memberId: string; memberName: string }[];
-  votes: Record<string, number>;
+export interface CheckedInMember {
+  memberId: string;
+  memberName: string;
+  role: string;
+}
+
+export interface RevealedVote {
+  memberId: string;
+  memberName: string;
+  value: number;
+}
+
+export interface PublicState {
+  sessionStatus: "WAITING" | "ACTIVE" | "COMPLETED";
+  checkedIn: CheckedInMember[];
+  currentTicket: { ticketId: string; jiraKey: string; title: string; description?: string } | null;
+  votedMemberIds: string[];
   revealed: boolean;
-  totalParticipants: number;
+  revealedVotes: RevealedVote[] | null;
+  lockedTickets: string[];
 }

@@ -18,7 +18,7 @@ import type { Ticket, Member, SessionParticipant, Vote } from "@/types/models";
 import { FIBONACCI_VALUES } from "@/lib/utils";
 import {
   AlertTriangle, Check, CheckCircle2, ChevronDown, ChevronRight, Copy, Eye, ExternalLink,
-  GitMerge, Layers, Lock, Play, Sparkles, Users,
+  GitMerge, Layers, Lock, Play, Sparkles, Users, FileText,
 } from "lucide-react";
 import confetti from "canvas-confetti";
 
@@ -38,18 +38,31 @@ interface PokerSession {
 
 // ── Ticket Node Card ─────────────────────────────────────────────────────────
 
+const PRIORITY_COLORS: Record<string, string> = {
+  Highest: "#ef4444",
+  High:    "#f97316",
+  Medium:  "#eab308",
+  Low:     "#3b82f6",
+  Lowest:  "#6b7280",
+};
+
 function TicketNode({
   ticket,
   assignee,
+  jiraAssigneeName,
   jiraBaseUrl,
+  priority,
   children,
 }: {
   ticket: TicketWithVotes;
   assignee: Member | null;
+  jiraAssigneeName?: string | null;
   jiraBaseUrl?: string | null;
+  priority?: string | null;
   children?: React.ReactNode;
 }) {
   const jiraUrl = jiraBaseUrl ? `${jiraBaseUrl}/browse/${ticket.jiraKey}` : null;
+  const priorityColor = priority ? (PRIORITY_COLORS[priority] ?? "#6b7280") : null;
 
   return (
     <div className="rounded-2xl border border-white/10 bg-white/5 backdrop-blur-sm shadow-2xl w-full max-w-2xl">
@@ -60,6 +73,12 @@ function TicketNode({
           <span className="text-white/40 text-xs">{ticket.issueType ?? "Story"}</span>
           <span className="text-white/20 text-xs">·</span>
           <span className="font-mono text-violet-400 text-xs font-semibold tracking-wide">{ticket.jiraKey}</span>
+          {priority && priorityColor && (
+            <span className="flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full border border-white/10 bg-white/5" style={{ color: priorityColor }}>
+              <span style={{ display: "inline-block", width: 6, height: 6, borderRadius: "50%", backgroundColor: priorityColor }} />
+              {priority}
+            </span>
+          )}
         </div>
         <div className="flex items-center gap-2">
           {assignee && (
@@ -67,6 +86,11 @@ function TicketNode({
               <MemberAvatar name={assignee.name} role={assignee.role} size={18} />
               <span className="text-[11px] text-white/60">{assignee.name.split(" ")[0]}</span>
               <RoleBadge role={assignee.role} size="sm" />
+            </div>
+          )}
+          {!assignee && jiraAssigneeName && (
+            <div className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-white/5 border border-white/10">
+              <span className="text-[11px] text-white/50">{jiraAssigneeName}</span>
             </div>
           )}
           {jiraUrl && (
@@ -157,6 +181,11 @@ export function HostView({ session, productId }: { session: PokerSession; produc
 
   // Task 6: collapsed sections
   const [estimatedCollapsed, setEstimatedCollapsed] = useState(true);
+
+  // Item 3: summary modal
+  const [summaryModalOpen, setSummaryModalOpen] = useState(false);
+  const [summaryIssueKey, setSummaryIssueKey] = useState("");
+  const [summaryState, setSummaryState] = useState<"idle" | "loading" | "success" | "error">("idle");
 
   const joinUrl = typeof window !== "undefined" ? `${window.location.origin}/join/${session.id}` : "";
 
@@ -292,6 +321,12 @@ export function HostView({ session, productId }: { session: PokerSession; produc
           </Badge>
         </div>
         <div className="flex items-center gap-2">
+          {estimatedTickets.length > 0 && (
+            <Button variant="ghost" size="sm" onClick={() => setSummaryModalOpen(true)}>
+              <FileText className="w-3.5 h-3.5" />
+              Summary
+            </Button>
+          )}
           {lockedTickets.size > 0 && (
             <Button variant="ghost" size="sm" onClick={() => setBulkDrawerOpen(true)}>
               <GitMerge className="w-3.5 h-3.5" />
@@ -324,58 +359,7 @@ export function HostView({ session, productId }: { session: PokerSession; produc
             </p>
           </div>
           <div className="overflow-y-auto flex-1 py-1">
-            {/* To estimate section */}
-            <div>
-              <div className="flex items-center gap-2 px-3 py-2 text-[10px] text-white/30 font-semibold uppercase tracking-widest">
-                <span className="flex-1">To estimate</span>
-                <span className="text-[9px] bg-white/10 rounded px-1 py-0.5 font-mono">{toEstimateTickets.length}</span>
-              </div>
-              {toEstimateTickets.map((ticket) => {
-                const isCurrent = currentTicketId === ticket.id;
-                const isPending = pendingTicket?.id === ticket.id;
-                const assigneeId = ticketAssignees[ticket.id] ?? ticket.assigneeId;
-                const assignee = assigneeId ? session.product.members.find((m) => m.id === assigneeId) : null;
-                return (
-                  <button
-                    key={ticket.id}
-                    onClick={() => {
-                      if (sessionStatus !== "ACTIVE") return;
-                      if (isCurrent) return;
-                      setPendingTicket(ticket);
-                      setContextNote("");
-                    }}
-                    disabled={sessionStatus !== "ACTIVE"}
-                    className={`w-full text-left px-3 py-2.5 transition-all border-l-2 ${
-                      isCurrent
-                        ? "bg-violet-600/15 border-l-violet-500"
-                        : isPending
-                        ? "bg-amber-600/10 border-l-amber-400"
-                        : "hover:bg-white/4 border-l-transparent"
-                    }`}
-                  >
-                    <div className="flex items-start gap-2">
-                      <div className="mt-0.5 shrink-0">
-                        <TicketTypeIcon type={ticket.issueType} size={12} />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-1.5 mb-0.5">
-                          <span className="text-[10px] font-mono text-violet-400/80 shrink-0">{ticket.jiraKey}</span>
-                        </div>
-                        <p className="text-[11px] text-white/60 leading-snug line-clamp-2">{ticket.title}</p>
-                        {assignee && (
-                          <div className="flex items-center gap-1 mt-1">
-                            <MemberAvatar name={assignee.name} role={assignee.role} size={12} />
-                            <span className="text-[9px] text-white/30">{assignee.name.split(" ")[0]}</span>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-
-            {/* Estimated section */}
+            {/* Estimated section — shown first */}
             {estimatedTickets.length > 0 && (
               <div>
                 <button
@@ -428,6 +412,62 @@ export function HostView({ session, productId }: { session: PokerSession; produc
                 </AnimatePresence>
               </div>
             )}
+
+            {/* To estimate section */}
+            <div>
+              <div className="flex items-center gap-2 px-3 py-2 text-[10px] text-white/30 font-semibold uppercase tracking-widest">
+                <span className="flex-1">To estimate</span>
+                <span className="text-[9px] bg-white/10 rounded px-1 py-0.5 font-mono">{toEstimateTickets.length}</span>
+              </div>
+              {toEstimateTickets.map((ticket) => {
+                const isCurrent = currentTicketId === ticket.id;
+                const isPending = pendingTicket?.id === ticket.id;
+                const assigneeId = ticketAssignees[ticket.id] ?? ticket.assigneeId;
+                const assignee = assigneeId ? session.product.members.find((m) => m.id === assigneeId) : null;
+                return (
+                  <button
+                    key={ticket.id}
+                    onClick={() => {
+                      if (sessionStatus !== "ACTIVE") return;
+                      if (isCurrent) return;
+                      if (currentTicketId) {
+                        openTicket(ticket, "");
+                      } else {
+                        setPendingTicket(ticket);
+                        setContextNote("");
+                      }
+                    }}
+                    disabled={sessionStatus !== "ACTIVE"}
+                    className={`w-full text-left px-3 py-2.5 transition-all border-l-2 ${
+                      isCurrent
+                        ? "bg-violet-600/15 border-l-violet-500"
+                        : isPending
+                        ? "bg-amber-600/10 border-l-amber-400"
+                        : "hover:bg-white/4 border-l-transparent"
+                    }`}
+                  >
+                    <div className="flex items-start gap-2">
+                      <div className="mt-0.5 shrink-0">
+                        <TicketTypeIcon type={ticket.issueType} size={12} />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5 mb-0.5">
+                          <span className="text-[10px] font-mono text-violet-400/80 shrink-0">{ticket.jiraKey}</span>
+                        </div>
+                        <p className="text-[11px] text-white/60 leading-snug line-clamp-2">{ticket.title}</p>
+                        {assignee && (
+                          <div className="flex items-center gap-1 mt-1">
+                            <MemberAvatar name={assignee.name} role={assignee.role} size={12} />
+                            <span className="text-[9px] text-white/30">{assignee.name.split(" ")[0]}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+
           </div>
         </aside>
 

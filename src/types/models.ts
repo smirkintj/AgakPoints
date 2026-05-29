@@ -68,6 +68,7 @@ export interface Ticket {
   issueType: string | null;
   jiraAssigneeName: string | null;
   jiraAssigneeAccountId: string | null;
+  priority: string | null;
   createdAt: Date;
 }
 

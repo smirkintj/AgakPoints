@@ -22,6 +22,7 @@ export async function POST(req: NextRequest) {
     issueType?: string;
     jiraAssigneeName?: string | null;
     jiraAssigneeAccountId?: string | null;
+    priority?: string | null;
   }[] = [];
 
   if (product.jiraBaseUrl && product.jiraEmail && product.jiraApiToken) {
@@ -31,15 +32,21 @@ export async function POST(req: NextRequest) {
       product.jiraApiToken,
       sprintId
     );
-    tickets = issues.map((issue, i) => ({
-      jiraKey: issue.key,
-      title: issue.fields.summary,
-      description: undefined,
-      order: i,
-      issueType: issue.fields.issuetype?.name ?? "Story",
-      jiraAssigneeName: issue.fields.assignee?.displayName ?? null,
-      jiraAssigneeAccountId: issue.fields.assignee?.accountId ?? null,
-    }));
+    tickets = issues
+      .filter((issue) => {
+        const t = issue.fields.issuetype?.name;
+        return t !== "Subtask" && t !== "Sub-task";
+      })
+      .map((issue, i) => ({
+        jiraKey: issue.key,
+        title: issue.fields.summary,
+        description: undefined,
+        order: i,
+        issueType: issue.fields.issuetype?.name ?? "Story",
+        jiraAssigneeName: issue.fields.assignee?.displayName ?? null,
+        jiraAssigneeAccountId: issue.fields.assignee?.accountId ?? null,
+        priority: issue.fields.priority?.name ?? null,
+      }));
   }
 
   const pokerSession = await prisma.pokerSession.create({

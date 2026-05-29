@@ -114,6 +114,7 @@ model Ticket {
   jiraAssigneeName      String?
   jiraAssigneeAccountId String?
   contextNote           String?
+  priority              String?
   votes                 Vote[]
   createdAt             DateTime     @default(now())
 }

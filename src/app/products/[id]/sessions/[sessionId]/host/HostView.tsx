@@ -7,9 +7,13 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { RevealCard } from "@/components/session/RevealCard";
 import { EmojiReaction } from "@/components/session/EmojiReaction";
+import { MemberAvatar } from "@/components/session/MemberAvatar";
+import { AssignmentPicker } from "@/components/session/AssignmentPicker";
+import { BandwidthRail } from "@/components/session/BandwidthRail";
+import { BulkAssignDrawer } from "@/components/session/BulkAssignDrawer";
 import type { Ticket, Member, SessionParticipant, Vote } from "@/types/models";
 import { FIBONACCI_VALUES } from "@/lib/utils";
-import { Check, ChevronRight, Copy, Eye, Lock, Play, Users } from "lucide-react";
+import { Check, ChevronRight, Copy, Eye, GitMerge, Lock, Play, Users } from "lucide-react";
 import confetti from "canvas-confetti";
 
 type TicketWithVotes = Ticket & { votes: (Vote & { member: Member })[] };
@@ -36,10 +40,16 @@ export function HostView({ session, productId: _productId }: { session: PokerSes
   const [revealMeta, setRevealMeta] = useState<{ median: number; isConsensus: boolean } | null>(null);
   const [reactions, setReactions] = useState<{ memberId: string; memberName: string; emoji: string }[]>([]);
   const [lockedTickets, setLockedTickets] = useState<Set<string>>(new Set());
+  const [ticketAssignees, setTicketAssignees] = useState<Record<string, string>>({});
   const [selectedEstimate, setSelectedEstimate] = useState<number | null>(null);
+  const [selectedAssigneeId, setSelectedAssigneeId] = useState<string | null>(null);
   const [note, setNote] = useState("");
   const [copied, setCopied] = useState(false);
   const [savingLock, setSavingLock] = useState(false);
+  const [bulkDrawerOpen, setBulkDrawerOpen] = useState(false);
+
+  // Local tickets state (mutable for bulk assign updates)
+  const [tickets, setTickets] = useState(session.tickets);
 
   const joinUrl = typeof window !== "undefined" ? `${window.location.origin}/join/${session.id}` : "";
 
@@ -51,6 +61,7 @@ export function HostView({ session, productId: _productId }: { session: PokerSes
     setVotedCount(state.votedMemberIds.length);
     setRevealedVotes(state.revealedVotes);
     setLockedTickets(new Set(state.lockedTickets));
+    setTicketAssignees(state.lockedTicketAssignees ?? {});
     if (state.revealed && state.revealedVotes) {
       const vals = state.revealedVotes.map((v) => v.value);
       const sorted = [...vals].sort((a, b) => a - b);
@@ -80,6 +91,7 @@ export function HostView({ session, productId: _productId }: { session: PokerSes
         setRevealedVotes(null);
         setRevealMeta(null);
         setSelectedEstimate(null);
+        setSelectedAssigneeId(null);
         setNote("");
         break;
       case "VOTE_PROGRESS":
@@ -93,6 +105,7 @@ export function HostView({ session, productId: _productId }: { session: PokerSes
         break;
       case "ESTIMATE_LOCKED":
         setLockedTickets((l) => new Set([...l, msg.ticketId]));
+        if (msg.assigneeId) setTicketAssignees((a) => ({ ...a, [msg.ticketId]: msg.assigneeId! }));
         setCurrentTicketId(null);
         setRevealedVotes(null);
         setRevealMeta(null);
@@ -103,7 +116,7 @@ export function HostView({ session, productId: _productId }: { session: PokerSes
     }
   }, [applyState]));
 
-  const currentTicket = session.tickets.find((t) => t.id === currentTicketId) ?? null;
+  const currentTicket = tickets.find((t) => t.id === currentTicketId) ?? null;
 
   const startSession = () => send({ type: "START_SESSION" });
 
@@ -115,13 +128,17 @@ export function HostView({ session, productId: _productId }: { session: PokerSes
   const lockEstimate = async () => {
     if (!currentTicket || selectedEstimate === null) return;
     setSavingLock(true);
-    // Tell all clients
-    send({ type: "LOCK_ESTIMATE", ticketId: currentTicket.id, value: selectedEstimate, note: note || undefined });
-    // Persist to DB + write JIRA
+    send({
+      type: "LOCK_ESTIMATE",
+      ticketId: currentTicket.id,
+      value: selectedEstimate,
+      note: note || undefined,
+      assigneeId: selectedAssigneeId ?? undefined,
+    });
     await fetch(`/api/sessions/${session.id}/tickets/${currentTicket.id}/lock`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ value: selectedEstimate, note, votes: revealedVotes ?? [] }),
+      body: JSON.stringify({ value: selectedEstimate, note, votes: revealedVotes ?? [], assigneeId: selectedAssigneeId }),
     });
     setSavingLock(false);
   };
@@ -131,6 +148,22 @@ export function HostView({ session, productId: _productId }: { session: PokerSes
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
+
+  // Bandwidth rail data: use checkedIn to filter product members to those present
+  const presentMembers = session.product.members
+    .filter((m) => checkedIn.some((c) => c.memberId === m.id))
+    .map((m) => ({
+      memberId: m.id,
+      memberName: m.name,
+      role: m.role,
+      capacity: (m as Member & { capacity?: number }).capacity ?? 20,
+    }));
+
+  // Enrich tickets with current assignee state
+  const enrichedTickets = tickets.map((t) => ({
+    ...t,
+    assigneeId: ticketAssignees[t.id] ?? t.assigneeId,
+  }));
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -147,6 +180,13 @@ export function HostView({ session, productId: _productId }: { session: PokerSes
           </Badge>
         </div>
         <div className="flex items-center gap-3">
+          {lockedTickets.size > 0 && (
+            <Button variant="ghost" size="sm" onClick={() => setBulkDrawerOpen(true)}>
+              <GitMerge className="w-3.5 h-3.5" />
+              Bulk Assign
+              <span className="ml-1 text-violet-400">{lockedTickets.size}</span>
+            </Button>
+          )}
           <button onClick={copyLink} className="flex items-center gap-2 text-xs text-white/50 hover:text-white transition-colors border border-white/10 rounded-lg px-3 py-1.5">
             {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
             {copied ? "Copied!" : "Share Link"}
@@ -163,13 +203,15 @@ export function HostView({ session, productId: _productId }: { session: PokerSes
         <aside className="w-72 border-r border-white/10 bg-white/3 backdrop-blur-sm flex flex-col h-full">
           <div className="p-4 border-b border-white/10 shrink-0">
             <p className="text-xs text-white/40 font-medium uppercase tracking-wider">
-              Tickets ({session.tickets.length})
+              Tickets ({tickets.length})
             </p>
           </div>
           <div className="overflow-y-auto flex-1 p-2">
-            {session.tickets.map((ticket) => {
+            {tickets.map((ticket) => {
               const isLocked = lockedTickets.has(ticket.id) || ticket.status === "ESTIMATED";
               const isCurrent = currentTicketId === ticket.id;
+              const assigneeId = ticketAssignees[ticket.id] ?? ticket.assigneeId;
+              const assignee = assigneeId ? session.product.members.find((m) => m.id === assigneeId) : null;
               return (
                 <button
                   key={ticket.id}
@@ -183,8 +225,11 @@ export function HostView({ session, productId: _productId }: { session: PokerSes
                 >
                   <div className="flex items-start gap-2">
                     <span className="text-xs font-mono text-violet-400 shrink-0 mt-0.5">{ticket.jiraKey}</span>
-                    <span className="text-xs text-white/70 leading-relaxed line-clamp-2">{ticket.title}</span>
-                    {isLocked && <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0 ml-auto mt-0.5" />}
+                    <span className="text-xs text-white/70 leading-relaxed line-clamp-2 flex-1">{ticket.title}</span>
+                    <div className="flex items-center gap-1 shrink-0 ml-auto mt-0.5">
+                      {assignee && <MemberAvatar name={assignee.name} role={assignee.role} size={16} />}
+                      {isLocked && <Check className="w-3.5 h-3.5 text-emerald-400" />}
+                    </div>
                   </div>
                 </button>
               );
@@ -207,19 +252,17 @@ export function HostView({ session, productId: _productId }: { session: PokerSes
                   {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
                 </button>
               </div>
-              {/* Presence list */}
-              <div className="flex flex-wrap gap-2 justify-center max-w-md">
+              {/* Presence list with role-aware avatars */}
+              <div className="flex flex-wrap gap-3 justify-center max-w-md">
                 {session.product.members.map((m) => {
                   const isIn = checkedIn.some((c) => c.memberId === m.id);
                   return (
                     <motion.div
                       key={m.id}
                       animate={isIn ? { scale: [1, 1.1, 1] } : {}}
-                      className={`flex items-center gap-2 px-3 py-2 rounded-full text-sm border transition-all ${
-                        isIn ? "bg-emerald-600/20 border-emerald-500/50 text-emerald-300" : "bg-white/5 border-white/10 text-white/30"
-                      }`}
+                      className="flex items-center gap-2"
                     >
-                      {isIn ? "✓" : "○"} {m.name}
+                      <MemberAvatar name={m.name} role={m.role} size={36} showRing={isIn} dimmed={!isIn} />
                     </motion.div>
                   );
                 })}
@@ -241,7 +284,7 @@ export function HostView({ session, productId: _productId }: { session: PokerSes
           {/* ACTIVE — ticket open */}
           {sessionStatus === "ACTIVE" && currentTicket && (
             <div className="p-8 flex flex-col gap-6 max-w-3xl">
-              {/* Ticket */}
+              {/* Ticket info */}
               <div>
                 <div className="flex items-center gap-3 mb-2">
                   <span className="text-violet-400 font-mono text-sm font-bold">{currentTicket.jiraKey}</span>
@@ -266,18 +309,14 @@ export function HostView({ session, productId: _productId }: { session: PokerSes
                 </span>
               </div>
 
-              {/* Member vote indicators */}
+              {/* Member vote indicators with role avatars */}
               <div className="flex flex-wrap gap-3">
                 {checkedIn.map((m) => {
                   const hasVoted = votedMemberIds.includes(m.memberId);
                   return (
                     <div key={m.memberId} className="flex flex-col items-center gap-1">
-                      <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold transition-all duration-300 ${
-                        hasVoted ? "bg-violet-600 text-white ring-2 ring-violet-400 ring-offset-1 ring-offset-zinc-950" : "bg-white/10 text-white/40"
-                      }`}>
-                        {m.memberName[0]?.toUpperCase()}
-                      </div>
-                      <span className="text-[10px] text-white/30 max-w-[40px] truncate text-center">{m.memberName}</span>
+                      <MemberAvatar name={m.memberName} role={m.role} size={40} showRing={hasVoted} dimmed={!hasVoted} />
+                      <span className="text-[10px] text-white/30 max-w-[40px] truncate text-center">{m.memberName.split(" ")[0]}</span>
                     </div>
                   );
                 })}
@@ -285,13 +324,7 @@ export function HostView({ session, productId: _productId }: { session: PokerSes
 
               {/* Before reveal */}
               {!revealedVotes && (
-                <Button
-                  onClick={reveal}
-                  variant="success"
-                  size="lg"
-                  disabled={votedCount === 0}
-                  className="self-start"
-                >
+                <Button onClick={reveal} variant="success" size="lg" disabled={votedCount === 0} className="self-start">
                   <Eye className="w-4 h-4" />
                   Reveal Votes
                   {votedCount > 0 && <span className="ml-1 opacity-60">({votedCount})</span>}
@@ -301,17 +334,20 @@ export function HostView({ session, productId: _productId }: { session: PokerSes
               {/* After reveal */}
               {revealedVotes && revealMeta && (
                 <div className="space-y-6">
-                  {/* Flipped cards */}
                   <div className="flex flex-wrap gap-4">
-                    {revealedVotes.map((vote, i) => (
-                      <RevealCard
-                        key={vote.memberId}
-                        memberName={vote.memberName}
-                        value={vote.value}
-                        median={revealMeta.median}
-                        delay={i * 0.08}
-                      />
-                    ))}
+                    {revealedVotes.map((vote, i) => {
+                      const member = checkedIn.find((c) => c.memberId === vote.memberId);
+                      return (
+                        <RevealCard
+                          key={vote.memberId}
+                          memberName={vote.memberName}
+                          value={vote.value}
+                          median={revealMeta.median}
+                          delay={i * 0.08}
+                          role={member?.role}
+                        />
+                      );
+                    })}
                   </div>
 
                   <div className="flex items-center gap-4 text-sm">
@@ -323,7 +359,6 @@ export function HostView({ session, productId: _productId }: { session: PokerSes
                     )}
                   </div>
 
-                  {/* Reactions */}
                   <div>
                     <p className="text-xs text-white/30 mb-2 uppercase tracking-wider">Reactions</p>
                     <EmojiReaction
@@ -358,6 +393,11 @@ export function HostView({ session, productId: _productId }: { session: PokerSes
                         onChange={(e) => setNote(e.target.value)}
                         className="w-full rounded-lg border border-white/20 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-white/30 focus:border-violet-500 focus:outline-none"
                       />
+                      <AssignmentPicker
+                        members={checkedIn}
+                        selectedMemberId={selectedAssigneeId}
+                        onChange={setSelectedAssigneeId}
+                      />
                       <Button
                         onClick={lockEstimate}
                         disabled={selectedEstimate === null || savingLock}
@@ -380,7 +420,32 @@ export function HostView({ session, productId: _productId }: { session: PokerSes
             </div>
           )}
         </main>
+
+        {/* Bandwidth rail */}
+        {sessionStatus !== "WAITING" && (
+          <BandwidthRail
+            members={presentMembers}
+            estimatedTickets={enrichedTickets}
+            pendingAssigneeId={selectedAssigneeId}
+            pendingEstimate={selectedEstimate}
+          />
+        )}
       </div>
+
+      {/* Bulk assign drawer */}
+      <BulkAssignDrawer
+        open={bulkDrawerOpen}
+        onClose={() => setBulkDrawerOpen(false)}
+        sessionId={session.id}
+        tickets={enrichedTickets as (TicketWithVotes & { assigneeId: string | null })[]}
+        members={session.product.members as (Member & { capacity: number })[]}
+        estimatedTickets={enrichedTickets}
+        onCommit={(assignments) => {
+          const map = Object.fromEntries(assignments.map((a) => [a.ticketId, a.memberId]));
+          setTickets((prev) => prev.map((t) => (map[t.id] ? { ...t, assigneeId: map[t.id] } : t)));
+          setTicketAssignees((prev) => ({ ...prev, ...map }));
+        }}
+      />
     </div>
   );
 }

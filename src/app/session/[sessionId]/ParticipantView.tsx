@@ -8,6 +8,7 @@ import { VotingCard } from "@/components/session/VotingCard";
 import { RevealCard } from "@/components/session/RevealCard";
 import { EmojiReaction } from "@/components/session/EmojiReaction";
 import { FIBONACCI_VALUES, isConsensus } from "@/lib/utils";
+import { MemberAvatar } from "@/components/session/MemberAvatar";
 import confetti from "canvas-confetti";
 
 type SessionWithDetails = PokerSession & {
@@ -112,9 +113,7 @@ export function ParticipantView({ session }: { session: SessionWithDetails }) {
           <p className="text-white/40 text-xs">{session.sprintName}</p>
         </div>
         <div className="flex items-center gap-2">
-          <div className="w-7 h-7 rounded-full bg-violet-600/40 flex items-center justify-center text-xs font-bold text-violet-300">
-            {member.name[0]?.toUpperCase()}
-          </div>
+          <MemberAvatar name={member.name} role={member.role} size={28} showRing />
           <span className="text-white/60 text-sm">{member.name}</span>
         </div>
       </header>
@@ -173,13 +172,14 @@ export function ParticipantView({ session }: { session: SessionWithDetails }) {
               {/* Vote progress dots */}
               {!revealedVotes && (
                 <div className="flex justify-center gap-2">
-                  {checkedIn.map((c) => (
-                    <div key={c.memberId} title={c.memberName} className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all duration-300 ${
-                      votedMemberIds.includes(c.memberId) ? "bg-violet-600 text-white ring-2 ring-violet-400" : "bg-white/10 text-white/30"
-                    }`}>
-                      {c.memberName[0]?.toUpperCase()}
-                    </div>
-                  ))}
+                  {checkedIn.map((c) => {
+                    const hasVoted = votedMemberIds.includes(c.memberId);
+                    return (
+                      <div key={c.memberId} title={c.memberName}>
+                        <MemberAvatar name={c.memberName} role={c.role} size={32} showRing={hasVoted} dimmed={!hasVoted} />
+                      </div>
+                    );
+                  })}
                 </div>
               )}
 
@@ -187,9 +187,12 @@ export function ParticipantView({ session }: { session: SessionWithDetails }) {
               {revealedVotes && revealMeta && (
                 <div className="space-y-6">
                   <div className="flex flex-wrap gap-4 justify-center">
-                    {revealedVotes.map((vote, i) => (
-                      <RevealCard key={vote.memberId} memberName={vote.memberName} value={vote.value} median={revealMeta.median} delay={i * 0.08} />
-                    ))}
+                    {revealedVotes.map((vote, i) => {
+                      const voter = checkedIn.find((c) => c.memberId === vote.memberId);
+                      return (
+                        <RevealCard key={vote.memberId} memberName={vote.memberName} value={vote.value} median={revealMeta.median} delay={i * 0.08} role={voter?.role} />
+                      );
+                    })}
                   </div>
                   <div className="text-center text-sm text-white/40">
                     Median: <span className="text-white font-bold">{revealMeta.median}</span>

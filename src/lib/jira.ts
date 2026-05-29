@@ -84,6 +84,27 @@ export async function updateStoryPoints(
   }
 }
 
+export async function updateAssignee(
+  baseUrl: string,
+  email: string,
+  token: string,
+  issueKey: string,
+  accountId: string
+): Promise<void> {
+  const res = await fetch(`${baseUrl}/rest/api/3/issue/${issueKey}`, {
+    method: "PUT",
+    headers: {
+      Authorization: authHeader(email, token),
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    body: JSON.stringify({ fields: { assignee: { accountId } } }),
+  });
+  if (!res.ok && res.status !== 204) {
+    throw new Error(`JIRA update assignee failed: ${res.status}`);
+  }
+}
+
 export async function postSessionComment(
   baseUrl: string,
   email: string,

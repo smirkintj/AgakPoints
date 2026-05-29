@@ -12,6 +12,7 @@ export interface Member {
   name: string;
   avatarUrl: string | null;
   role: MemberRole;
+  capacity: number;
   createdAt: Date;
 }
 
@@ -60,6 +61,7 @@ export interface Ticket {
   finalEstimate: number | null;
   adminNote: string | null;
   order: number;
+  assigneeId: string | null;
   createdAt: Date;
 }
 

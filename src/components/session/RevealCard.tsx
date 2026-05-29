@@ -1,17 +1,21 @@
 "use client";
 import { motion } from "framer-motion";
 import { cn, calcMedian, getVoteColor } from "@/lib/utils";
+import { RoleBadge } from "./RoleBadge";
+import { getRoleColor } from "@/lib/roles";
 
 interface RevealCardProps {
   memberName: string;
   value: number;
   median: number;
   delay?: number;
+  role?: string;
 }
 
-export function RevealCard({ memberName, value, median, delay = 0 }: RevealCardProps) {
+export function RevealCard({ memberName, value, median, delay = 0, role }: RevealCardProps) {
   const colorClass = getVoteColor(value, median);
   const isOutlier = Math.abs(value - median) >= 5;
+  const roleHex = role ? getRoleColor(role).hex : undefined;
 
   return (
     <motion.div
@@ -27,10 +31,12 @@ export function RevealCard({ memberName, value, median, delay = 0 }: RevealCardP
             ? "border-orange-400 bg-orange-600/20 text-orange-400 animate-pulse"
             : "border-white/20 bg-white/10 text-white"
         )}
+        style={roleHex && !isOutlier ? { borderColor: roleHex + "88", backgroundColor: roleHex + "18" } : undefined}
       >
         <span className={colorClass}>{value}</span>
       </div>
       <span className="text-xs text-white/50 text-center max-w-[64px] truncate">{memberName}</span>
+      {role && <RoleBadge role={role} size="sm" />}
       {isOutlier && <span className="text-xs">🌶️</span>}
     </motion.div>
   );

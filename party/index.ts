@@ -9,7 +9,7 @@ type MsgIn =
   | { type: "VOTE_CAST"; memberId: string; value: number }
   | { type: "REACTION"; memberId: string; memberName: string; emoji: string }
   | { type: "REVEAL_VOTES" }
-  | { type: "LOCK_ESTIMATE"; ticketId: string; value: number; note?: string }
+  | { type: "LOCK_ESTIMATE"; ticketId: string; value: number; note?: string; assigneeId?: string }
   | { type: "REQUEST_STATE" };
 
 type MsgOut =
@@ -18,7 +18,7 @@ type MsgOut =
   | { type: "TICKET_OPENED"; ticketId: string; jiraKey: string; title: string; description?: string }
   | { type: "VOTE_PROGRESS"; votedCount: number; totalCount: number; votedMemberIds: string[] }
   | { type: "VOTES_REVEALED"; votes: RevealedVote[]; median: number; isConsensus: boolean }
-  | { type: "ESTIMATE_LOCKED"; ticketId: string; value: number }
+  | { type: "ESTIMATE_LOCKED"; ticketId: string; value: number; assigneeId?: string }
   | { type: "REACTION_RECEIVED"; memberId: string; memberName: string; emoji: string }
   | { type: "STATE_SYNC"; state: PublicState };
 
@@ -42,6 +42,7 @@ interface PublicState {
   revealed: boolean;
   revealedVotes: RevealedVote[] | null;
   lockedTickets: string[];
+  lockedTicketAssignees: Record<string, string>;
 }
 
 // ── Room state (held in memory per session) ──────────────────────────────────
@@ -54,6 +55,7 @@ interface RoomState {
   revealed: boolean;
   revealedVotes: RevealedVote[] | null;
   lockedTickets: string[];
+  lockedTicketAssignees: Record<string, string>;
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -82,6 +84,7 @@ export default class ScrumPokerRoom implements Party.Server {
     revealed: false,
     revealedVotes: null,
     lockedTickets: [],
+    lockedTicketAssignees: {},
   };
 
   constructor(readonly room: Party.Room) {}
@@ -179,12 +182,13 @@ export default class ScrumPokerRoom implements Party.Server {
 
       case "LOCK_ESTIMATE": {
         this.state.lockedTickets.push(msg.ticketId);
+        if (msg.assigneeId) this.state.lockedTicketAssignees[msg.ticketId] = msg.assigneeId;
         this.state.currentTicket = null;
         this.state.votes = {};
         this.state.revealed = false;
         this.state.revealedVotes = null;
 
-        this.broadcast({ type: "ESTIMATE_LOCKED", ticketId: msg.ticketId, value: msg.value });
+        this.broadcast({ type: "ESTIMATE_LOCKED", ticketId: msg.ticketId, value: msg.value, assigneeId: msg.assigneeId });
         break;
       }
 
@@ -215,6 +219,7 @@ export default class ScrumPokerRoom implements Party.Server {
       revealed: this.state.revealed,
       revealedVotes: this.state.revealedVotes,
       lockedTickets: this.state.lockedTickets,
+      lockedTicketAssignees: this.state.lockedTicketAssignees,
     };
   }
 

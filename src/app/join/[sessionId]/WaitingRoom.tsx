@@ -1,9 +1,9 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
-import usePartySocket from "partysocket/react";
 import { motion, AnimatePresence } from "framer-motion";
-import type { PartyClientMessage, PartyServerMessage } from "@/types/partykit";
+import { useSessionChannel } from "@/hooks/useSessionChannel";
+import type { SessionEvent } from "@/types/ably";
 import type { Member, PokerSession, Product, SessionParticipant } from "@/types/models";
 
 type SessionWithDetails = PokerSession & {
@@ -28,40 +28,26 @@ export function WaitingRoom({ session }: WaitingRoomProps) {
   const [selectedMember, setSelectedMember] = useState<Member | null>(null);
   const [checkingIn, setCheckingIn] = useState(false);
 
-  const ws = usePartySocket({
-    host: process.env.NEXT_PUBLIC_PARTYKIT_HOST ?? "localhost:1999",
-    room: session.id,
-    onMessage(event) {
-      const msg = JSON.parse(event.data) as PartyServerMessage;
-      if (msg.type === "PRESENCE_UPDATE") {
-        setCheckedIn(msg.checkedIn);
-      }
-      if (msg.type === "SESSION_STARTED") {
-        // Store selected member in sessionStorage for the voting page
-        if (selectedMember) {
-          sessionStorage.setItem(`agakpoints_member_${session.id}`, JSON.stringify(selectedMember));
-        }
-        router.push(`/session/${session.id}`);
-      }
-    },
+  useSessionChannel(session.id, (event: SessionEvent) => {
+    if (event.type === "PRESENCE_UPDATE") {
+      setCheckedIn(event.checkedIn);
+    }
+    if (event.type === "SESSION_STARTED") {
+      router.push(`/session/${session.id}`);
+    }
   });
 
   const handleCheckin = async (member: Member) => {
-    if (checkingIn) return;
+    if (checkingIn || isCheckedIn(member.id)) return;
     setCheckingIn(true);
     setSelectedMember(member);
+    sessionStorage.setItem(`agakpoints_member_${session.id}`, JSON.stringify(member));
     try {
       await fetch(`/api/sessions/${session.id}/checkin`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ memberId: member.id }),
       });
-      ws.send(JSON.stringify({
-        type: "CHECKIN",
-        memberId: member.id,
-        memberName: member.name,
-      } satisfies PartyClientMessage));
-      sessionStorage.setItem(`agakpoints_member_${session.id}`, JSON.stringify(member));
     } finally {
       setCheckingIn(false);
     }
@@ -94,16 +80,14 @@ export function WaitingRoom({ session }: WaitingRoomProps) {
               Hi {selectedMember.name}! Waiting for the session to start...
             </p>
             <div className="flex items-center justify-center gap-1.5 mt-4">
-              <div className="w-2 h-2 bg-emerald-400 rounded-full animate-bounce" style={{ animationDelay: "0ms" }} />
-              <div className="w-2 h-2 bg-emerald-400 rounded-full animate-bounce" style={{ animationDelay: "150ms" }} />
-              <div className="w-2 h-2 bg-emerald-400 rounded-full animate-bounce" style={{ animationDelay: "300ms" }} />
+              {[0, 150, 300].map((delay) => (
+                <div key={delay} className="w-2 h-2 bg-emerald-400 rounded-full animate-bounce" style={{ animationDelay: `${delay}ms` }} />
+              ))}
             </div>
           </motion.div>
         ) : (
           <div>
-            <p className="text-white/60 text-sm text-center mb-6">
-              Click your name to check in
-            </p>
+            <p className="text-white/60 text-sm text-center mb-6">Click your name to check in</p>
             <div className="space-y-2">
               <AnimatePresence>
                 {session.product.members.map((member) => {
@@ -114,7 +98,7 @@ export function WaitingRoom({ session }: WaitingRoomProps) {
                       layout
                       initial={{ opacity: 0, y: 10 }}
                       animate={{ opacity: 1, y: 0 }}
-                      onClick={() => !inRoom && handleCheckin(member)}
+                      onClick={() => handleCheckin(member)}
                       disabled={inRoom || checkingIn}
                       className={`w-full flex items-center gap-4 p-4 rounded-xl border transition-all ${
                         inRoom
@@ -128,9 +112,7 @@ export function WaitingRoom({ session }: WaitingRoomProps) {
                         {member.name[0]?.toUpperCase()}
                       </div>
                       <div className="text-left flex-1">
-                        <p className={`font-medium ${inRoom ? "text-emerald-300" : "text-white"}`}>
-                          {member.name}
-                        </p>
+                        <p className={`font-medium ${inRoom ? "text-emerald-300" : "text-white"}`}>{member.name}</p>
                         <p className="text-xs text-white/30">{member.role}</p>
                       </div>
                       {inRoom && <span className="text-emerald-400 text-sm">✓ Checked in</span>}

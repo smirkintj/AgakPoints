@@ -1,13 +1,13 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
-import usePartySocket from "partysocket/react";
 import { motion, AnimatePresence } from "framer-motion";
-import type { PartyClientMessage, PartyServerMessage } from "@/types/partykit";
+import { useSessionChannel } from "@/hooks/useSessionChannel";
+import type { SessionEvent } from "@/types/ably";
+import type { Ticket, Member, Product, PokerSession } from "@/types/models";
 import { VotingCard } from "@/components/session/VotingCard";
 import { RevealCard, calcMedian } from "@/components/session/RevealCard";
 import { EmojiReaction } from "@/components/session/EmojiReaction";
 import { FIBONACCI_VALUES, isConsensus } from "@/lib/utils";
-import type { Ticket, Member, Product, PokerSession } from "@/types/models";
 import confetti from "canvas-confetti";
 
 type SessionWithDetails = PokerSession & {
@@ -30,53 +30,57 @@ export function ParticipantView({ session }: { session: SessionWithDetails }) {
     if (stored) setMember(JSON.parse(stored));
   }, [session.id]);
 
-  const ws = usePartySocket({
-    host: process.env.NEXT_PUBLIC_PARTYKIT_HOST ?? "localhost:1999",
-    room: session.id,
-    onMessage(event) {
-      const msg = JSON.parse(event.data) as PartyServerMessage;
-      switch (msg.type) {
-        case "PRESENCE_UPDATE":
-          setCheckedIn(msg.checkedIn);
-          break;
-        case "TICKET_OPENED": {
-          const ticket = session.tickets.find((t: Ticket) => t.id === msg.ticketId) ?? null;
-          setCurrentTicket(ticket);
-          setMyVote(null);
-          setVotedMemberIds([]);
-          setRevealedVotes(null);
-          break;
-        }
-        case "VOTE_PROGRESS":
-          setVotedMemberIds(msg.votedMemberIds);
-          break;
-        case "VOTES_REVEALED":
-          setRevealedVotes(msg.votes);
-          const vals = msg.votes.map((v) => v.value);
-          if (isConsensus(vals)) {
-            confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
-          }
-          break;
-        case "ESTIMATE_LOCKED":
-          setLockedTickets((l) => new Set([...l, msg.ticketId]));
-          break;
-        case "REACTION_RECEIVED":
-          setReactions((r) => [...r, { memberId: msg.memberId, memberName: msg.memberName, emoji: msg.emoji }]);
-          break;
+  useSessionChannel(session.id, (event: SessionEvent) => {
+    switch (event.type) {
+      case "PRESENCE_UPDATE":
+        setCheckedIn(event.checkedIn);
+        break;
+      case "TICKET_OPENED": {
+        const ticket = session.tickets.find((t: Ticket) => t.id === event.ticketId) ?? null;
+        setCurrentTicket(ticket);
+        setMyVote(null);
+        setVotedMemberIds([]);
+        setRevealedVotes(null);
+        break;
       }
-    },
+      case "VOTE_PROGRESS":
+        setVotedMemberIds(event.votedMemberIds);
+        break;
+      case "VOTES_REVEALED":
+        setRevealedVotes(event.votes);
+        if (isConsensus(event.votes.map((v) => v.value))) {
+          confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
+        }
+        break;
+      case "ESTIMATE_LOCKED":
+        setLockedTickets((l) => new Set([...l, event.ticketId]));
+        break;
+      case "REACTION_RECEIVED":
+        setReactions((r) => [...r, { memberId: event.memberId, memberName: event.memberName, emoji: event.emoji }]);
+        break;
+    }
   });
 
   const castVote = useCallback((value: number) => {
     if (!member || myVote !== null || revealedVotes) return;
     setMyVote(value);
-    ws.send(JSON.stringify({ type: "VOTE_CAST", memberId: member.id, value } satisfies PartyClientMessage));
-  }, [member, myVote, revealedVotes, ws]);
+    const currentTicketId = currentTicket?.id;
+    if (!currentTicketId) return;
+    fetch(`/api/sessions/${session.id}/vote`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ memberId: member.id, ticketId: currentTicketId, value }),
+    });
+  }, [member, myVote, revealedVotes, currentTicket, session.id]);
 
   const sendReaction = useCallback((emoji: string) => {
     if (!member) return;
-    ws.send(JSON.stringify({ type: "REACTION", memberId: member.id, emoji } satisfies PartyClientMessage));
-  }, [member, ws]);
+    fetch(`/api/sessions/${session.id}/react`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ memberId: member.id, memberName: member.name, emoji }),
+    });
+  }, [member, session.id]);
 
   const median = revealedVotes ? calcMedian(revealedVotes.map((v) => v.value)) : 0;
 
@@ -115,9 +119,9 @@ export function ParticipantView({ session }: { session: SessionWithDetails }) {
             <h2 className="text-xl font-bold text-white mb-2">Waiting for admin...</h2>
             <p className="text-white/40 text-sm">The session host will open a ticket soon.</p>
             <div className="flex items-center justify-center gap-1.5 mt-6">
-              <div className="w-2 h-2 bg-violet-400 rounded-full animate-bounce" style={{ animationDelay: "0ms" }} />
-              <div className="w-2 h-2 bg-violet-400 rounded-full animate-bounce" style={{ animationDelay: "150ms" }} />
-              <div className="w-2 h-2 bg-violet-400 rounded-full animate-bounce" style={{ animationDelay: "300ms" }} />
+              {[0, 150, 300].map((delay) => (
+                <div key={delay} className="w-2 h-2 bg-violet-400 rounded-full animate-bounce" style={{ animationDelay: `${delay}ms` }} />
+              ))}
             </div>
           </div>
         ) : (
@@ -129,13 +133,11 @@ export function ParticipantView({ session }: { session: SessionWithDetails }) {
               exit={{ opacity: 0, y: -20 }}
               className="w-full max-w-lg space-y-8"
             >
-              {/* Ticket */}
               <div className="text-center">
                 <p className="text-violet-400 font-mono text-sm mb-2">{currentTicket.jiraKey}</p>
                 <h2 className="text-xl font-bold text-white">{currentTicket.title}</h2>
               </div>
 
-              {/* Voting cards */}
               {!revealedVotes && (
                 <div>
                   <p className="text-center text-white/40 text-sm mb-6">
@@ -143,48 +145,29 @@ export function ParticipantView({ session }: { session: SessionWithDetails }) {
                   </p>
                   <div className="flex gap-3 justify-center flex-wrap">
                     {FIBONACCI_VALUES.map((value) => (
-                      <VotingCard
-                        key={value}
-                        value={value}
-                        selected={myVote === value}
-                        disabled={myVote !== null}
-                        onSelect={castVote}
-                      />
+                      <VotingCard key={value} value={value} selected={myVote === value} disabled={myVote !== null} onSelect={castVote} />
                     ))}
                   </div>
                 </div>
               )}
 
-              {/* Vote progress (others voting) */}
               {!revealedVotes && (
                 <div className="flex justify-center gap-2">
                   {checkedIn.map((c) => (
-                    <div
-                      key={c.memberId}
-                      className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all ${
-                        votedMemberIds.includes(c.memberId)
-                          ? "bg-violet-600 text-white"
-                          : "bg-white/10 text-white/30"
-                      }`}
-                    >
+                    <div key={c.memberId} className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all ${
+                      votedMemberIds.includes(c.memberId) ? "bg-violet-600 text-white" : "bg-white/10 text-white/30"
+                    }`}>
                       {c.memberName[0]?.toUpperCase()}
                     </div>
                   ))}
                 </div>
               )}
 
-              {/* Revealed votes */}
               {revealedVotes && (
                 <div className="space-y-6">
                   <div className="flex flex-wrap gap-4 justify-center">
                     {revealedVotes.map((vote, i) => (
-                      <RevealCard
-                        key={vote.memberId}
-                        memberName={vote.memberName}
-                        value={vote.value}
-                        median={median}
-                        delay={i * 0.1}
-                      />
+                      <RevealCard key={vote.memberId} memberName={vote.memberName} value={vote.value} median={median} delay={i * 0.1} />
                     ))}
                   </div>
                   {isConsensus(revealedVotes.map((v) => v.value)) && (
@@ -193,10 +176,7 @@ export function ParticipantView({ session }: { session: SessionWithDetails }) {
                   <div className="border-t border-white/10 pt-4">
                     <p className="text-xs text-white/40 mb-2 text-center">React</p>
                     <div className="flex justify-center">
-                      <EmojiReaction
-                        reactions={reactions}
-                        onReact={sendReaction}
-                      />
+                      <EmojiReaction reactions={reactions} onReact={sendReaction} />
                     </div>
                   </div>
                 </div>

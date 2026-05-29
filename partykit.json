@@ -1,5 +1,0 @@
-{
-  "name": "agakpoints",
-  "main": "party/index.ts",
-  "$schema": "https://www.partykit.io/schema.json"
-}

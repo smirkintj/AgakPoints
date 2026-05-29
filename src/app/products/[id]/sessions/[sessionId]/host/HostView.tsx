@@ -1,16 +1,16 @@
 "use client";
-import { useState, useEffect, useCallback, useRef } from "react";
-import usePartySocket from "partysocket/react";
-import { motion, AnimatePresence } from "framer-motion";
+import { useState, useCallback } from "react";
+import { motion } from "framer-motion";
+import { useSessionChannel } from "@/hooks/useSessionChannel";
+import type { SessionEvent } from "@/types/ably";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { RevealCard, calcMedian } from "@/components/session/RevealCard";
 import { EmojiReaction } from "@/components/session/EmojiReaction";
-import type { PartyClientMessage, PartyServerMessage } from "@/types/partykit";
+import type { Ticket, Member, SessionParticipant, Vote } from "@/types/models";
 import { isConsensus, FIBONACCI_VALUES } from "@/lib/utils";
 import { Check, ChevronRight, Copy, Eye, Lock, Play, Users } from "lucide-react";
 import confetti from "canvas-confetti";
-import type { Ticket, Member, SessionParticipant, Vote } from "@/types/models";
 
 type TicketWithVotes = Ticket & { votes: (Vote & { member: Member })[] };
 type ParticipantWithMember = SessionParticipant & { member: Member };
@@ -40,69 +40,66 @@ export function HostView({ session, productId }: HostViewProps) {
   const [note, setNote] = useState("");
   const [locked, setLocked] = useState<Set<string>>(new Set());
   const [copied, setCopied] = useState(false);
+
   const joinUrl = typeof window !== "undefined" ? `${window.location.origin}/join/${session.id}` : "";
 
-  const ws = usePartySocket({
-    host: process.env.NEXT_PUBLIC_PARTYKIT_HOST ?? "localhost:1999",
-    room: session.id,
-    onMessage(event) {
-      const msg = JSON.parse(event.data) as PartyServerMessage;
-      switch (msg.type) {
-        case "PRESENCE_UPDATE":
-          setCheckedIn(msg.checkedIn);
-          break;
-        case "SESSION_STARTED":
-          setStatus("ACTIVE");
-          break;
-        case "TICKET_OPENED":
-          setCurrentTicketId(msg.ticketId);
-          setRevealedVotes(null);
-          setVoteProgress({ votedCount: 0, totalCount: checkedIn.length, votedMemberIds: [] });
-          setSelectedEstimate(null);
-          setNote("");
-          break;
-        case "VOTE_PROGRESS":
-          setVoteProgress({ votedCount: msg.votedCount, totalCount: msg.totalCount, votedMemberIds: msg.votedMemberIds });
-          break;
-        case "VOTES_REVEALED":
-          setRevealedVotes(msg.votes);
-          const values = msg.votes.map((v) => v.value);
-          if (isConsensus(values)) {
-            confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
-          }
-          break;
-        case "ESTIMATE_LOCKED":
-          setLocked((l) => new Set([...l, msg.ticketId]));
-          break;
-        case "REACTION_RECEIVED":
-          setReactions((r) => [...r, { memberId: msg.memberId, memberName: msg.memberName, emoji: msg.emoji }]);
-          break;
-      }
-    },
+  useSessionChannel(session.id, (event: SessionEvent) => {
+    switch (event.type) {
+      case "PRESENCE_UPDATE":
+        setCheckedIn(event.checkedIn);
+        break;
+      case "SESSION_STARTED":
+        setStatus("ACTIVE");
+        break;
+      case "TICKET_OPENED":
+        setCurrentTicketId(event.ticketId);
+        setRevealedVotes(null);
+        setVoteProgress({ votedCount: 0, totalCount: checkedIn.length, votedMemberIds: [] });
+        setSelectedEstimate(null);
+        setNote("");
+        break;
+      case "VOTE_PROGRESS":
+        setVoteProgress({ votedCount: event.votedCount, totalCount: event.totalCount, votedMemberIds: event.votedMemberIds });
+        break;
+      case "VOTES_REVEALED":
+        setRevealedVotes(event.votes);
+        if (isConsensus(event.votes.map((v) => v.value))) {
+          confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
+        }
+        break;
+      case "ESTIMATE_LOCKED":
+        setLocked((l) => new Set([...l, event.ticketId]));
+        break;
+      case "REACTION_RECEIVED":
+        setReactions((r) => [...r, { memberId: event.memberId, memberName: event.memberName, emoji: event.emoji }]);
+        break;
+    }
   });
 
-  const send = useCallback((msg: PartyClientMessage) => {
-    ws.send(JSON.stringify(msg));
-  }, [ws]);
+  const apiPost = useCallback((path: string, body: object) =>
+    fetch(`/api/sessions/${session.id}/${path}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    }), [session.id]);
 
-  const startSession = () => send({ type: "START_SESSION" });
+  const startSession = () => apiPost("start", {});
 
-  const openTicket = (ticketId: string) => {
-    send({ type: "OPEN_TICKET", ticketId });
+  const openTicket = (ticketId: string) => apiPost("ticket", { ticketId });
+
+  const reveal = () => {
+    if (!currentTicketId) return;
+    apiPost("reveal", { ticketId: currentTicketId });
   };
-
-  const reveal = () => send({ type: "REVEAL_VOTES" });
 
   const lockEstimate = async (ticketId: string) => {
     if (selectedEstimate === null) return;
-    send({ type: "LOCK_ESTIMATE", ticketId, value: selectedEstimate, note });
-    await fetch(`/api/sessions/${session.id}/tickets/${ticketId}/lock`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ value: selectedEstimate, note, votes: revealedVotes ?? [] }),
-    });
+    await apiPost(`tickets/${ticketId}/lock`, { value: selectedEstimate, note, votes: revealedVotes ?? [] });
     setLocked((l) => new Set([...l, ticketId]));
   };
+
+  const sendReaction = (emoji: string) =>
+    apiPost("react", { memberId: "admin", memberName: session.product.members[0]?.name ?? "Admin", emoji });
 
   const copyLink = () => {
     navigator.clipboard.writeText(joinUrl);
@@ -189,7 +186,6 @@ export function HostView({ session, productId }: HostViewProps) {
                   {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
                 </button>
               </div>
-              {/* Check-in list */}
               <div className="flex flex-wrap gap-2 max-w-md justify-center">
                 {session.product.members.map((member) => {
                   const isIn = checkedIn.some((c) => c.memberId === member.id);
@@ -217,7 +213,6 @@ export function HostView({ session, productId }: HostViewProps) {
 
           {status === "ACTIVE" && currentTicket && (
             <div className="flex-1 p-8 flex flex-col gap-6">
-              {/* Ticket info */}
               <div>
                 <div className="flex items-center gap-3 mb-2">
                   <span className="text-violet-400 font-mono text-sm">{currentTicket.jiraKey}</span>
@@ -257,32 +252,18 @@ export function HostView({ session, productId }: HostViewProps) {
                 })}
               </div>
 
-              {/* Reveal / Revealed area */}
               {!revealedVotes ? (
-                <Button
-                  onClick={reveal}
-                  variant="success"
-                  size="lg"
-                  disabled={voteProgress.votedCount === 0}
-                  className="self-start"
-                >
+                <Button onClick={reveal} variant="success" size="lg" disabled={voteProgress.votedCount === 0} className="self-start">
                   <Eye className="w-4 h-4" />
                   Reveal Votes
                 </Button>
               ) : (
                 <div className="space-y-6">
-                  {/* Revealed cards */}
                   <div>
                     <p className="text-sm text-white/40 mb-4">Votes revealed</p>
                     <div className="flex flex-wrap gap-4">
                       {revealedVotes.map((vote, i) => (
-                        <RevealCard
-                          key={vote.memberId}
-                          memberName={vote.memberName}
-                          value={vote.value}
-                          median={median}
-                          delay={i * 0.1}
-                        />
+                        <RevealCard key={vote.memberId} memberName={vote.memberName} value={vote.value} median={median} delay={i * 0.1} />
                       ))}
                     </div>
                     {revealedVotes.length > 0 && (
@@ -295,16 +276,11 @@ export function HostView({ session, productId }: HostViewProps) {
                     )}
                   </div>
 
-                  {/* Reactions */}
                   <div className="relative">
                     <p className="text-xs text-white/40 mb-2">Reactions</p>
-                    <EmojiReaction
-                      reactions={reactions}
-                      onReact={(emoji) => send({ type: "REACTION", memberId: "admin", emoji })}
-                    />
+                    <EmojiReaction reactions={reactions} onReact={sendReaction} />
                   </div>
 
-                  {/* Lock estimate */}
                   {!locked.has(currentTicket.id) && (
                     <div className="border-t border-white/10 pt-6">
                       <p className="text-sm text-white/60 mb-3">Lock final estimate:</p>
@@ -330,11 +306,7 @@ export function HostView({ session, productId }: HostViewProps) {
                         onChange={(e) => setNote(e.target.value)}
                         className="w-full rounded-lg border border-white/20 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-white/30 focus:border-violet-500 focus:outline-none mb-3"
                       />
-                      <Button
-                        onClick={() => lockEstimate(currentTicket.id)}
-                        disabled={selectedEstimate === null}
-                        variant="success"
-                      >
+                      <Button onClick={() => lockEstimate(currentTicket.id)} disabled={selectedEstimate === null} variant="success">
                         <Lock className="w-4 h-4" />
                         Lock {selectedEstimate ? `(${selectedEstimate} pts)` : ""}
                         <ChevronRight className="w-4 h-4" />

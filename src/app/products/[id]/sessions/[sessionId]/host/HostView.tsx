@@ -1,6 +1,6 @@
 "use client";
 import { useState, useCallback } from "react";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { usePartyRoom } from "@/hooks/usePartyRoom";
 import type { MsgOut, CheckedInMember, RevealedVote, PublicState } from "@/types/partykit";
 import { Button } from "@/components/ui/button";
@@ -12,10 +12,12 @@ import { RoleBadge } from "@/components/session/RoleBadge";
 import { AssignmentPicker } from "@/components/session/AssignmentPicker";
 import { BandwidthRail } from "@/components/session/BandwidthRail";
 import { BulkAssignDrawer } from "@/components/session/BulkAssignDrawer";
+import { TicketTypeIcon } from "@/components/session/TicketTypeIcon";
+import { SprintCalendar } from "@/components/session/SprintCalendar";
 import type { Ticket, Member, SessionParticipant, Vote } from "@/types/models";
 import { FIBONACCI_VALUES } from "@/lib/utils";
 import {
-  Check, ChevronRight, Copy, Eye, ExternalLink,
+  AlertTriangle, Check, CheckCircle2, ChevronDown, ChevronRight, Copy, Eye, ExternalLink,
   GitMerge, Layers, Lock, Play, Sparkles, Users,
 } from "lucide-react";
 import confetti from "canvas-confetti";
@@ -26,6 +28,8 @@ type ParticipantWithMember = SessionParticipant & { member: Member };
 interface PokerSession {
   id: string;
   sprintName: string;
+  sprintStartDate: Date | string | null;
+  sprintEndDate: Date | string | null;
   status: string;
   tickets: TicketWithVotes[];
   participants: ParticipantWithMember[];
@@ -52,8 +56,8 @@ function TicketNode({
       {/* Card header */}
       <div className="flex items-center justify-between px-6 pt-5 pb-3 border-b border-white/8">
         <div className="flex items-center gap-2">
-          <div className="w-3 h-3 rounded-sm bg-violet-500" />
-          <span className="text-white/40 text-xs">Story</span>
+          <TicketTypeIcon type={ticket.issueType} size={14} />
+          <span className="text-white/40 text-xs">{ticket.issueType ?? "Story"}</span>
           <span className="text-white/20 text-xs">·</span>
           <span className="font-mono text-violet-400 text-xs font-semibold tracking-wide">{ticket.jiraKey}</span>
         </div>
@@ -96,9 +100,36 @@ function TicketNode({
   );
 }
 
+// ── JIRA sync status badge ────────────────────────────────────────────────────
+
+function JiraSyncBadge({ status }: { status: "idle" | "saving" | "synced" | "partial" | "failed" }) {
+  if (status === "idle") return null;
+  if (status === "saving") return (
+    <span className="flex items-center gap-1 text-xs text-white/40">
+      <span className="w-3 h-3 border border-white/30 border-t-transparent rounded-full animate-spin" />
+      Syncing to JIRA…
+    </span>
+  );
+  if (status === "synced") return (
+    <span className="flex items-center gap-1 text-xs text-emerald-400">
+      <CheckCircle2 className="w-3.5 h-3.5" /> Synced to JIRA
+    </span>
+  );
+  if (status === "partial") return (
+    <span className="flex items-center gap-1 text-xs text-amber-400">
+      <AlertTriangle className="w-3.5 h-3.5" /> JIRA partial sync
+    </span>
+  );
+  return (
+    <span className="flex items-center gap-1 text-xs text-red-400">
+      <AlertTriangle className="w-3.5 h-3.5" /> JIRA sync failed
+    </span>
+  );
+}
+
 // ── Main Component ────────────────────────────────────────────────────────────
 
-export function HostView({ session, productId: _productId }: { session: PokerSession; productId: string }) {
+export function HostView({ session, productId }: { session: PokerSession; productId: string }) {
   const [sessionStatus, setSessionStatus] = useState<"WAITING" | "ACTIVE" | "COMPLETED">(
     session.status as "WAITING" | "ACTIVE" | "COMPLETED"
   );
@@ -118,6 +149,14 @@ export function HostView({ session, productId: _productId }: { session: PokerSes
   const [savingLock, setSavingLock] = useState(false);
   const [bulkDrawerOpen, setBulkDrawerOpen] = useState(false);
   const [tickets, setTickets] = useState(session.tickets);
+  const [jiraStatus, setJiraStatus] = useState<"idle" | "saving" | "synced" | "partial" | "failed">("idle");
+
+  // Task 3: pending ticket (host clicked but not yet opened)
+  const [pendingTicket, setPendingTicket] = useState<TicketWithVotes | null>(null);
+  const [contextNote, setContextNote] = useState("");
+
+  // Task 6: collapsed sections
+  const [estimatedCollapsed, setEstimatedCollapsed] = useState(true);
 
   const joinUrl = typeof window !== "undefined" ? `${window.location.origin}/join/${session.id}` : "";
 
@@ -130,6 +169,7 @@ export function HostView({ session, productId: _productId }: { session: PokerSes
     setRevealedVotes(state.revealedVotes);
     setLockedTickets(new Set(state.lockedTickets));
     setTicketAssignees(state.lockedTicketAssignees ?? {});
+    setContextNote(state.currentTicket?.contextNote ?? "");
     if (state.revealed && state.revealedVotes) {
       const vals = state.revealedVotes.map((v) => v.value);
       const sorted = [...vals].sort((a, b) => a - b);
@@ -148,9 +188,11 @@ export function HostView({ session, productId: _productId }: { session: PokerSes
       case "SESSION_STARTED": setSessionStatus("ACTIVE"); break;
       case "TICKET_OPENED":
         setCurrentTicketId(msg.ticketId);
+        setContextNote(msg.contextNote ?? "");
         setVotedMemberIds([]); setVotedCount(0);
         setRevealedVotes(null); setRevealMeta(null);
         setSelectedEstimate(null); setSelectedAssigneeId(null); setNote("");
+        setJiraStatus("idle");
         break;
       case "VOTE_PROGRESS":
         setVotedMemberIds(msg.votedMemberIds); setVotedCount(msg.votedCount); break;
@@ -171,19 +213,38 @@ export function HostView({ session, productId: _productId }: { session: PokerSes
   const currentTicket = tickets.find((t) => t.id === currentTicketId) ?? null;
 
   const startSession = () => send({ type: "START_SESSION" });
-  const openTicket = (t: TicketWithVotes) =>
-    send({ type: "OPEN_TICKET", ticketId: t.id, jiraKey: t.jiraKey, title: t.title, description: t.description ?? undefined });
+
+  const openTicket = (t: TicketWithVotes, note: string) => {
+    setPendingTicket(null);
+    setContextNote(note);
+    send({ type: "OPEN_TICKET", ticketId: t.id, jiraKey: t.jiraKey, title: t.title, description: t.description ?? undefined, contextNote: note || undefined });
+  };
+
   const reveal = () => send({ type: "REVEAL_VOTES" });
 
   const lockEstimate = async () => {
     if (!currentTicket || selectedEstimate === null) return;
     setSavingLock(true);
+    setJiraStatus("saving");
     send({ type: "LOCK_ESTIMATE", ticketId: currentTicket.id, value: selectedEstimate, note: note || undefined, assigneeId: selectedAssigneeId ?? undefined });
-    await fetch(`/api/sessions/${session.id}/tickets/${currentTicket.id}/lock`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ value: selectedEstimate, note, votes: revealedVotes ?? [], assigneeId: selectedAssigneeId }),
-    });
+    try {
+      const res = await fetch(`/api/sessions/${session.id}/tickets/${currentTicket.id}/lock`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ value: selectedEstimate, note, votes: revealedVotes ?? [], assigneeId: selectedAssigneeId }),
+      });
+      const data = await res.json();
+      if (data.jiraSync) {
+        const { points, comment, assignee } = data.jiraSync;
+        const allOk = points && comment;
+        const anyOk = points || comment || assignee;
+        setJiraStatus(allOk ? "synced" : anyOk ? "partial" : "failed");
+      } else {
+        setJiraStatus("failed");
+      }
+    } catch {
+      setJiraStatus("failed");
+    }
     setSavingLock(false);
   };
 
@@ -204,6 +265,14 @@ export function HostView({ session, productId: _productId }: { session: PokerSes
 
   const currentAssigneeId = currentTicket ? (ticketAssignees[currentTicket.id] ?? currentTicket.assigneeId) : null;
   const currentAssignee = currentAssigneeId ? session.product.members.find((m) => m.id === currentAssigneeId) ?? null : null;
+
+  // Task 6: split tickets into sections
+  const toEstimateTickets = tickets.filter((t) => !lockedTickets.has(t.id) && t.status !== "ESTIMATED");
+  const estimatedTickets = tickets.filter((t) => lockedTickets.has(t.id) || t.status === "ESTIMATED");
+
+  // For SprintCalendar
+  const sprintStart = session.sprintStartDate ? new Date(session.sprintStartDate) : null;
+  const sprintEnd = session.sprintEndDate ? new Date(session.sprintEndDate) : null;
 
   return (
     <div className="h-screen flex flex-col">
@@ -255,45 +324,110 @@ export function HostView({ session, productId: _productId }: { session: PokerSes
             </p>
           </div>
           <div className="overflow-y-auto flex-1 py-1">
-            {tickets.map((ticket) => {
-              const isLocked = lockedTickets.has(ticket.id) || ticket.status === "ESTIMATED";
-              const isCurrent = currentTicketId === ticket.id;
-              const assigneeId = ticketAssignees[ticket.id] ?? ticket.assigneeId;
-              const assignee = assigneeId ? session.product.members.find((m) => m.id === assigneeId) : null;
-              return (
-                <button
-                  key={ticket.id}
-                  onClick={() => !isLocked && sessionStatus === "ACTIVE" && openTicket(ticket)}
-                  disabled={isLocked || sessionStatus !== "ACTIVE"}
-                  className={`w-full text-left px-3 py-2.5 transition-all border-l-2 ${
-                    isCurrent
-                      ? "bg-violet-600/15 border-l-violet-500"
-                      : isLocked
-                      ? "opacity-35 cursor-not-allowed border-l-transparent"
-                      : "hover:bg-white/4 border-l-transparent"
-                  }`}
-                >
-                  <div className="flex items-start gap-2">
-                    <div className={`w-2.5 h-2.5 rounded-sm mt-0.5 shrink-0 ${isLocked ? "bg-emerald-500/60" : "bg-violet-500/60"}`} />
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-1.5 mb-0.5">
-                        <span className="text-[10px] font-mono text-violet-400/80 shrink-0">{ticket.jiraKey}</span>
-                        {ticket.finalEstimate != null && (
-                          <span className="text-[10px] font-mono text-emerald-400/80 ml-auto">{ticket.finalEstimate}pt</span>
+            {/* To estimate section */}
+            <div>
+              <div className="flex items-center gap-2 px-3 py-2 text-[10px] text-white/30 font-semibold uppercase tracking-widest">
+                <span className="flex-1">To estimate</span>
+                <span className="text-[9px] bg-white/10 rounded px-1 py-0.5 font-mono">{toEstimateTickets.length}</span>
+              </div>
+              {toEstimateTickets.map((ticket) => {
+                const isCurrent = currentTicketId === ticket.id;
+                const isPending = pendingTicket?.id === ticket.id;
+                const assigneeId = ticketAssignees[ticket.id] ?? ticket.assigneeId;
+                const assignee = assigneeId ? session.product.members.find((m) => m.id === assigneeId) : null;
+                return (
+                  <button
+                    key={ticket.id}
+                    onClick={() => {
+                      if (sessionStatus !== "ACTIVE") return;
+                      if (isCurrent) return;
+                      setPendingTicket(ticket);
+                      setContextNote("");
+                    }}
+                    disabled={sessionStatus !== "ACTIVE"}
+                    className={`w-full text-left px-3 py-2.5 transition-all border-l-2 ${
+                      isCurrent
+                        ? "bg-violet-600/15 border-l-violet-500"
+                        : isPending
+                        ? "bg-amber-600/10 border-l-amber-400"
+                        : "hover:bg-white/4 border-l-transparent"
+                    }`}
+                  >
+                    <div className="flex items-start gap-2">
+                      <div className="mt-0.5 shrink-0">
+                        <TicketTypeIcon type={ticket.issueType} size={12} />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5 mb-0.5">
+                          <span className="text-[10px] font-mono text-violet-400/80 shrink-0">{ticket.jiraKey}</span>
+                        </div>
+                        <p className="text-[11px] text-white/60 leading-snug line-clamp-2">{ticket.title}</p>
+                        {assignee && (
+                          <div className="flex items-center gap-1 mt-1">
+                            <MemberAvatar name={assignee.name} role={assignee.role} size={12} />
+                            <span className="text-[9px] text-white/30">{assignee.name.split(" ")[0]}</span>
+                          </div>
                         )}
                       </div>
-                      <p className="text-[11px] text-white/60 leading-snug line-clamp-2">{ticket.title}</p>
-                      {assignee && (
-                        <div className="flex items-center gap-1 mt-1">
-                          <MemberAvatar name={assignee.name} role={assignee.role} size={12} />
-                          <span className="text-[9px] text-white/30">{assignee.name.split(" ")[0]}</span>
-                        </div>
-                      )}
                     </div>
-                  </div>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Estimated section */}
+            {estimatedTickets.length > 0 && (
+              <div>
+                <button
+                  onClick={() => setEstimatedCollapsed((c) => !c)}
+                  className="flex items-center gap-2 px-3 py-2 w-full text-[10px] text-white/30 font-semibold uppercase tracking-widest hover:text-white/50 transition-colors"
+                >
+                  {estimatedCollapsed ? <ChevronRight className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                  <span className="flex-1 text-left">Estimated</span>
+                  <span className="text-[9px] bg-emerald-500/20 text-emerald-400 rounded px-1 py-0.5 font-mono">{estimatedTickets.length}</span>
                 </button>
-              );
-            })}
+                <AnimatePresence initial={false}>
+                  {!estimatedCollapsed && (
+                    <motion.div
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: "auto", opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      transition={{ duration: 0.2 }}
+                      className="overflow-hidden"
+                    >
+                      {estimatedTickets.map((ticket) => {
+                        const assigneeId = ticketAssignees[ticket.id] ?? ticket.assigneeId;
+                        const assignee = assigneeId ? session.product.members.find((m) => m.id === assigneeId) : null;
+                        return (
+                          <div key={ticket.id} className="w-full text-left px-3 py-2.5 opacity-40 border-l-2 border-l-transparent">
+                            <div className="flex items-start gap-2">
+                              <div className="mt-0.5 shrink-0">
+                                <TicketTypeIcon type={ticket.issueType} size={12} />
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-1.5 mb-0.5">
+                                  <span className="text-[10px] font-mono text-violet-400/80 shrink-0">{ticket.jiraKey}</span>
+                                  {ticket.finalEstimate != null && (
+                                    <span className="text-[10px] font-mono text-emerald-400/80 ml-auto">{ticket.finalEstimate}pt</span>
+                                  )}
+                                </div>
+                                <p className="text-[11px] text-white/60 leading-snug line-clamp-2">{ticket.title}</p>
+                                {assignee && (
+                                  <div className="flex items-center gap-1 mt-1">
+                                    <MemberAvatar name={assignee.name} role={assignee.role} size={12} />
+                                    <span className="text-[9px] text-white/30">{assignee.name.split(" ")[0]}</span>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            )}
           </div>
         </aside>
 
@@ -302,7 +436,7 @@ export function HostView({ session, productId: _productId }: { session: PokerSes
 
           {/* WAITING */}
           {sessionStatus === "WAITING" && (
-            <div className="flex flex-col items-center justify-center gap-8 p-12 flex-1">
+            <div className="flex flex-col items-center gap-8 p-12 flex-1">
               <div className="text-center">
                 <h2 className="text-2xl font-bold text-white mb-2">Waiting for team</h2>
                 <p className="text-white/40 text-sm">Share the join link — members select their name to check in.</p>
@@ -328,11 +462,56 @@ export function HostView({ session, productId: _productId }: { session: PokerSes
                 <Play className="w-4 h-4" />
                 Start session ({checkedIn.length} checked in)
               </Button>
+
+              {/* Sprint Calendar */}
+              {(sprintStart || sprintEnd) && (
+                <div className="w-full max-w-3xl">
+                  <SprintCalendar
+                    startDate={sprintStart}
+                    endDate={sprintEnd}
+                    members={session.product.members}
+                    checkedIn={checkedIn}
+                  />
+                </div>
+              )}
             </div>
           )}
 
-          {/* ACTIVE — no ticket */}
-          {sessionStatus === "ACTIVE" && !currentTicket && (
+          {/* ACTIVE — pending ticket (not yet broadcast) */}
+          {sessionStatus === "ACTIVE" && pendingTicket && !currentTicketId && (
+            <div className="flex flex-col items-center gap-6 px-8 py-8 flex-1">
+              <div className="w-full max-w-2xl space-y-4">
+                <p className="text-xs text-white/30 uppercase tracking-widest font-medium">Ready to open</p>
+                <TicketNode
+                  ticket={pendingTicket}
+                  assignee={(() => {
+                    const aid = ticketAssignees[pendingTicket.id] ?? pendingTicket.assigneeId;
+                    return aid ? session.product.members.find((m) => m.id === aid) ?? null : null;
+                  })()}
+                  jiraBaseUrl={session.product.jiraBaseUrl}
+                />
+                <textarea
+                  value={contextNote}
+                  onChange={(e) => setContextNote(e.target.value)}
+                  placeholder="Context note for team (optional) — visible to participants alongside the ticket"
+                  rows={3}
+                  className="w-full rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-white/20 focus:border-violet-500 focus:outline-none resize-none"
+                />
+                <div className="flex gap-3">
+                  <Button onClick={() => openTicket(pendingTicket, contextNote)} variant="success">
+                    <Play className="w-4 h-4" />
+                    Start voting on this ticket
+                  </Button>
+                  <Button variant="ghost" onClick={() => setPendingTicket(null)}>
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ACTIVE — no ticket and no pending */}
+          {sessionStatus === "ACTIVE" && !currentTicket && !pendingTicket && (
             <div className="flex items-center justify-center flex-1 text-white/20 text-sm">
               Select a ticket from the sidebar to start voting
             </div>
@@ -348,6 +527,14 @@ export function HostView({ session, productId: _productId }: { session: PokerSes
                 assignee={currentAssignee}
                 jiraBaseUrl={session.product.jiraBaseUrl}
               />
+
+              {/* Context note display */}
+              {contextNote && (
+                <div className="w-full max-w-2xl rounded-xl bg-amber-500/8 border border-amber-500/20 px-4 py-3">
+                  <p className="text-[10px] text-amber-400/80 font-semibold uppercase tracking-widest mb-1">Host notes</p>
+                  <p className="text-sm text-white/60 leading-relaxed">{contextNote}</p>
+                </div>
+              )}
 
               {/* Vote progress */}
               <div className="w-full max-w-2xl space-y-4">
@@ -451,16 +638,22 @@ export function HostView({ session, productId: _productId }: { session: PokerSes
                         className="w-full rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-white/20 focus:border-violet-500 focus:outline-none"
                       />
                       <AssignmentPicker members={checkedIn} selectedMemberId={selectedAssigneeId} onChange={setSelectedAssigneeId} />
-                      <Button onClick={lockEstimate} disabled={selectedEstimate === null || savingLock} variant="success">
-                        <Lock className="w-4 h-4" />
-                        {savingLock ? "Saving..." : `Lock${selectedEstimate ? ` — ${selectedEstimate} pts` : ""}`}
-                        <ChevronRight className="w-4 h-4" />
-                      </Button>
+                      <div className="flex items-center gap-3">
+                        <Button onClick={lockEstimate} disabled={selectedEstimate === null || savingLock} variant="success">
+                          <Lock className="w-4 h-4" />
+                          {savingLock ? "Saving..." : `Lock${selectedEstimate ? ` — ${selectedEstimate} pts` : ""}`}
+                          <ChevronRight className="w-4 h-4" />
+                        </Button>
+                        <JiraSyncBadge status={jiraStatus} />
+                      </div>
                     </div>
                   ) : (
-                    <div className="flex items-center gap-2 text-emerald-400 pt-2">
-                      <Check className="w-4 h-4" />
-                      <span className="text-sm font-medium">Locked and synced to JIRA</span>
+                    <div className="flex items-center gap-3 pt-2">
+                      <div className="flex items-center gap-2 text-emerald-400">
+                        <Check className="w-4 h-4" />
+                        <span className="text-sm font-medium">Locked</span>
+                      </div>
+                      <JiraSyncBadge status={jiraStatus} />
                     </div>
                   )}
                 </div>
@@ -476,6 +669,7 @@ export function HostView({ session, productId: _productId }: { session: PokerSes
             estimatedTickets={enrichedTickets}
             pendingAssigneeId={selectedAssigneeId}
             pendingEstimate={selectedEstimate}
+            productId={productId}
           />
         )}
       </div>

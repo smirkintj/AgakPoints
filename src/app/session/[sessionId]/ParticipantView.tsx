@@ -20,7 +20,7 @@ type SessionWithDetails = PokerSession & {
 export function ParticipantView({ session }: { session: SessionWithDetails }) {
   const [member, setMember] = useState<Member | null>(null);
   const [checkedIn, setCheckedIn] = useState<CheckedInMember[]>([]);
-  const [currentTicket, setCurrentTicket] = useState<{ ticketId: string; jiraKey: string; title: string } | null>(null);
+  const [currentTicket, setCurrentTicket] = useState<{ ticketId: string; jiraKey: string; title: string; contextNote?: string } | null>(null);
   const [myVote, setMyVote] = useState<number | null>(null);
   const [votedMemberIds, setVotedMemberIds] = useState<string[]>([]);
   const [revealedVotes, setRevealedVotes] = useState<RevealedVote[] | null>(null);
@@ -38,7 +38,7 @@ export function ParticipantView({ session }: { session: SessionWithDetails }) {
       case "STATE_SYNC": {
         const s = msg.state;
         setCheckedIn(s.checkedIn);
-        setCurrentTicket(s.currentTicket);
+        setCurrentTicket(s.currentTicket ? { ticketId: s.currentTicket.ticketId, jiraKey: s.currentTicket.jiraKey, title: s.currentTicket.title, contextNote: s.currentTicket.contextNote } : null);
         setVotedMemberIds(s.votedMemberIds);
         setRevealedVotes(s.revealedVotes);
         setLockedTickets(new Set(s.lockedTickets));
@@ -57,7 +57,7 @@ export function ParticipantView({ session }: { session: SessionWithDetails }) {
         setCheckedIn(msg.checkedIn);
         break;
       case "TICKET_OPENED":
-        setCurrentTicket({ ticketId: msg.ticketId, jiraKey: msg.jiraKey, title: msg.title });
+        setCurrentTicket({ ticketId: msg.ticketId, jiraKey: msg.jiraKey, title: msg.title, contextNote: msg.contextNote });
         setMyVote(null);
         setVotedMemberIds([]);
         setRevealedVotes(null);
@@ -159,6 +159,12 @@ export function ParticipantView({ session }: { session: SessionWithDetails }) {
                 <p className="text-violet-400 font-mono text-sm mb-2 font-bold">{currentTicket.jiraKey}</p>
                 <h2 className="text-xl font-bold text-white leading-snug">{currentTicket.title}</h2>
               </div>
+              {currentTicket.contextNote && (
+                <div className="rounded-xl bg-amber-500/8 border border-amber-500/20 px-4 py-3">
+                  <p className="text-[10px] text-amber-400/80 font-semibold uppercase tracking-widest mb-1">Host notes</p>
+                  <p className="text-sm text-white/60 leading-relaxed">{currentTicket.contextNote}</p>
+                </div>
+              )}
 
               {/* Voting cards */}
               {!revealedVotes && (

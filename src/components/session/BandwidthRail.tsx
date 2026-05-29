@@ -1,4 +1,5 @@
 "use client";
+import { useState } from "react";
 import { MemberAvatar } from "./MemberAvatar";
 import { RoleBadge } from "./RoleBadge";
 import { getRoleColor } from "@/lib/roles";
@@ -21,6 +22,7 @@ interface BandwidthRailProps {
   estimatedTickets: EstimatedTicket[];
   pendingAssigneeId?: string | null;
   pendingEstimate?: number | null;
+  productId?: string;
 }
 
 function getStateTag(ratio: number) {
@@ -30,7 +32,76 @@ function getStateTag(ratio: number) {
   return { label: "over", color: "#ef4444" };
 }
 
-export function BandwidthRail({ members, estimatedTickets, pendingAssigneeId, pendingEstimate }: BandwidthRailProps) {
+function CapacityEditor({
+  memberId,
+  capacity,
+  productId,
+  onUpdate,
+}: {
+  memberId: string;
+  capacity: number;
+  productId: string;
+  onUpdate: (newCapacity: number) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [value, setValue] = useState(String(capacity));
+  const [saving, setSaving] = useState(false);
+
+  const commit = async () => {
+    const parsed = parseInt(value, 10);
+    if (isNaN(parsed) || parsed < 1) {
+      setValue(String(capacity));
+      setEditing(false);
+      return;
+    }
+    if (parsed === capacity) { setEditing(false); return; }
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/products/${productId}/members/${memberId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ capacity: parsed }),
+      });
+      if (res.ok) onUpdate(parsed);
+    } catch { /* ignore */ }
+    setSaving(false);
+    setEditing(false);
+  };
+
+  if (editing) {
+    return (
+      <input
+        type="number"
+        min={1}
+        className="w-10 text-[10px] font-mono bg-white/10 border border-violet-500 rounded px-1 text-white text-center focus:outline-none"
+        value={value}
+        autoFocus
+        onChange={(e) => setValue(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => { if (e.key === "Enter") commit(); if (e.key === "Escape") { setValue(String(capacity)); setEditing(false); } }}
+        disabled={saving}
+      />
+    );
+  }
+
+  return (
+    <button
+      onClick={() => { setValue(String(capacity)); setEditing(true); }}
+      title="Click to edit capacity"
+      className="text-[10px] font-mono text-white/40 hover:text-violet-300 hover:underline transition-colors"
+    >
+      /{capacity}pts
+    </button>
+  );
+}
+
+export function BandwidthRail({ members: initialMembers, estimatedTickets, pendingAssigneeId, pendingEstimate, productId }: BandwidthRailProps) {
+  const [capacities, setCapacities] = useState<Record<string, number>>(
+    Object.fromEntries(initialMembers.map((m) => [m.memberId, m.capacity]))
+  );
+
+  const members = initialMembers.map((m) => ({ ...m, capacity: capacities[m.memberId] ?? m.capacity }));
+
   const estimated = estimatedTickets.filter((t) => t.status === "ESTIMATED");
 
   const loadMap: Record<string, number> = {};
@@ -70,7 +141,17 @@ export function BandwidthRail({ members, estimatedTickets, pendingAssigneeId, pe
                     <RoleBadge role={m.role} size="sm" />
                   </div>
                   <div className="flex items-center gap-1.5 mt-0.5">
-                    <span className="text-[10px] font-mono text-white/40">{load}/{m.capacity}pts</span>
+                    <span className="text-[10px] font-mono text-white/40">{load}</span>
+                    {productId ? (
+                      <CapacityEditor
+                        memberId={m.memberId}
+                        capacity={m.capacity}
+                        productId={productId}
+                        onUpdate={(newCap) => setCapacities((prev) => ({ ...prev, [m.memberId]: newCap }))}
+                      />
+                    ) : (
+                      <span className="text-[10px] font-mono text-white/40">/{m.capacity}pts</span>
+                    )}
                     <span
                       className="text-[9px] font-semibold uppercase tracking-wide px-1 rounded"
                       style={{ color, backgroundColor: color + "22" }}

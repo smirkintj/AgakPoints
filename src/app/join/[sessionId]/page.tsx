@@ -15,5 +15,5 @@ export default async function JoinPage({ params }: { params: Promise<{ sessionId
 
   if (!session) notFound();
 
-  return <WaitingRoom session={session} />;
+  return <WaitingRoom session={JSON.parse(JSON.stringify(session))} />;
 }

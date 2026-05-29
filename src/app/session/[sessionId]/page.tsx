@@ -15,5 +15,5 @@ export default async function SessionPage({ params }: { params: Promise<{ sessio
 
   if (!session) notFound();
 
-  return <ParticipantView session={session} />;
+  return <ParticipantView session={JSON.parse(JSON.stringify(session))} />;
 }

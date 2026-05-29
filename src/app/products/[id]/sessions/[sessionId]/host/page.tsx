@@ -24,5 +24,8 @@ export default async function HostPage({
 
   if (!pokerSession) notFound();
 
-  return <HostView session={pokerSession} productId={id} />;
+  // Serialize Date objects before passing to client component
+  const serialized = JSON.parse(JSON.stringify(pokerSession));
+
+  return <HostView session={serialized} productId={id} />;
 }

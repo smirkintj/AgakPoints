@@ -12,13 +12,14 @@ interface EmojiReactionProps {
   reactions: { memberId: string; memberName: string; emoji: string }[];
   onReact: (emoji: string) => void;
   disabled?: boolean;
+  readOnly?: boolean;
 }
 
 const EMOJIS = ["👍", "🎯", "🤔", "💥", "😱", "🔥", "🎉", "💀"];
 
 let emojiCounter = 0;
 
-export function EmojiReaction({ reactions, onReact, disabled }: EmojiReactionProps) {
+export function EmojiReaction({ reactions, onReact, disabled, readOnly }: EmojiReactionProps) {
   const [floating, setFloating] = useState<FloatingEmoji[]>([]);
 
   useEffect(() => {
@@ -49,19 +50,21 @@ export function EmojiReaction({ reactions, onReact, disabled }: EmojiReactionPro
         ))}
       </AnimatePresence>
 
-      {/* Reaction buttons */}
-      <div className="flex gap-1 flex-wrap">
-        {EMOJIS.map((emoji) => (
-          <button
-            key={emoji}
-            onClick={() => !disabled && onReact(emoji)}
-            disabled={disabled}
-            className="text-xl p-1.5 rounded-lg hover:bg-white/10 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-          >
-            {emoji}
-          </button>
-        ))}
-      </div>
+      {/* Reaction buttons — hidden in readOnly mode */}
+      {!readOnly && (
+        <div className="flex gap-1 flex-wrap">
+          {EMOJIS.map((emoji) => (
+            <button
+              key={emoji}
+              onClick={() => !disabled && onReact(emoji)}
+              disabled={disabled}
+              className="text-xl p-1.5 rounded-lg hover:bg-white/10 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+            >
+              {emoji}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

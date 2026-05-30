@@ -7,6 +7,7 @@ import type { MsgOut, CheckedInMember, RevealedVote, PublicState } from "@/types
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { RevealCard } from "@/components/session/RevealCard";
+import { EmojiReaction } from "@/components/session/EmojiReaction";
 import { MemberAvatar } from "@/components/session/MemberAvatar";
 import { RoleBadge } from "@/components/session/RoleBadge";
 import { AssignmentPicker } from "@/components/session/AssignmentPicker";
@@ -515,7 +516,7 @@ export function HostView({ session, productId }: { session: PokerSession; produc
                 endDate={sprintEnd}
                 members={session.product.members}
                 checkedIn={checkedIn}
-                mode={sessionStatus === "WAITING" ? "planning" : "active"}
+                mode="planning"
               />
             </div>
           </div>
@@ -690,6 +691,9 @@ export function HostView({ session, productId }: { session: PokerSession; produc
                       </span>
                     )}
                   </div>
+
+                  {/* Floating reactions from members — read-only for host */}
+                  <EmojiReaction reactions={reactions} onReact={() => {}} readOnly />
 
                   {/* Lock estimate */}
                   {!lockedTickets.has(currentTicket.id) ? (

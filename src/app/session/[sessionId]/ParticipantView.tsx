@@ -25,7 +25,7 @@ type SessionWithDetails = PokerSession & {
 export function ParticipantView({ session }: { session: SessionWithDetails }) {
   const [member, setMember] = useState<Member | null>(null);
   const [checkedIn, setCheckedIn] = useState<CheckedInMember[]>([]);
-  const [currentTicket, setCurrentTicket] = useState<{ ticketId: string; jiraKey: string; title: string; contextNote?: string; issueType?: string; priority?: string } | null>(null);
+  const [currentTicket, setCurrentTicket] = useState<{ ticketId: string; jiraKey: string; title: string; description?: string; contextNote?: string; issueType?: string; priority?: string } | null>(null);
   const [myVote, setMyVote] = useState<number | null>(null);
   const [votedMemberIds, setVotedMemberIds] = useState<string[]>([]);
   const [revealedVotes, setRevealedVotes] = useState<RevealedVote[] | null>(null);
@@ -43,7 +43,7 @@ export function ParticipantView({ session }: { session: SessionWithDetails }) {
       case "STATE_SYNC": {
         const s = msg.state;
         setCheckedIn(s.checkedIn);
-        setCurrentTicket(s.currentTicket ? { ticketId: s.currentTicket.ticketId, jiraKey: s.currentTicket.jiraKey, title: s.currentTicket.title, contextNote: s.currentTicket.contextNote, issueType: s.currentTicket.issueType, priority: s.currentTicket.priority } : null);
+        setCurrentTicket(s.currentTicket ? { ticketId: s.currentTicket.ticketId, jiraKey: s.currentTicket.jiraKey, title: s.currentTicket.title, description: s.currentTicket.description, contextNote: s.currentTicket.contextNote, issueType: s.currentTicket.issueType, priority: s.currentTicket.priority } : null);
         setVotedMemberIds(s.votedMemberIds);
         setRevealedVotes(s.revealedVotes);
         setLockedTickets(new Set(s.lockedTickets));
@@ -62,7 +62,7 @@ export function ParticipantView({ session }: { session: SessionWithDetails }) {
         setCheckedIn(msg.checkedIn);
         break;
       case "TICKET_OPENED":
-        setCurrentTicket({ ticketId: msg.ticketId, jiraKey: msg.jiraKey, title: msg.title, contextNote: msg.contextNote, issueType: msg.issueType, priority: msg.priority });
+        setCurrentTicket({ ticketId: msg.ticketId, jiraKey: msg.jiraKey, title: msg.title, description: msg.description, contextNote: msg.contextNote, issueType: msg.issueType, priority: msg.priority });
         setMyVote(null);
         setVotedMemberIds([]);
         setRevealedVotes(null);
@@ -176,6 +176,11 @@ export function ParticipantView({ session }: { session: SessionWithDetails }) {
                   )}
                 </div>
                 <h2 className="text-xl font-bold text-white leading-snug">{currentTicket.title}</h2>
+                {currentTicket.description && (
+                  <p className="text-sm text-white/50 leading-relaxed border-t border-white/8 pt-3">
+                    {currentTicket.description}
+                  </p>
+                )}
               </div>
               {currentTicket.contextNote && (
                 <div className="rounded-xl bg-amber-500/8 border border-amber-500/20 px-4 py-3">

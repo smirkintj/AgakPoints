@@ -311,8 +311,6 @@ export function SprintCalendar({
           <span className="text-white/50 font-medium">Sprint Calendar</span>
           <span className="text-white/20">·</span>
           <span className="text-white/35">{workingDays.length} working days</span>
-          <span className="text-white/20">·</span>
-          <span className="text-emerald-400 font-semibold">{totalCapacity} cap. days</span>
         </div>
 
         <div className="flex items-center gap-1.5">

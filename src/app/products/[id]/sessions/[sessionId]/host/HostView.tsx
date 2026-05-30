@@ -28,6 +28,7 @@ type ParticipantWithMember = SessionParticipant & { member: Member };
 
 interface PokerSession {
   id: string;
+  name?: string | null;
   sprintName: string;
   sprintStartDate: Date | string | null;
   sprintEndDate: Date | string | null;
@@ -329,6 +330,9 @@ export function HostView({ session, productId }: { session: PokerSession; produc
           </div>
           <div className="flex items-center gap-2">
             <span className="text-white font-semibold text-sm">{session.sprintName}</span>
+            {session.name && (
+              <><span className="text-white/20 text-sm">·</span><span className="text-white/60 text-xs">{session.name}</span></>
+            )}
             {sprintStart && sprintEnd && (
               <span className="text-white/40 text-xs">
                 {sprintStart.toLocaleDateString("en-MY", { day: "numeric", month: "short" })} – {sprintEnd.toLocaleDateString("en-MY", { day: "numeric", month: "short" })}
@@ -347,6 +351,7 @@ export function HostView({ session, productId }: { session: PokerSession; produc
               variant="ghost"
               size="sm"
               onClick={async () => {
+                send({ type: "END_SESSION" });
                 await fetch(`/api/sessions/${session.id}/end`, { method: "POST" });
                 setSessionStatus("COMPLETED");
                 setRecapOpen(true);
@@ -516,7 +521,6 @@ export function HostView({ session, productId }: { session: PokerSession; produc
                 endDate={sprintEnd}
                 members={session.product.members}
                 checkedIn={checkedIn}
-                mode="planning"
               />
             </div>
           </div>

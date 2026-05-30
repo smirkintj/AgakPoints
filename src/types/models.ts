@@ -38,6 +38,7 @@ export interface PokerSession {
   productId: string;
   sprintId: string;
   sprintName: string;
+  name?: string | null;
   status: SessionStatus;
   sprintStartDate: Date | null;
   sprintEndDate: Date | null;

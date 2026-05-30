@@ -22,6 +22,7 @@ export default function NewSessionPage({ params }: { params: Promise<{ id: strin
   const [creating, setCreating] = useState(false);
   const [selected, setSelected] = useState<Sprint | null>(null);
   const [error, setError] = useState("");
+  const [sessionName, setSessionName] = useState("");
 
   useEffect(() => {
     fetch(`/api/products/${id}/sprints`)
@@ -47,6 +48,7 @@ export default function NewSessionPage({ params }: { params: Promise<{ id: strin
           sprintName: selected.name,
           sprintStartDate: selected.startDate,
           sprintEndDate: selected.endDate,
+          name: sessionName || undefined,
         }),
       });
       if (!res.ok) throw new Error("Failed");
@@ -121,7 +123,21 @@ export default function NewSessionPage({ params }: { params: Promise<{ id: strin
           )}
 
           {selected && (
-            <Button onClick={createSession} disabled={creating} className="w-full mt-4">
+            <div className="mt-4 space-y-3">
+              <div>
+                <label className="text-xs text-white/40 block mb-1">Session name (optional)</label>
+                <input
+                  type="text"
+                  value={sessionName}
+                  onChange={(e) => setSessionName(e.target.value)}
+                  placeholder="e.g. Sprint 34 Refinement"
+                  className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-white/20 focus:border-violet-500 focus:outline-none"
+                />
+              </div>
+            </div>
+          )}
+          {selected && (
+            <Button onClick={createSession} disabled={creating} className="w-full mt-3">
               {creating ? (
                 <><Loader2 className="w-4 h-4 animate-spin" /> Loading tickets...</>
               ) : (

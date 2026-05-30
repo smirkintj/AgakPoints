@@ -7,7 +7,8 @@ export type MsgIn =
   | { type: "REACTION"; memberId: string; memberName: string; emoji: string }
   | { type: "REVEAL_VOTES" }
   | { type: "LOCK_ESTIMATE"; ticketId: string; value: number; note?: string; assigneeId?: string }
-  | { type: "REQUEST_STATE" };
+  | { type: "REQUEST_STATE" }
+  | { type: "END_SESSION" };
 
 // Messages sent server → client
 export type MsgOut =
@@ -18,7 +19,8 @@ export type MsgOut =
   | { type: "VOTES_REVEALED"; votes: RevealedVote[]; median: number; isConsensus: boolean }
   | { type: "ESTIMATE_LOCKED"; ticketId: string; value: number; assigneeId?: string }
   | { type: "REACTION_RECEIVED"; memberId: string; memberName: string; emoji: string }
-  | { type: "STATE_SYNC"; state: PublicState };
+  | { type: "STATE_SYNC"; state: PublicState }
+  | { type: "SESSION_ENDED" };
 
 export interface CheckedInMember {
   memberId: string;

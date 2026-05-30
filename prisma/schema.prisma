@@ -70,6 +70,7 @@ model PokerSession {
   product         Product              @relation(fields: [productId], references: [id], onDelete: Cascade)
   sprintId        String
   sprintName      String
+  name            String?
   status          SessionStatus        @default(WAITING)
   sprintStartDate DateTime?
   sprintEndDate   DateTime?
@@ -171,6 +172,7 @@ model SprintHoliday {
   sessionId String
   date      String
   name      String
+  type      String   @default("PH")
   createdAt DateTime @default(now())
 
   @@unique([sessionId, date])

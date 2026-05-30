@@ -32,6 +32,7 @@ export function ParticipantView({ session }: { session: SessionWithDetails }) {
   const [revealMeta, setRevealMeta] = useState<{ median: number; isConsensus: boolean } | null>(null);
   const [reactions, setReactions] = useState<{ memberId: string; memberName: string; emoji: string }[]>([]);
   const [lockedTickets, setLockedTickets] = useState<Set<string>>(new Set());
+  const [sessionEnded, setSessionEnded] = useState(false);
 
   useEffect(() => {
     const stored = sessionStorage.getItem(`agakpoints_member_${session.id}`);
@@ -83,6 +84,9 @@ export function ParticipantView({ session }: { session: SessionWithDetails }) {
       case "REACTION_RECEIVED":
         setReactions((r) => [...r.slice(-20), msg]);
         break;
+      case "SESSION_ENDED":
+        setSessionEnded(true);
+        break;
     }
   }, []));
 
@@ -109,6 +113,21 @@ export function ParticipantView({ session }: { session: SessionWithDetails }) {
             Go back to check-in
           </a>
         </div>
+      </div>
+    );
+  }
+
+  if (sessionEnded) {
+    return (
+      <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black/90 backdrop-blur-sm text-center px-6">
+        <div className="w-12 h-12 rounded-full bg-white/10 border border-white/20 flex items-center justify-center mx-auto mb-5">
+          <Clock className="w-5 h-5 text-white/50" />
+        </div>
+        <h2 className="text-2xl font-bold text-white mb-2">Session Ended</h2>
+        <p className="text-white/40 text-sm mb-6">The host has ended this refinement session.</p>
+        <a href={`/join/${session.id}`} className="px-5 py-2 rounded-lg bg-violet-600 hover:bg-violet-500 text-white text-sm font-medium transition-colors">
+          Return to lobby
+        </a>
       </div>
     );
   }

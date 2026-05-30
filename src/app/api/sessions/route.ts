@@ -7,7 +7,7 @@ export async function POST(req: NextRequest) {
   const session = await auth();
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { productId, sprintId, sprintName, sprintStartDate, sprintEndDate } = await req.json();
+  const { productId, sprintId, sprintName, sprintStartDate, sprintEndDate, name } = await req.json();
 
   const product = await prisma.product.findFirst({
     where: { id: productId, adminId: session.user.id },
@@ -54,6 +54,7 @@ export async function POST(req: NextRequest) {
       productId,
       sprintId: String(sprintId),
       sprintName,
+      name: name || undefined,
       sprintStartDate: sprintStartDate ? new Date(sprintStartDate) : null,
       sprintEndDate: sprintEndDate ? new Date(sprintEndDate) : null,
       tickets: { create: tickets },

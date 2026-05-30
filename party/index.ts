@@ -10,7 +10,8 @@ type MsgIn =
   | { type: "REACTION"; memberId: string; memberName: string; emoji: string }
   | { type: "REVEAL_VOTES" }
   | { type: "LOCK_ESTIMATE"; ticketId: string; value: number; note?: string; assigneeId?: string }
-  | { type: "REQUEST_STATE" };
+  | { type: "REQUEST_STATE" }
+  | { type: "END_SESSION" };
 
 type MsgOut =
   | { type: "PRESENCE_UPDATE"; checkedIn: CheckedInMember[] }
@@ -20,7 +21,8 @@ type MsgOut =
   | { type: "VOTES_REVEALED"; votes: RevealedVote[]; median: number; isConsensus: boolean }
   | { type: "ESTIMATE_LOCKED"; ticketId: string; value: number; assigneeId?: string }
   | { type: "REACTION_RECEIVED"; memberId: string; memberName: string; emoji: string }
-  | { type: "STATE_SYNC"; state: PublicState };
+  | { type: "STATE_SYNC"; state: PublicState }
+  | { type: "SESSION_ENDED" };
 
 interface CheckedInMember {
   memberId: string;
@@ -210,6 +212,11 @@ export default class ScrumPokerRoom implements Party.Server {
 
       case "REQUEST_STATE": {
         this.send(sender, { type: "STATE_SYNC", state: this.publicState() });
+        break;
+      }
+
+      case "END_SESSION": {
+        this.broadcast({ type: "SESSION_ENDED" });
         break;
       }
     }

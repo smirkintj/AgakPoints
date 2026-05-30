@@ -7,7 +7,6 @@ import type { MsgOut, CheckedInMember, RevealedVote, PublicState } from "@/types
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { RevealCard } from "@/components/session/RevealCard";
-import { EmojiReaction } from "@/components/session/EmojiReaction";
 import { MemberAvatar } from "@/components/session/MemberAvatar";
 import { RoleBadge } from "@/components/session/RoleBadge";
 import { AssignmentPicker } from "@/components/session/AssignmentPicker";
@@ -179,7 +178,10 @@ export function HostView({ session, productId }: { session: PokerSession; produc
 
   // Task 3: pending ticket (host clicked but not yet opened)
   const [pendingTicket, setPendingTicket] = useState<TicketWithVotes | null>(null);
-  const [contextNote, setContextNote] = useState("");
+  // Per-ticket notes: retained when switching tickets
+  const [ticketNotes, setTicketNotes] = useState<Record<string, string>>({});
+  const getNote = (id: string) => ticketNotes[id] ?? "";
+  const setNote2 = (id: string, val: string) => setTicketNotes((p) => ({ ...p, [id]: val }));
 
   // Task 6: collapsed sections
   const [estimatedCollapsed, setEstimatedCollapsed] = useState(true);
@@ -209,7 +211,9 @@ export function HostView({ session, productId }: { session: PokerSession; produc
     setRevealedVotes(state.revealedVotes);
     setLockedTickets(new Set(state.lockedTickets));
     setTicketAssignees(state.lockedTicketAssignees ?? {});
-    setContextNote(state.currentTicket?.contextNote ?? "");
+    if (state.currentTicket?.contextNote) {
+      setTicketNotes((p) => ({ ...p, [state.currentTicket!.ticketId]: state.currentTicket!.contextNote! }));
+    }
     if (state.revealed && state.revealedVotes) {
       const vals = state.revealedVotes.map((v) => v.value);
       const sorted = [...vals].sort((a, b) => a - b);
@@ -228,7 +232,7 @@ export function HostView({ session, productId }: { session: PokerSession; produc
       case "SESSION_STARTED": setSessionStatus("ACTIVE"); sessionStartedAt.current = new Date(); break;
       case "TICKET_OPENED":
         setCurrentTicketId(msg.ticketId);
-        setContextNote(msg.contextNote ?? "");
+        if (msg.contextNote) setTicketNotes((p) => ({ ...p, [msg.ticketId]: msg.contextNote! }));
         setVotedMemberIds([]); setVotedCount(0);
         setRevealedVotes(null); setRevealMeta(null);
         setSelectedEstimate(null); setSelectedAssigneeId(null); setNote("");
@@ -254,9 +258,9 @@ export function HostView({ session, productId }: { session: PokerSession; produc
 
   const startSession = () => send({ type: "START_SESSION" });
 
-  const openTicket = (t: TicketWithVotes, note: string) => {
+  const openTicket = (t: TicketWithVotes) => {
+    const note = getNote(t.id);
     setPendingTicket(null);
-    setContextNote(note);
     send({ type: "OPEN_TICKET", ticketId: t.id, jiraKey: t.jiraKey, title: t.title, description: t.description ?? undefined, contextNote: note || undefined, issueType: t.issueType ?? undefined, priority: t.priority ?? undefined });
   };
 
@@ -460,10 +464,9 @@ export function HostView({ session, productId }: { session: PokerSession; produc
                       if (sessionStatus !== "ACTIVE") return;
                       if (isCurrent) return;
                       if (currentTicketId) {
-                        openTicket(ticket, "");
+                        openTicket(ticket);
                       } else {
                         setPendingTicket(ticket);
-                        setContextNote("");
                       }
                     }}
                     disabled={sessionStatus !== "ACTIVE"}
@@ -503,15 +506,18 @@ export function HostView({ session, productId }: { session: PokerSession; produc
         {/* ── Main canvas ── */}
         <main className="flex-1 flex flex-col overflow-y-auto">
 
-          {/* Sprint Calendar — always on top, full width */}
-          <div className="shrink-0 px-6 pt-5 pb-2 border-b border-white/8">
-            <SprintCalendar
-              sessionId={session.id}
-              startDate={sprintStart}
-              endDate={sprintEnd}
-              members={session.product.members}
-              checkedIn={checkedIn}
-            />
+          {/* Sprint Calendar — centered, always visible */}
+          <div className="shrink-0 border-b border-white/8 px-6 py-4">
+            <div className="max-w-5xl mx-auto">
+              <SprintCalendar
+                sessionId={session.id}
+                startDate={sprintStart}
+                endDate={sprintEnd}
+                members={session.product.members}
+                checkedIn={checkedIn}
+                mode={sessionStatus === "WAITING" ? "planning" : "active"}
+              />
+            </div>
           </div>
 
           {/* WAITING */}
@@ -561,15 +567,18 @@ export function HostView({ session, productId }: { session: PokerSession; produc
                   jiraBaseUrl={session.product.jiraBaseUrl}
                   priority={pendingTicket.priority}
                 />
-                <textarea
-                  value={contextNote}
-                  onChange={(e) => setContextNote(e.target.value)}
-                  placeholder="Context note for team (optional) — visible to participants alongside the ticket"
-                  rows={3}
-                  className="w-full rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-white/20 focus:border-violet-500 focus:outline-none resize-none"
-                />
+                <div className="space-y-1">
+                  <p className="text-[10px] text-white/30 uppercase tracking-widest font-medium">Host note (visible to members during voting)</p>
+                  <textarea
+                    value={getNote(pendingTicket.id)}
+                    onChange={(e) => setNote2(pendingTicket.id, e.target.value)}
+                    placeholder="Optional context note — shown to participants alongside the ticket"
+                    rows={2}
+                    className="w-full rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-white/20 focus:border-violet-500 focus:outline-none resize-none"
+                  />
+                </div>
                 <div className="flex gap-3">
-                  <Button onClick={() => openTicket(pendingTicket, contextNote)} variant="success">
+                  <Button onClick={() => openTicket(pendingTicket)} variant="success">
                     <Play className="w-4 h-4" />
                     Start voting on this ticket
                   </Button>
@@ -601,13 +610,17 @@ export function HostView({ session, productId }: { session: PokerSession; produc
                 priority={currentTicket.priority}
               />
 
-              {/* Context note display */}
-              {contextNote && (
-                <div className="w-full max-w-2xl rounded-xl bg-amber-500/8 border border-amber-500/20 px-4 py-3">
-                  <p className="text-[10px] text-amber-400/80 font-semibold uppercase tracking-widest mb-1">Host notes</p>
-                  <p className="text-sm text-white/60 leading-relaxed">{contextNote}</p>
-                </div>
-              )}
+              {/* Context note — always editable (note was sent to members on ticket open) */}
+              <div className="w-full max-w-2xl space-y-1">
+                <p className="text-[10px] text-white/30 uppercase tracking-widest font-medium">Host note</p>
+                <textarea
+                  value={getNote(currentTicket.id)}
+                  onChange={(e) => setNote2(currentTicket.id, e.target.value)}
+                  placeholder="Note for this ticket (sent to members when ticket was opened)"
+                  rows={2}
+                  className="w-full rounded-lg border border-white/10 bg-white/3 px-3 py-2 text-sm text-white placeholder:text-white/15 focus:border-violet-500/50 focus:outline-none resize-none"
+                />
+              </div>
 
               {/* Vote progress */}
               <div className="w-full max-w-2xl space-y-4">
@@ -677,12 +690,6 @@ export function HostView({ session, productId }: { session: PokerSession; produc
                       </span>
                     )}
                   </div>
-
-                  {/* Reactions */}
-                  <EmojiReaction
-                    reactions={reactions}
-                    onReact={(emoji) => send({ type: "REACTION", memberId: "host", memberName: "Host", emoji })}
-                  />
 
                   {/* Lock estimate */}
                   {!lockedTickets.has(currentTicket.id) ? (

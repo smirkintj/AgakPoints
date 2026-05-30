@@ -122,6 +122,11 @@ export function ParticipantView({ session }: { session: SessionWithDetails }) {
     send({ type: "REACTION", memberId: member.id, memberName: member.name, emoji });
   }, [member, send]);
 
+  const myLoad = member ? Object.entries(lockedAssignees)
+    .filter(([, mId]) => mId === member.id)
+    .reduce((sum, [ticketId]) => sum + (ticketEstimates[ticketId] ?? 0), 0) : 0;
+  const myCapacity = member ? (session.product.members.find((m) => m.id === member.id) as (Member & { capacity?: number }))?.capacity ?? 20 : 20;
+
   if (!member) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -163,6 +168,13 @@ export function ParticipantView({ session }: { session: SessionWithDetails }) {
         <div className="flex items-center gap-2">
           <MemberAvatar name={member.name} role={member.role} size={28} showRing />
           <span className="text-white/60 text-sm">{member.name}</span>
+          {member && myLoad > 0 && (
+            <div className="flex items-center gap-1 px-2 py-1 rounded-full bg-white/8 border border-white/15 text-xs">
+              <span className="text-white/50">Load:</span>
+              <span className="text-white font-mono font-semibold">{myLoad}</span>
+              <span className="text-white/30 font-mono">/{myCapacity}pts</span>
+            </div>
+          )}
         </div>
       </header>
 

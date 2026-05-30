@@ -219,7 +219,7 @@ export function SprintCalendar({
       {/* Day-of-week headers */}
       <div className="grid grid-cols-7 gap-px mb-px">
         {DAY_NAMES.map((d) => (
-          <div key={d} className="text-center text-[9px] text-white/20 font-medium py-1">{d}</div>
+          <div key={d} className="text-center text-xs text-white/20 font-medium py-1">{d}</div>
         ))}
       </div>
 
@@ -227,7 +227,7 @@ export function SprintCalendar({
       <div className="grid grid-cols-7 gap-px">
         {/* Empty cells for alignment */}
         {Array.from({ length: firstDayCol }).map((_, i) => (
-          <div key={`empty-${i}`} />
+          <div key={`empty-${i}`} className="aspect-square" />
         ))}
 
         {days.map((d) => {
@@ -253,7 +253,7 @@ export function SprintCalendar({
             <button
               key={ds}
               onClick={() => setSelectedDate(isSelected ? null : ds)}
-              className={`${bgClass} ${borderClass} rounded-sm p-1 min-h-[60px] flex flex-col gap-0.5 text-left transition-colors cursor-pointer`}
+              className={`${bgClass} ${borderClass} rounded-sm p-1 flex flex-col gap-0.5 text-left transition-colors cursor-pointer w-full aspect-square overflow-hidden`}
             >
               <div className="flex items-baseline gap-0.5">
                 <span className={`text-xs font-bold ${weekend ? "text-white/20" : "text-white/70"}`}>{d.getDate()}</span>
@@ -281,7 +281,12 @@ export function SprintCalendar({
               {membersOnLeave.length > 0 && (
                 <div className="flex gap-0.5 flex-wrap mt-auto">
                   {membersOnLeave.slice(0, 3).map((m) => (
-                    <MemberAvatar key={m.id} name={m.name} role={m.role} size={20} title={m.name.split(" ")[0]} />
+                    <div key={m.id} className="relative group/av">
+                      <MemberAvatar name={m.name} role={m.role} size={25} />
+                      <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 px-1.5 py-0.5 rounded bg-black/80 border border-white/15 text-[10px] text-white/80 whitespace-nowrap pointer-events-none opacity-0 group-hover/av:opacity-100 transition-opacity z-50">
+                        {m.name.split(" ")[0]}
+                      </div>
+                    </div>
                   ))}
                   {membersOnLeave.length > 3 && (
                     <span className="text-[7px] text-white/30 leading-none self-center">+{membersOnLeave.length - 3}</span>

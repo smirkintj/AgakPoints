@@ -499,7 +499,7 @@ export function HostView({ session, productId }: { session: PokerSession; produc
                 >
                   {estimatedCollapsed ? <ChevronRight className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
                   <span className="flex-1 text-left">Estimated</span>
-                  <span className="text-[9px] bg-emerald-500/20 text-emerald-400 rounded px-1 py-0.5 font-mono">{estimatedTickets.length}</span>
+                  <span className="text-[10px] bg-emerald-500/20 text-emerald-400 rounded px-1 py-0.5 font-mono">{estimatedTickets.length}</span>
                 </button>
                 <AnimatePresence initial={false}>
                   {!estimatedCollapsed && (
@@ -560,7 +560,7 @@ export function HostView({ session, productId }: { session: PokerSession; produc
             <div>
               <div className="flex items-center gap-2 px-3 py-2 text-[10px] text-white/30 font-semibold uppercase tracking-widest">
                 <span className="flex-1">To estimate</span>
-                <span className="text-[9px] bg-white/10 rounded px-1 py-0.5 font-mono">{toEstimateTickets.length}</span>
+                <span className="text-[10px] bg-white/10 rounded px-1 py-0.5 font-mono">{toEstimateTickets.length}</span>
               </div>
               {toEstimateTickets.map((ticket) => {
                 const isCurrent = currentTicketId === ticket.id;
@@ -594,13 +594,13 @@ export function HostView({ session, productId }: { session: PokerSession; produc
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-1.5 mb-0.5">
-                          <span className="text-[10px] font-mono text-violet-400/80 shrink-0">{ticket.jiraKey}</span>
+                          <span className="text-xs font-mono text-violet-400/80 shrink-0">{ticket.jiraKey}</span>
                         </div>
-                        <p className="text-[11px] text-white/60 leading-snug line-clamp-2">{ticket.title}</p>
+                        <p className="text-xs text-white/60 leading-snug line-clamp-2">{ticket.title}</p>
                         {assignee && (
                           <div className="flex items-center gap-1 mt-1">
                             <MemberAvatar name={assignee.name} role={assignee.role} size={12} />
-                            <span className="text-[9px] text-white/30">{assignee.name.split(" ")[0]}</span>
+                            <span className="text-xs text-white/30">{assignee.name.split(" ")[0]}</span>
                           </div>
                         )}
                       </div>

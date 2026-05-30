@@ -120,7 +120,7 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
                         >
                           {s.status}
                         </Badge>
-                        <Link href={`/products/${id}/sessions/${s.id}/host`}>
+                        <Link href={s.status === "COMPLETED" ? `/products/${id}/sessions/${s.id}/summary` : `/products/${id}/sessions/${s.id}/host`}>
                           <Button size="sm" variant="ghost" title={s.status === "COMPLETED" ? "View summary" : "Open session"}>
                             {s.status === "COMPLETED"
                               ? <FileText className="w-3.5 h-3.5" />

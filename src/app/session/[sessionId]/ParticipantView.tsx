@@ -89,8 +89,14 @@ export function ParticipantView({ session }: { session: SessionWithDetails }) {
       case "SESSION_ENDED":
         setSessionEnded(true);
         break;
+      case "MEMBER_KICKED":
+        if (member && msg.memberId === member.id) {
+          sessionStorage.removeItem(`agakpoints_member_${session.id}`);
+          window.location.href = `/join/${session.id}`;
+        }
+        break;
     }
-  }, []));
+  }, [member, session.id]));
 
   const castVote = useCallback((value: number) => {
     if (!member || myVote !== null || !currentTicket || revealedVotes) return;
@@ -214,19 +220,33 @@ export function ParticipantView({ session }: { session: SessionWithDetails }) {
                 </div>
               )}
 
-              {/* Voting cards */}
-              {!revealedVotes && (
-                <div className="space-y-4">
-                  <p className="text-center text-white/40 text-sm">
-                    {myVote !== null ? `You voted ${myVote} — waiting for reveal...` : "Pick your estimate"}
-                  </p>
-                  <div className="flex gap-3 justify-center flex-wrap">
-                    {FIBONACCI_VALUES.map((v) => (
-                      <VotingCard key={v} value={v} selected={myVote === v} disabled={myVote !== null} onSelect={castVote} />
-                    ))}
+              {/* Voting cards — only for voting roles */}
+              {!revealedVotes && (() => {
+                const NON_VOTING = ["UI_UX", "SM", "TECH_LEAD"];
+                const isObserver = NON_VOTING.includes(member.role);
+                if (isObserver) {
+                  return (
+                    <div className="text-center py-4">
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/8 border border-white/15 text-xs text-white/40 font-medium">
+                        Observing
+                      </span>
+                      <p className="text-white/25 text-xs mt-2">Your role doesn&apos;t vote — watching the estimates come in</p>
+                    </div>
+                  );
+                }
+                return (
+                  <div className="space-y-4">
+                    <p className="text-center text-white/40 text-sm">
+                      {myVote !== null ? `You voted ${myVote} — waiting for reveal...` : "Pick your estimate"}
+                    </p>
+                    <div className="flex gap-3 justify-center flex-wrap">
+                      {FIBONACCI_VALUES.map((v) => (
+                        <VotingCard key={v} value={v} selected={myVote === v} disabled={myVote !== null} onSelect={castVote} />
+                      ))}
+                    </div>
                   </div>
-                </div>
-              )}
+                );
+              })()}
 
               {/* Vote progress dots */}
               {!revealedVotes && (

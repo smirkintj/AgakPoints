@@ -138,8 +138,11 @@ export function SprintCalendar({
   const sanityDates = new Set<string>();
   const uatDates = new Set<string>();
   for (const dd of deployDates) {
-    const sanity = subWorkingDays(dd, 1, phDates, dayStrings);
-    if (sanity) sanityDates.add(sanity);
+    // Sanity window = 2 WDs before deploy (accounts for overlapping PHs)
+    const sanity1 = subWorkingDays(dd, 1, phDates, dayStrings);
+    const sanity2 = subWorkingDays(dd, 2, phDates, dayStrings);
+    if (sanity1) sanityDates.add(sanity1);
+    if (sanity2) sanityDates.add(sanity2);
     const uat = subWorkingDays(dd, 5, phDates, dayStrings);
     if (uat) uatDates.add(uat);
   }

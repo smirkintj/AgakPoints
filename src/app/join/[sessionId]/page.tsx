@@ -15,8 +15,8 @@ export default async function JoinPage({ params }: { params: Promise<{ sessionId
 
   if (!session) notFound();
 
-  // Session already started — send them straight to the participant view
-  if (session.status === "ACTIVE" || session.status === "COMPLETED") {
+  // Completed sessions have no join page — host page handles recap
+  if (session.status === "COMPLETED") {
     redirect(`/session/${sessionId}`);
   }
 

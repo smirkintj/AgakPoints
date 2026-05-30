@@ -11,7 +11,7 @@ import { EmojiReaction } from "@/components/session/EmojiReaction";
 import { MemberAvatar } from "@/components/session/MemberAvatar";
 import { RoleBadge } from "@/components/session/RoleBadge";
 import { AssignmentPicker } from "@/components/session/AssignmentPicker";
-import { BandwidthRail } from "@/components/session/BandwidthRail";
+import { BandwidthRail, type SessionLogEntry } from "@/components/session/BandwidthRail";
 import { BulkAssignDrawer } from "@/components/session/BulkAssignDrawer";
 import { TicketTypeIcon } from "@/components/session/TicketTypeIcon";
 import { SprintCalendar } from "@/components/session/SprintCalendar";
@@ -188,6 +188,12 @@ export function HostView({ session, productId }: { session: PokerSession; produc
   // Task 6: collapsed sections
   const [estimatedCollapsed, setEstimatedCollapsed] = useState(true);
 
+  // Session log
+  const [sessionLog, setSessionLog] = useState<SessionLogEntry[]>([]);
+  const addLogRef = useRef<(text: string) => void>(null!);
+  addLogRef.current = (text: string) => setSessionLog((l) => [...l, { id: `${Date.now()}-${Math.random()}`, time: new Date(), text }]);
+  const addLog = (text: string) => addLogRef.current(text);
+
   // Item 3: summary modal
   const [summaryModalOpen, setSummaryModalOpen] = useState(false);
   const [summaryIssueKey, setSummaryIssueKey] = useState("");
@@ -201,6 +207,12 @@ export function HostView({ session, productId }: { session: PokerSession; produc
   };
 
   const sessionStartedAt = useRef<Date | null>(null);
+  const ticketsRef = useRef(tickets);
+  ticketsRef.current = tickets;
+  const checkedInRef = useRef(checkedIn);
+  checkedInRef.current = checkedIn;
+  const membersRef = useRef(session.product.members);
+  membersRef.current = session.product.members;
 
   const joinUrl = typeof window !== "undefined" ? `${window.location.origin}/join/${session.id}` : "";
 
@@ -230,8 +242,16 @@ export function HostView({ session, productId }: { session: PokerSession; produc
   const { send } = usePartyRoom(session.id, useCallback((msg: MsgOut) => {
     switch (msg.type) {
       case "STATE_SYNC": applyState(msg.state); break;
-      case "PRESENCE_UPDATE": setCheckedIn(msg.checkedIn); break;
-      case "SESSION_STARTED": setSessionStatus("ACTIVE"); sessionStartedAt.current = new Date(); break;
+      case "PRESENCE_UPDATE":
+        setCheckedIn((prev) => {
+          const prevIds = new Set(prev.map((c) => c.memberId));
+          for (const c of msg.checkedIn) {
+            if (!prevIds.has(c.memberId)) addLogRef.current(`${c.memberName} checked in`);
+          }
+          return msg.checkedIn;
+        });
+        break;
+      case "SESSION_STARTED": setSessionStatus("ACTIVE"); sessionStartedAt.current = new Date(); addLogRef.current("Session started"); break;
       case "TICKET_OPENED":
         setCurrentTicketId(msg.ticketId);
         if (msg.contextNote) setTicketNotes((p) => ({ ...p, [msg.ticketId]: msg.contextNote! }));
@@ -239,6 +259,7 @@ export function HostView({ session, productId }: { session: PokerSession; produc
         setRevealedVotes(null); setRevealMeta(null);
         setSelectedEstimate(null); setSelectedAssigneeId(null);
         setJiraStatus("idle");
+        addLogRef.current(`Opened ${msg.jiraKey}: ${msg.title.slice(0, 40)}${msg.title.length > 40 ? "…" : ""}`);
         break;
       case "VOTE_PROGRESS":
         setVotedMemberIds(msg.votedMemberIds); setVotedCount(msg.votedCount); break;
@@ -246,19 +267,35 @@ export function HostView({ session, productId }: { session: PokerSession; produc
         setRevealedVotes(msg.votes);
         setRevealMeta({ median: msg.median, isConsensus: msg.isConsensus });
         if (msg.isConsensus) confetti({ particleCount: 120, spread: 70, origin: { y: 0.6 } });
+        addLogRef.current(`Votes revealed — median ${msg.median}${msg.isConsensus ? " (consensus)" : ""}`);
         break;
-      case "ESTIMATE_LOCKED":
+      case "ESTIMATE_LOCKED": {
         setLockedTickets((l) => new Set([...l, msg.ticketId]));
         if (msg.assigneeId) setTicketAssignees((a) => ({ ...a, [msg.ticketId]: msg.assigneeId! }));
         setCurrentTicketId(null); setRevealedVotes(null); setRevealMeta(null);
+        const lockedTicketTitle = ticketsRef.current.find((t) => t.id === msg.ticketId)?.jiraKey ?? msg.ticketId;
+        const assigneeName = msg.assigneeId ? membersRef.current.find((m) => m.id === msg.assigneeId)?.name?.split(" ")[0] : null;
+        addLogRef.current(`Locked ${lockedTicketTitle} at ${msg.value}pts${assigneeName ? ` → ${assigneeName}` : ""}`);
         break;
+      }
       case "REACTION_RECEIVED": setReactions((r) => [...r.slice(-20), msg]); break;
+      case "MEMBER_KICKED": {
+        const kickedName = checkedInRef.current.find((c) => c.memberId === msg.memberId)?.memberName;
+        if (kickedName) addLogRef.current(`${kickedName} was kicked (can re-check-in)`);
+        setCheckedIn((prev) => prev.filter((c) => c.memberId !== msg.memberId));
+        break;
+      }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [applyState]));
 
   const currentTicket = tickets.find((t) => t.id === currentTicketId) ?? null;
 
   const startSession = () => send({ type: "START_SESSION" });
+
+  const kickMember = (memberId: string) => {
+    send({ type: "KICK_MEMBER", memberId });
+  };
 
   const openTicket = (t: TicketWithVotes) => {
     const note = getNote(t.id);
@@ -752,6 +789,8 @@ export function HostView({ session, productId }: { session: PokerSession; produc
             pendingAssigneeId={selectedAssigneeId}
             pendingEstimate={selectedEstimate}
             productId={productId}
+            onKick={kickMember}
+            sessionLog={sessionLog}
           />
         )}
       </div>

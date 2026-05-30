@@ -3,6 +3,7 @@ import { useState } from "react";
 import { MemberAvatar } from "./MemberAvatar";
 import { RoleBadge } from "./RoleBadge";
 import { getRoleColor } from "@/lib/roles";
+import { X } from "lucide-react";
 
 interface BandwidthMember {
   memberId: string;
@@ -23,6 +24,14 @@ interface BandwidthRailProps {
   pendingAssigneeId?: string | null;
   pendingEstimate?: number | null;
   productId?: string;
+  onKick?: (memberId: string) => void;
+  sessionLog?: SessionLogEntry[];
+}
+
+export interface SessionLogEntry {
+  id: string;
+  time: Date;
+  text: string;
 }
 
 function getStateTag(ratio: number) {
@@ -95,7 +104,7 @@ function CapacityEditor({
   );
 }
 
-export function BandwidthRail({ members: initialMembers, estimatedTickets, pendingAssigneeId, pendingEstimate, productId }: BandwidthRailProps) {
+export function BandwidthRail({ members: initialMembers, estimatedTickets, pendingAssigneeId, pendingEstimate, productId, onKick, sessionLog }: BandwidthRailProps) {
   const [capacities, setCapacities] = useState<Record<string, number>>(
     Object.fromEntries(initialMembers.map((m) => [m.memberId, m.capacity]))
   );
@@ -132,7 +141,7 @@ export function BandwidthRail({ members: initialMembers, estimatedTickets, pendi
 
           return (
             <div key={m.memberId} className="flex flex-col gap-1.5">
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 group">
                 <MemberAvatar name={m.memberName} role={m.role} size={28} />
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-1.5">
@@ -146,6 +155,15 @@ export function BandwidthRail({ members: initialMembers, estimatedTickets, pendi
                     )}
                   </div>
                 </div>
+                {onKick && (
+                  <button
+                    onClick={() => onKick(m.memberId)}
+                    title="Kick member (they can re-check-in)"
+                    className="opacity-0 group-hover:opacity-100 transition-opacity text-white/20 hover:text-red-400 p-0.5 rounded"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                )}
               </div>
               {/* Load bar — scaled to team max, no artificial cap */}
               <div className="h-1.5 rounded-full bg-white/10 overflow-hidden relative">
@@ -169,6 +187,25 @@ export function BandwidthRail({ members: initialMembers, estimatedTickets, pendi
           );
         })}
       </div>
+
+      {/* Session log */}
+      {sessionLog && sessionLog.length > 0 && (
+        <div className="border-t border-white/10 shrink-0 flex flex-col" style={{ maxHeight: "35%" }}>
+          <div className="px-3 py-2 shrink-0">
+            <p className="text-[10px] text-white/30 font-medium uppercase tracking-wider">Session Log</p>
+          </div>
+          <div className="overflow-y-auto flex-1 px-3 pb-2 flex flex-col gap-1.5">
+            {[...sessionLog].reverse().map((entry) => (
+              <div key={entry.id} className="flex items-start gap-1.5">
+                <span className="text-[9px] text-white/20 font-mono shrink-0 mt-0.5">
+                  {entry.time.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                </span>
+                <span className="text-[10px] text-white/40 leading-snug">{entry.text}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </aside>
   );
 }

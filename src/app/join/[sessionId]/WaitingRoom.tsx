@@ -43,15 +43,17 @@ export function WaitingRoom({ session }: { session: SessionWithDetails }) {
     setBusy(true);
     setSelectedMember(member);
     sessionStorage.setItem(`agakpoints_member_${session.id}`, JSON.stringify(member));
-    // DB record
     await fetch(`/api/sessions/${session.id}/checkin`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ memberId: member.id }),
     });
-    // Tell the room
     send({ type: "CHECKIN", memberId: member.id, memberName: member.name, role: member.role });
     setBusy(false);
+    // Late joiner — session already active, go straight to participant view
+    if (session.status === "ACTIVE") {
+      router.push(`/session/${session.id}`);
+    }
   };
 
   const isIn = (id: string) => checkedIn.some((c) => c.memberId === id);

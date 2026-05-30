@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { usePartyRoom } from "@/hooks/usePartyRoom";
@@ -23,6 +23,14 @@ export function WaitingRoom({ session }: { session: SessionWithDetails }) {
   );
   const [selectedMember, setSelectedMember] = useState<Member | null>(null);
   const [busy, setBusy] = useState(false);
+
+  // Restore selected member from storage on refresh
+  useEffect(() => {
+    const stored = sessionStorage.getItem(`agakpoints_member_${session.id}`);
+    if (stored) {
+      try { setSelectedMember(JSON.parse(stored)); } catch { /* ignore */ }
+    }
+  }, [session.id]);
 
   const { send } = usePartyRoom(session.id, (msg: MsgOut) => {
     if (msg.type === "PRESENCE_UPDATE") setCheckedIn(msg.checkedIn);

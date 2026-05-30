@@ -171,7 +171,7 @@ export function HostView({ session, productId }: { session: PokerSession; produc
   const [ticketAssignees, setTicketAssignees] = useState<Record<string, string>>({});
   const [selectedEstimate, setSelectedEstimate] = useState<number | null>(null);
   const [selectedAssigneeId, setSelectedAssigneeId] = useState<string | null>(null);
-  const [note, setNote] = useState("");
+  // note state removed — host note (ticketNotes) is used as the JIRA comment note
   const [copied, setCopied] = useState(false);
   const [savingLock, setSavingLock] = useState(false);
   const [bulkDrawerOpen, setBulkDrawerOpen] = useState(false);
@@ -192,7 +192,7 @@ export function HostView({ session, productId }: { session: PokerSession; produc
   const [summaryModalOpen, setSummaryModalOpen] = useState(false);
   const [summaryIssueKey, setSummaryIssueKey] = useState("");
   const [summaryState, setSummaryState] = useState<"idle" | "loading" | "success" | "error">("idle");
-  const [recapOpen, setRecapOpen] = useState(false);
+  const [recapOpen, setRecapOpen] = useState(session.status === "COMPLETED");
 
   // Auto-redirect to product page when recap is closed
   const closeRecap = () => {
@@ -237,7 +237,7 @@ export function HostView({ session, productId }: { session: PokerSession; produc
         if (msg.contextNote) setTicketNotes((p) => ({ ...p, [msg.ticketId]: msg.contextNote! }));
         setVotedMemberIds([]); setVotedCount(0);
         setRevealedVotes(null); setRevealMeta(null);
-        setSelectedEstimate(null); setSelectedAssigneeId(null); setNote("");
+        setSelectedEstimate(null); setSelectedAssigneeId(null);
         setJiraStatus("idle");
         break;
       case "VOTE_PROGRESS":
@@ -272,12 +272,13 @@ export function HostView({ session, productId }: { session: PokerSession; produc
     if (!currentTicket || selectedEstimate === null) return;
     setSavingLock(true);
     setJiraStatus("saving");
-    send({ type: "LOCK_ESTIMATE", ticketId: currentTicket.id, value: selectedEstimate, note: note || undefined, assigneeId: selectedAssigneeId ?? undefined });
+    const lockNote = getNote(currentTicket.id);
+    send({ type: "LOCK_ESTIMATE", ticketId: currentTicket.id, value: selectedEstimate, note: lockNote || undefined, assigneeId: selectedAssigneeId ?? undefined });
     try {
       const res = await fetch(`/api/sessions/${session.id}/tickets/${currentTicket.id}/lock`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ value: selectedEstimate, note, votes: revealedVotes ?? [], assigneeId: selectedAssigneeId }),
+        body: JSON.stringify({ value: selectedEstimate, note: lockNote, votes: revealedVotes ?? [], assigneeId: selectedAssigneeId }),
       });
       const data = await res.json();
       if (data.jiraSync) {
@@ -718,13 +719,6 @@ export function HostView({ session, productId }: { session: PokerSession; produc
                           </button>
                         ))}
                       </div>
-                      <input
-                        type="text"
-                        placeholder="Note (optional, posted to JIRA)"
-                        value={note}
-                        onChange={(e) => setNote(e.target.value)}
-                        className="w-full rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-white/20 focus:border-violet-500 focus:outline-none"
-                      />
                       <AssignmentPicker members={checkedIn} selectedMemberId={selectedAssigneeId} onChange={setSelectedAssigneeId} />
                       <div className="flex items-center gap-3">
                         <Button onClick={lockEstimate} disabled={selectedEstimate === null || savingLock} variant="success">

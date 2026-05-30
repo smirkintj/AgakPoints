@@ -112,6 +112,8 @@ export function BandwidthRail({ members: initialMembers, estimatedTickets, pendi
   }
 
   const sorted = [...members].sort((a, b) => (loadMap[a.memberId] ?? 0) - (loadMap[b.memberId] ?? 0));
+  // Use the max load across the team as the bar scale (no artificial cap)
+  const maxLoad = Math.max(...sorted.map((m) => loadMap[m.memberId] ?? 0), 1);
 
   return (
     <aside className="w-64 shrink-0 border-l border-white/10 bg-white/3 backdrop-blur-sm flex flex-col h-full overflow-hidden">
@@ -126,10 +128,7 @@ export function BandwidthRail({ members: initialMembers, estimatedTickets, pendi
           const load = loadMap[m.memberId] ?? 0;
           const isPending = pendingAssigneeId === m.memberId && pendingEstimate != null;
           const projectedLoad = isPending ? load + (pendingEstimate ?? 0) : load;
-          const ratio = load / m.capacity;
-          const projectedRatio = projectedLoad / m.capacity;
           const { hex } = getRoleColor(m.role);
-          const { label, color } = getStateTag(ratio);
 
           return (
             <div key={m.memberId} className="flex flex-col gap-1.5">
@@ -141,52 +140,30 @@ export function BandwidthRail({ members: initialMembers, estimatedTickets, pendi
                     <RoleBadge role={m.role} size="sm" />
                   </div>
                   <div className="flex items-center gap-1.5 mt-0.5">
-                    <span className="text-[10px] font-mono text-white/40">{load}</span>
-                    {productId ? (
-                      <CapacityEditor
-                        memberId={m.memberId}
-                        capacity={m.capacity}
-                        productId={productId}
-                        onUpdate={(newCap) => setCapacities((prev) => ({ ...prev, [m.memberId]: newCap }))}
-                      />
-                    ) : (
-                      <span className="text-[10px] font-mono text-white/40">/{m.capacity}pts</span>
-                    )}
-                    <span
-                      className="text-[9px] font-semibold uppercase tracking-wide px-1 rounded"
-                      style={{ color, backgroundColor: color + "22" }}
-                    >
-                      {label}
-                    </span>
+                    <span className="text-[10px] font-mono text-white/60 font-semibold">{load}pts</span>
                     {isPending && (
                       <span className="text-[10px] font-mono text-emerald-400">+{pendingEstimate}</span>
                     )}
                   </div>
                 </div>
               </div>
-              {/* Capacity bar */}
+              {/* Load bar — scaled to team max, no artificial cap */}
               <div className="h-1.5 rounded-full bg-white/10 overflow-hidden relative">
                 <div
                   className="h-full rounded-full transition-all duration-300"
-                  style={{
-                    width: `${Math.min(ratio * 100, 100)}%`,
-                    backgroundColor: hex,
-                    opacity: 0.7,
-                  }}
+                  style={{ width: `${(load / maxLoad) * 100}%`, backgroundColor: hex, opacity: 0.7 }}
                 />
-                {isPending && projectedRatio > ratio && (
+                {isPending && projectedLoad > load && (
                   <div
                     className="absolute top-0 h-full rounded-full"
                     style={{
-                      left: `${Math.min(ratio * 100, 100)}%`,
-                      width: `${Math.min((projectedRatio - ratio) * 100, 100 - ratio * 100)}%`,
+                      left: `${(load / maxLoad) * 100}%`,
+                      width: `${((projectedLoad - load) / maxLoad) * 100}%`,
                       backgroundColor: "#10b981",
                       opacity: 0.5,
                     }}
                   />
                 )}
-                {/* 100% tick */}
-                <div className="absolute top-0 right-0 w-px h-full bg-white/30" />
               </div>
             </div>
           );

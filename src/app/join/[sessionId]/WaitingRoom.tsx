@@ -125,6 +125,10 @@ export function WaitingRoom({ session }: { session: SessionWithDetails }) {
                           <p className={`font-medium truncate ${inRoom ? "text-emerald-300" : "text-white"}`}>{member.name}</p>
                           <RoleBadge role={member.role} size="sm" />
                         </div>
+                        {inRoom && (() => {
+                          const p = session.participants.find((x) => x.member.id === member.id);
+                          return p ? <p className="text-[10px] text-emerald-400/60 mt-0.5">Checked in {new Date(p.joinedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</p> : null;
+                        })()}
                       </div>
                       {inRoom && <Check className="w-4 h-4 text-emerald-400 shrink-0" />}
                     </motion.button>

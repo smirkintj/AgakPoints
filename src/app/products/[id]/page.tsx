@@ -5,7 +5,7 @@ import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Plus, ExternalLink } from "lucide-react";
+import { ArrowLeft, Plus, ExternalLink, FileText } from "lucide-react";
 
 const ROLE_COLORS: Record<string, string> = {
   DEV: "default",
@@ -120,13 +120,13 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
                         >
                           {s.status}
                         </Badge>
-                        {s.status !== "COMPLETED" && (
-                          <Link href={`/products/${id}/sessions/${s.id}/host`}>
-                            <Button size="sm" variant="ghost">
-                              <ExternalLink className="w-3.5 h-3.5" />
-                            </Button>
-                          </Link>
-                        )}
+                        <Link href={`/products/${id}/sessions/${s.id}/host`}>
+                          <Button size="sm" variant="ghost" title={s.status === "COMPLETED" ? "View summary" : "Open session"}>
+                            {s.status === "COMPLETED"
+                              ? <FileText className="w-3.5 h-3.5" />
+                              : <ExternalLink className="w-3.5 h-3.5" />}
+                          </Button>
+                        </Link>
                       </div>
                     </div>
                   ))}

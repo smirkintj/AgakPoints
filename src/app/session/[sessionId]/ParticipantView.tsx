@@ -25,6 +25,7 @@ type SessionWithDetails = PokerSession & {
 export function ParticipantView({ session }: { session: SessionWithDetails }) {
   const [member, setMember] = useState<Member | null>(null);
   const [checkedIn, setCheckedIn] = useState<CheckedInMember[]>([]);
+  const [sessionStatus, setSessionStatus] = useState<string>(session.status);
   const [currentTicket, setCurrentTicket] = useState<{ ticketId: string; jiraKey: string; title: string; description?: string; contextNote?: string; issueType?: string; priority?: string } | null>(null);
   const [myVote, setMyVote] = useState<number | null>(null);
   const [votedMemberIds, setVotedMemberIds] = useState<string[]>([]);
@@ -43,6 +44,7 @@ export function ParticipantView({ session }: { session: SessionWithDetails }) {
     switch (msg.type) {
       case "STATE_SYNC": {
         const s = msg.state;
+        setSessionStatus(s.sessionStatus);
         setCheckedIn(s.checkedIn);
         setCurrentTicket(s.currentTicket ? { ticketId: s.currentTicket.ticketId, jiraKey: s.currentTicket.jiraKey, title: s.currentTicket.title, description: s.currentTicket.description, contextNote: s.currentTicket.contextNote, issueType: s.currentTicket.issueType, priority: s.currentTicket.priority } : null);
         setVotedMemberIds(s.votedMemberIds);
@@ -152,8 +154,12 @@ export function ParticipantView({ session }: { session: SessionWithDetails }) {
               <div className="w-12 h-12 rounded-full bg-violet-600/20 border border-violet-500/30 flex items-center justify-center mx-auto mb-4">
                 <Clock className="w-5 h-5 text-violet-400" />
               </div>
-              <h2 className="text-xl font-bold text-white mb-2">Waiting for host</h2>
-              <p className="text-white/40 text-sm">The host will open a ticket to vote on.</p>
+              <h2 className="text-xl font-bold text-white mb-2">
+                {sessionStatus === "ACTIVE" ? "Session in progress" : "Waiting for host"}
+              </h2>
+              <p className="text-white/40 text-sm">
+                {sessionStatus === "ACTIVE" ? "Host is selecting the next ticket..." : "The host will start the session shortly."}
+              </p>
               <div className="flex justify-center gap-1.5 mt-6">
                 {[0, 150, 300].map((d) => (
                   <div key={d} className="w-2 h-2 bg-violet-400 rounded-full animate-bounce" style={{ animationDelay: `${d}ms` }} />

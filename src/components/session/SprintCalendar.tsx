@@ -201,12 +201,16 @@ export function SprintCalendar({
         <span className="text-white/35">{workingDays.length} working days</span>
       </div>
 
-      {/* Legend */}
-      <div className="flex items-center gap-4 text-[10px] text-white/25 mb-3 flex-wrap">
+      {/* Legend — only show entries that are relevant to this sprint */}
+      <div className="flex items-center gap-4 text-[10px] text-white/25 mb-2 flex-wrap">
         <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-red-500/30 inline-block border border-red-500/20" /> Public Holiday</span>
-        <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-violet-500/30 inline-block border border-violet-500/20" /> Deployment</span>
-        <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-orange-500/20 inline-block" /> Sanity window</span>
-        <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-amber-500/20 inline-block" /> UAT signoff</span>
+        {events.some((e) => e.type === "DEPLOY") && (
+          <>
+            <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-violet-500/30 inline-block border border-violet-500/20" /> Deployment</span>
+            <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-orange-500/20 inline-block" /> Sanity window</span>
+            <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-amber-500/20 inline-block" /> UAT signoff</span>
+          </>
+        )}
       </div>
 
       {/* Day-of-week headers */}
@@ -246,11 +250,11 @@ export function SprintCalendar({
             <button
               key={ds}
               onClick={() => setSelectedDate(isSelected ? null : ds)}
-              className={`${bgClass} ${borderClass} rounded-sm p-1 min-h-[80px] flex flex-col gap-0.5 text-left transition-colors cursor-pointer`}
+              className={`${bgClass} ${borderClass} rounded-sm p-1 ${weekend ? "min-h-[52px]" : "min-h-[64px]"} flex flex-col gap-0.5 text-left transition-colors cursor-pointer`}
             >
-              <div className="flex items-baseline gap-1">
-                <span className={`text-sm font-bold ${weekend ? "text-white/20" : "text-white/70"}`}>{d.getDate()}</span>
-                <span className="text-[9px] text-white/20">{DAY_SHORT[d.getDay()]}</span>
+              <div className="flex items-baseline gap-0.5">
+                <span className={`text-xs font-bold ${weekend ? "text-white/20" : "text-white/70"}`}>{d.getDate()}</span>
+                <span className="text-[8px] text-white/20">{DAY_SHORT[d.getDay()]}</span>
               </div>
 
               {phEvent && (
@@ -274,7 +278,9 @@ export function SprintCalendar({
               {membersOnLeave.length > 0 && (
                 <div className="flex gap-0.5 flex-wrap mt-auto">
                   {membersOnLeave.slice(0, 3).map((m) => (
-                    <MemberAvatar key={m.id} name={m.name} role={m.role} size={14} />
+                    <div key={m.id} title={m.name.split(" ")[0]}>
+                      <MemberAvatar name={m.name} role={m.role} size={20} />
+                    </div>
                   ))}
                   {membersOnLeave.length > 3 && (
                     <span className="text-[7px] text-white/30 leading-none self-center">+{membersOnLeave.length - 3}</span>

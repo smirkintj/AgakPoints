@@ -7,12 +7,25 @@ export async function GET(
 ) {
   const { sessionId } = await params;
 
-  const session = await prisma.pokerSession.findUnique({
-    where: { id: sessionId },
+  const session = await prisma.pokerSession.findFirst({
+    where: { OR: [{ id: sessionId }, { shortCode: sessionId }] },
     include: {
       tickets: { orderBy: { order: "asc" }, include: { votes: { include: { member: true } } } },
       participants: { include: { member: true } },
-      product: { include: { members: true } },
+      product: {
+        select: {
+          id: true,
+          name: true,
+          jiraProjectKey: true,
+          confluenceSpaceKey: true,
+          members: {
+            select: {
+              id: true, name: true, role: true, capacity: true, avatarUrl: true,
+              jiraAssigneeAccountId: true,
+            },
+          },
+        },
+      },
     },
   });
 

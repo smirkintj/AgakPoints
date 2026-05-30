@@ -1,5 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
+import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+
+async function getSessionForAdmin(sessionId: string, userId: string) {
+  return prisma.pokerSession.findFirst({
+    where: { id: sessionId, product: { adminId: userId } },
+    select: { id: true },
+  });
+}
 
 export async function GET(
   _req: NextRequest,
@@ -17,8 +25,28 @@ export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ sessionId: string }> }
 ) {
+  const session = await auth();
+  if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
   const { sessionId } = await params;
-  const body = await req.json() as {
+
+  const pokerSession = await getSessionForAdmin(sessionId, session.user.id);
+  if (!pokerSession) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+  let body: unknown;
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+  }
+
+  const {
+    holidays,
+    date,
+    name,
+    type,
+    remove,
+  } = body as {
     holidays?: { date: string; name: string; type?: string }[];
     date?: string;
     name?: string;
@@ -26,15 +54,17 @@ export async function POST(
     remove?: boolean;
   };
 
-  // Legacy bulk replace
-  if (body.holidays !== undefined) {
+  if (holidays !== undefined) {
+    if (!Array.isArray(holidays)) {
+      return NextResponse.json({ error: "holidays must be an array" }, { status: 400 });
+    }
     await prisma.sprintHoliday.deleteMany({ where: { sessionId } });
-    if (body.holidays.length > 0) {
+    if (holidays.length > 0) {
       await prisma.sprintHoliday.createMany({
-        data: body.holidays.map((h) => ({
+        data: holidays.map((h) => ({
           sessionId,
-          date: h.date,
-          name: h.name,
+          date: String(h.date),
+          name: String(h.name).slice(0, 100),
           type: h.type ?? "PH",
         })),
       });
@@ -42,18 +72,18 @@ export async function POST(
     return NextResponse.json({ ok: true });
   }
 
-  // Per-entry upsert / delete
-  if (body.date !== undefined) {
-    if (body.remove === true) {
-      await prisma.sprintHoliday.deleteMany({ where: { sessionId, date: body.date } });
+  if (date !== undefined) {
+    const safeDate = String(date);
+    if (remove === true) {
+      await prisma.sprintHoliday.deleteMany({ where: { sessionId, date: safeDate } });
     } else {
-      await prisma.sprintHoliday.deleteMany({ where: { sessionId, date: body.date } });
+      await prisma.sprintHoliday.deleteMany({ where: { sessionId, date: safeDate } });
       await prisma.sprintHoliday.create({
         data: {
           sessionId,
-          date: body.date,
-          name: body.name ?? "Public Holiday",
-          type: body.type ?? "PH",
+          date: safeDate,
+          name: name ? String(name).slice(0, 100) : "Public Holiday",
+          type: type ?? "PH",
         },
       });
     }

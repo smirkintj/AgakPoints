@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import { MemberAvatar } from "./MemberAvatar";
 import { RoleBadge } from "./RoleBadge";
 import { getRoleColor } from "@/lib/roles";
@@ -121,7 +122,7 @@ export function BandwidthRail({ members: initialMembers, estimatedTickets, pendi
     }
   }
 
-  const sorted = [...members].sort((a, b) => (loadMap[a.memberId] ?? 0) - (loadMap[b.memberId] ?? 0));
+  const sorted = [...members].sort((a, b) => (loadMap[b.memberId] ?? 0) - (loadMap[a.memberId] ?? 0));
   // Use the max load across the team as the bar scale (no artificial cap)
   const maxLoad = Math.max(...sorted.map((m) => loadMap[m.memberId] ?? 0), 1);
 
@@ -134,6 +135,7 @@ export function BandwidthRail({ members: initialMembers, estimatedTickets, pendi
         {sorted.length === 0 && (
           <p className="text-xs text-white/30 text-center pt-4">No members checked in</p>
         )}
+        <AnimatePresence>
         {sorted.map((m) => {
           const load = loadMap[m.memberId] ?? 0;
           const isPending = pendingAssigneeId === m.memberId && pendingEstimate != null;
@@ -141,7 +143,7 @@ export function BandwidthRail({ members: initialMembers, estimatedTickets, pendi
           const { hex } = getRoleColor(m.role);
 
           return (
-            <div key={m.memberId} className="flex flex-col gap-1.5">
+            <motion.div key={m.memberId} layout transition={{ type: "spring", stiffness: 300, damping: 30 }} className="flex flex-col gap-1.5">
               <div className="flex items-center gap-2 group">
                 <MemberAvatar name={m.memberName} role={m.role} size={28} />
                 <div className="flex-1 min-w-0">
@@ -184,9 +186,10 @@ export function BandwidthRail({ members: initialMembers, estimatedTickets, pendi
                   />
                 )}
               </div>
-            </div>
+            </motion.div>
           );
         })}
+        </AnimatePresence>
       </div>
 
       {/* Session log — collapsible */}

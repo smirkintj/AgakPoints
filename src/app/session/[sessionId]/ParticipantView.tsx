@@ -33,6 +33,8 @@ export function ParticipantView({ session }: { session: SessionWithDetails }) {
   const [revealMeta, setRevealMeta] = useState<{ median: number; isConsensus: boolean } | null>(null);
   const [reactions, setReactions] = useState<{ memberId: string; memberName: string; emoji: string }[]>([]);
   const [lockedTickets, setLockedTickets] = useState<Set<string>>(new Set());
+  const [lockedAssignees, setLockedAssignees] = useState<Record<string, string>>({});
+  const [ticketEstimates, setTicketEstimates] = useState<Record<string, number>>({});
   const [sessionEnded, setSessionEnded] = useState(false);
 
   useEffect(() => {
@@ -50,6 +52,12 @@ export function ParticipantView({ session }: { session: SessionWithDetails }) {
         setVotedMemberIds(s.votedMemberIds);
         setRevealedVotes(s.revealedVotes);
         setLockedTickets(new Set(s.lockedTickets));
+        setLockedAssignees(s.lockedTicketAssignees ?? {});
+        const estMap: Record<string, number> = {};
+        for (const t of session.tickets) {
+          if (t.status === "ESTIMATED" && t.finalEstimate != null) estMap[t.id] = t.finalEstimate;
+        }
+        setTicketEstimates(estMap);
         if (s.revealed && s.revealedVotes) {
           const vals = s.revealedVotes.map((v) => v.value);
           const sorted = [...vals].sort((a, b) => a - b);
@@ -81,6 +89,8 @@ export function ParticipantView({ session }: { session: SessionWithDetails }) {
         break;
       case "ESTIMATE_LOCKED":
         setLockedTickets((l) => new Set([...l, msg.ticketId]));
+        if (msg.assigneeId) setLockedAssignees((a) => ({ ...a, [msg.ticketId]: msg.assigneeId! }));
+        setTicketEstimates((e) => ({ ...e, [msg.ticketId]: msg.value }));
         setCurrentTicket(null);
         break;
       case "REACTION_RECEIVED":

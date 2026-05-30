@@ -154,6 +154,24 @@ function JiraSyncBadge({ status }: { status: "idle" | "saving" | "synced" | "par
   );
 }
 
+// ── Active note send button ───────────────────────────────────────────────────
+function ActiveNoteSendButton({ onSend }: { onSend: () => void }) {
+  const [sent, setSent] = useState(false);
+  const handle = () => {
+    onSend();
+    setSent(true);
+    setTimeout(() => setSent(false), 1500);
+  };
+  return (
+    <button
+      onClick={handle}
+      className="text-xs text-white/30 hover:text-violet-400 border border-white/10 hover:border-violet-500/40 rounded px-2 py-0.5 transition-colors mt-1"
+    >
+      {sent ? "Sent!" : "Send to members"}
+    </button>
+  );
+}
+
 // ── Main Component ────────────────────────────────────────────────────────────
 
 export function HostView({ session, productId }: { session: PokerSession; productId: string }) {
@@ -185,6 +203,11 @@ export function HostView({ session, productId }: { session: PokerSession; produc
   const [ticketNotes, setTicketNotes] = useState<Record<string, string>>({});
   const getNote = (id: string) => ticketNotes[id] ?? "";
   const setNote2 = (id: string, val: string) => setTicketNotes((p) => ({ ...p, [id]: val }));
+
+  // Per-ticket dependencies
+  const [ticketDeps, setTicketDeps] = useState<Record<string, string>>({});
+  const getDeps = (id: string) => ticketDeps[id] ?? "";
+  const setDeps = (id: string, val: string) => setTicketDeps((p) => ({ ...p, [id]: val }));
 
   // Task 6: collapsed sections
   const [estimatedCollapsed, setEstimatedCollapsed] = useState(true);
@@ -491,26 +514,38 @@ export function HostView({ session, productId }: { session: PokerSession; produc
                         const assigneeId = ticketAssignees[ticket.id] ?? ticket.assigneeId;
                         const assignee = assigneeId ? session.product.members.find((m) => m.id === assigneeId) : null;
                         return (
-                          <div key={ticket.id} className="w-full text-left px-3 py-2.5 opacity-40 border-l-2 border-l-transparent">
+                          <div key={ticket.id} className="group w-full text-left px-3 py-2.5 border-l-2 border-l-transparent hover:bg-white/3 transition-colors">
                             <div className="flex items-start gap-2">
                               <div className="mt-0.5 shrink-0">
                                 <TicketTypeIcon type={ticket.issueType} size={12} />
                               </div>
-                              <div className="flex-1 min-w-0">
+                              <div className="flex-1 min-w-0 opacity-50">
                                 <div className="flex items-center gap-1.5 mb-0.5">
-                                  <span className="text-[10px] font-mono text-violet-400/80 shrink-0">{ticket.jiraKey}</span>
+                                  <span className="text-xs font-mono text-violet-400/80 shrink-0">{ticket.jiraKey}</span>
                                   {ticket.finalEstimate != null && (
-                                    <span className="text-[10px] font-mono text-emerald-400/80 ml-auto">{ticket.finalEstimate}pt</span>
+                                    <span className="text-xs font-mono text-emerald-400/80 ml-auto">{ticket.finalEstimate}pt</span>
                                   )}
                                 </div>
-                                <p className="text-[11px] text-white/60 leading-snug line-clamp-2">{ticket.title}</p>
+                                <p className="text-xs text-white/60 leading-snug line-clamp-2">{ticket.title}</p>
                                 {assignee && (
                                   <div className="flex items-center gap-1 mt-1">
-                                    <MemberAvatar name={assignee.name} role={assignee.role} size={12} />
-                                    <span className="text-[9px] text-white/30">{assignee.name.split(" ")[0]}</span>
+                                    <MemberAvatar name={assignee.name} role={assignee.role} size={14} />
+                                    <span className="text-xs text-white/30">{assignee.name.split(" ")[0]}</span>
                                   </div>
                                 )}
                               </div>
+                              <button
+                                onClick={async () => {
+                                  await fetch(`/api/sessions/${session.id}/tickets/${ticket.id}/repoker`, { method: "POST" });
+                                  setLockedTickets((l) => { const n = new Set(l); n.delete(ticket.id); return n; });
+                                  setTicketAssignees((a) => { const n = { ...a }; delete n[ticket.id]; return n; });
+                                  setTickets((t) => t.map((tk) => tk.id === ticket.id ? { ...tk, status: "PENDING" as const, finalEstimate: null, assigneeId: null } : tk));
+                                }}
+                                className="opacity-0 group-hover:opacity-100 transition-opacity text-[10px] text-white/30 hover:text-amber-400 border border-white/10 hover:border-amber-400/40 rounded px-1.5 py-0.5 shrink-0"
+                                title="Repoker this ticket"
+                              >
+                                ↺
+                              </button>
                             </div>
                           </div>
                         );
@@ -642,13 +677,24 @@ export function HostView({ session, productId }: { session: PokerSession; produc
                   priority={pendingTicket.priority}
                 />
                 <div className="space-y-1">
-                  <p className="text-[10px] text-white/30 uppercase tracking-widest font-medium">Host note (visible to members during voting)</p>
+                  <p className="text-xs text-amber-400/80 font-semibold uppercase tracking-widest">Host note — members see this while voting</p>
                   <textarea
                     value={getNote(pendingTicket.id)}
                     onChange={(e) => setNote2(pendingTicket.id, e.target.value)}
                     placeholder="Optional context note — shown to participants alongside the ticket"
                     rows={2}
-                    className="w-full rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-white/20 focus:border-violet-500 focus:outline-none resize-none"
+                    className="w-full rounded-lg border border-amber-500/30 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-white/20 focus:border-amber-400 focus:outline-none resize-none"
+                  />
+                  <p className="text-xs text-white/30 mt-1">Tip: Type your note here before starting voting.</p>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-xs text-white/40 uppercase tracking-widest font-medium">Dependencies</p>
+                  <input
+                    type="text"
+                    value={getDeps(pendingTicket.id)}
+                    onChange={(e) => setDeps(pendingTicket.id, e.target.value)}
+                    placeholder="e.g. EO-123, EO-456 — tickets this depends on"
+                    className="w-full rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-white/20 focus:border-violet-500 focus:outline-none"
                   />
                 </div>
                 <div className="flex gap-3">
@@ -686,7 +732,10 @@ export function HostView({ session, productId }: { session: PokerSession; produc
 
               {/* Context note — always editable (note was sent to members on ticket open) */}
               <div className="w-full max-w-2xl space-y-1">
-                <p className="text-[10px] text-white/30 uppercase tracking-widest font-medium">Host note</p>
+                <div className="flex items-center gap-2">
+                  <p className="text-xs text-white/40 uppercase tracking-widest font-medium">Host note</p>
+                  <span className="text-[10px] text-white/20 ml-2">Auto-synced when you type · Sent on ticket open</span>
+                </div>
                 <textarea
                   value={getNote(currentTicket.id)}
                   onChange={(e) => {
@@ -696,6 +745,21 @@ export function HostView({ session, productId }: { session: PokerSession; produc
                   placeholder="Host note — auto-synced to members"
                   rows={2}
                   className="w-full rounded-lg border border-white/10 bg-white/3 px-3 py-2 text-sm text-white placeholder:text-white/15 focus:border-violet-500/50 focus:outline-none resize-none"
+                />
+                <ActiveNoteSendButton
+                  onSend={() => send({ type: "UPDATE_NOTE", ticketId: currentTicket.id, note: getNote(currentTicket.id) })}
+                />
+              </div>
+
+              {/* Dependencies */}
+              <div className="w-full max-w-2xl space-y-1">
+                <p className="text-xs text-white/30 uppercase tracking-widest font-medium">Dependencies</p>
+                <input
+                  type="text"
+                  value={getDeps(currentTicket.id)}
+                  onChange={(e) => setDeps(currentTicket.id, e.target.value)}
+                  placeholder="Dependent ticket keys (e.g. EO-123, EO-456)"
+                  className="w-full rounded-lg border border-white/10 bg-white/3 px-3 py-2 text-sm text-white placeholder:text-white/15 focus:border-yellow-500/50 focus:outline-none"
                 />
               </div>
 

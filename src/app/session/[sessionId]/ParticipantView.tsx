@@ -144,16 +144,54 @@ export function ParticipantView({ session }: { session: SessionWithDetails }) {
   }
 
   if (sessionEnded) {
+    const myAssigned = member
+      ? Object.entries(lockedAssignees)
+          .filter(([, mId]) => mId === member.id)
+          .map(([ticketId]) => ({
+            ticket: session.tickets.find((t) => t.id === ticketId),
+            sp: ticketEstimates[ticketId] ?? 0,
+          }))
+          .filter((x) => x.ticket)
+      : [];
+    const totalSP = myAssigned.reduce((s, x) => s + x.sp, 0);
+
     return (
-      <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black/90 backdrop-blur-sm text-center px-6">
-        <div className="w-12 h-12 rounded-full bg-white/10 border border-white/20 flex items-center justify-center mx-auto mb-5">
-          <Clock className="w-5 h-5 text-white/50" />
+      <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black/90 backdrop-blur-sm px-6 py-10 overflow-y-auto">
+        <div className="w-full max-w-md space-y-6 text-center">
+          <div>
+            <div className="w-12 h-12 rounded-full bg-violet-600/30 border border-violet-500/30 flex items-center justify-center mx-auto mb-4">
+              <Sparkles className="w-5 h-5 text-violet-400" />
+            </div>
+            <h2 className="text-2xl font-bold text-white">Session Ended</h2>
+            <p className="text-white/40 text-sm mt-1">{session.sprintName}</p>
+          </div>
+
+          {myAssigned.length > 0 ? (
+            <div className="rounded-2xl border border-white/10 bg-white/5 p-5 text-left space-y-3">
+              <div className="flex items-center justify-between">
+                <p className="text-xs text-white/40 uppercase tracking-widest font-medium">Your assignments</p>
+                <span className="text-sm font-bold text-violet-400 font-mono">{totalSP} SP total</span>
+              </div>
+              <div className="space-y-2">
+                {myAssigned.map(({ ticket, sp }) => ticket && (
+                  <div key={ticket.id} className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="text-xs font-mono text-violet-400/70 shrink-0">{ticket.jiraKey}</span>
+                      <span className="text-xs text-white/60 truncate">{ticket.title}</span>
+                    </div>
+                    <span className="text-xs font-mono text-emerald-400 shrink-0">{sp} pts</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <p className="text-white/30 text-sm">No tickets assigned to you this sprint.</p>
+          )}
+
+          <a href={`/join/${session.id}`} className="inline-block px-5 py-2 rounded-lg bg-violet-600 hover:bg-violet-500 text-white text-sm font-medium transition-colors">
+            Return to lobby
+          </a>
         </div>
-        <h2 className="text-2xl font-bold text-white mb-2">Session Ended</h2>
-        <p className="text-white/40 text-sm mb-6">The host has ended this refinement session.</p>
-        <a href={`/join/${session.id}`} className="px-5 py-2 rounded-lg bg-violet-600 hover:bg-violet-500 text-white text-sm font-medium transition-colors">
-          Return to lobby
-        </a>
       </div>
     );
   }

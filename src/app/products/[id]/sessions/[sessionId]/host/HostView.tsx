@@ -19,7 +19,7 @@ import type { Ticket, Member, SessionParticipant, Vote } from "@/types/models";
 import { FIBONACCI_VALUES } from "@/lib/utils";
 import {
   AlertTriangle, Award, Check, CheckCircle2, ChevronDown, ChevronRight, Clock, Copy, Eye, ExternalLink,
-  GitMerge, Layers, Lock, Play, Sparkles, Users, FileText,
+  GitMerge, Layers, Lock, Play, RefreshCw, Sparkles, Users, FileText,
 } from "lucide-react";
 import confetti from "canvas-confetti";
 
@@ -204,10 +204,14 @@ export function HostView({ session, productId }: { session: PokerSession; produc
   const getNote = (id: string) => ticketNotes[id] ?? "";
   const setNote2 = (id: string, val: string) => setTicketNotes((p) => ({ ...p, [id]: val }));
 
-  // Per-ticket dependencies
-  const [ticketDeps, setTicketDeps] = useState<Record<string, string>>({});
-  const getDeps = (id: string) => ticketDeps[id] ?? "";
-  const setDeps = (id: string, val: string) => setTicketDeps((p) => ({ ...p, [id]: val }));
+  // Per-ticket dependencies (set of dep types per ticket)
+  const [ticketDeps, setTicketDeps] = useState<Record<string, string[]>>({});
+  const getDeps = (id: string): string[] => ticketDeps[id] ?? [];
+  const toggleDep = (id: string, dep: string) =>
+    setTicketDeps((p) => {
+      const cur = p[id] ?? [];
+      return { ...p, [id]: cur.includes(dep) ? cur.filter((d) => d !== dep) : [...cur, dep] };
+    });
 
   // Task 6: collapsed sections
   const [estimatedCollapsed, setEstimatedCollapsed] = useState(true);
@@ -484,10 +488,26 @@ export function HostView({ session, productId }: { session: PokerSession; produc
 
         {/* ── Ticket sidebar ── */}
         <aside className="w-68 shrink-0 border-r border-white/8 bg-black/10 flex flex-col h-full">
-          <div className="px-4 py-3 border-b border-white/8 shrink-0">
-            <p className="text-[11px] text-white/30 font-medium uppercase tracking-widest">
+          <div className="px-4 py-3 border-b border-white/8 shrink-0 flex items-center justify-between">
+            <p className="text-xs text-white/30 font-medium uppercase tracking-widest">
               Issues · {tickets.length}
             </p>
+            {sessionStatus === "ACTIVE" && (
+              <button
+                onClick={async () => {
+                  const res = await fetch(`/api/sessions/${session.id}/refresh-tickets`, { method: "POST" });
+                  if (res.ok) {
+                    const data = await res.json();
+                    setTickets(data.tickets);
+                    setLockedTickets(new Set(data.tickets.filter((t: { status: string }) => t.status === "ESTIMATED").map((t: { id: string }) => t.id)));
+                  }
+                }}
+                title="Refresh tickets from JIRA (keeps estimated, clears pending)"
+                className="text-white/25 hover:text-violet-400 transition-colors"
+              >
+                <RefreshCw className="w-3.5 h-3.5" />
+              </button>
+            )}
           </div>
           <div className="overflow-y-auto flex-1 py-1">
             {/* Estimated section — shown first */}
@@ -687,15 +707,19 @@ export function HostView({ session, productId }: { session: PokerSession; produc
                   />
                   <p className="text-xs text-white/30 mt-1">Tip: Type your note here before starting voting.</p>
                 </div>
-                <div className="space-y-1">
+                <div className="space-y-2">
                   <p className="text-xs text-white/40 uppercase tracking-widest font-medium">Dependencies</p>
-                  <input
-                    type="text"
-                    value={getDeps(pendingTicket.id)}
-                    onChange={(e) => setDeps(pendingTicket.id, e.target.value)}
-                    placeholder="e.g. EO-123, EO-456 — tickets this depends on"
-                    className="w-full rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-white/20 focus:border-violet-500 focus:outline-none"
-                  />
+                  <div className="flex flex-wrap gap-2">
+                    {["SAP", "Network Team", "UI/UX", "Security", "Data"].map((dep) => {
+                      const active = getDeps(pendingTicket.id).includes(dep);
+                      return (
+                        <button key={dep} type="button" onClick={() => toggleDep(pendingTicket.id, dep)}
+                          className={`px-3 py-1 rounded-full border text-xs font-medium transition-all ${active ? "border-amber-500/60 bg-amber-500/15 text-amber-300" : "border-white/15 bg-white/3 text-white/40 hover:border-white/30 hover:text-white/60"}`}>
+                          {dep}
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
                 <div className="flex gap-3">
                   <Button onClick={() => openTicket(pendingTicket)} variant="success">
@@ -752,15 +776,19 @@ export function HostView({ session, productId }: { session: PokerSession; produc
               </div>
 
               {/* Dependencies */}
-              <div className="w-full max-w-2xl space-y-1">
+              <div className="w-full max-w-2xl space-y-2">
                 <p className="text-xs text-white/30 uppercase tracking-widest font-medium">Dependencies</p>
-                <input
-                  type="text"
-                  value={getDeps(currentTicket.id)}
-                  onChange={(e) => setDeps(currentTicket.id, e.target.value)}
-                  placeholder="Dependent ticket keys (e.g. EO-123, EO-456)"
-                  className="w-full rounded-lg border border-white/10 bg-white/3 px-3 py-2 text-sm text-white placeholder:text-white/15 focus:border-yellow-500/50 focus:outline-none"
-                />
+                <div className="flex flex-wrap gap-2">
+                  {["SAP", "Network Team", "UI/UX", "Security", "Data"].map((dep) => {
+                    const active = getDeps(currentTicket.id).includes(dep);
+                    return (
+                      <button key={dep} type="button" onClick={() => toggleDep(currentTicket.id, dep)}
+                        className={`px-3 py-1 rounded-full border text-xs font-medium transition-all ${active ? "border-amber-500/60 bg-amber-500/15 text-amber-300" : "border-white/10 bg-white/3 text-white/30 hover:border-white/25 hover:text-white/50"}`}>
+                        {dep}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
 
               {/* Vote progress */}

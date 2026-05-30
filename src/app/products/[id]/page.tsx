@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Plus, ExternalLink, FileText } from "lucide-react";
+import { EndSessionButton } from "./EndSessionButton";
 
 const ROLE_COLORS: Record<string, string> = {
   DEV: "default",
@@ -103,28 +104,22 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
                 </div>
               ) : (
                 <div className="space-y-2">
-                  {product.pokerSessions.map((s: { id: string; sprintName: string; createdAt: Date; status: string; _count: { tickets: number } }) => (
+                  {product.pokerSessions.map((s: { id: string; name?: string | null; sprintName: string; createdAt: Date; status: string; _count: { tickets: number } }) => (
                     <div key={s.id} className="flex items-center justify-between py-2 border-b border-white/5 last:border-0">
                       <div>
-                        <p className="text-white text-sm font-medium">{s.sprintName}</p>
+                        <p className="text-white text-sm font-medium">{s.name ?? s.sprintName}</p>
                         <p className="text-white/40 text-xs">
-                          {new Date(s.createdAt).toLocaleDateString()} • {s._count.tickets} tickets
+                          {s.sprintName} · {new Date(s.createdAt).toLocaleDateString()} · {s._count.tickets} tickets
                         </p>
                       </div>
                       <div className="flex items-center gap-2">
-                        <Badge
-                          variant={
-                            s.status === "COMPLETED" ? "success" :
-                            s.status === "ACTIVE" ? "warning" : "ghost"
-                          }
-                        >
+                        <Badge variant={s.status === "COMPLETED" ? "success" : s.status === "ACTIVE" ? "warning" : "ghost"}>
                           {s.status}
                         </Badge>
+                        {s.status === "ACTIVE" && <EndSessionButton sessionId={s.id} />}
                         <Link href={s.status === "COMPLETED" ? `/products/${id}/sessions/${s.id}/summary` : `/products/${id}/sessions/${s.id}/host`}>
                           <Button size="sm" variant="ghost" title={s.status === "COMPLETED" ? "View summary" : "Open session"}>
-                            {s.status === "COMPLETED"
-                              ? <FileText className="w-3.5 h-3.5" />
-                              : <ExternalLink className="w-3.5 h-3.5" />}
+                            {s.status === "COMPLETED" ? <FileText className="w-3.5 h-3.5" /> : <ExternalLink className="w-3.5 h-3.5" />}
                           </Button>
                         </Link>
                       </div>

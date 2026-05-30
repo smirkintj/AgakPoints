@@ -108,6 +108,7 @@ export function BandwidthRail({ members: initialMembers, estimatedTickets, pendi
   const [capacities, setCapacities] = useState<Record<string, number>>(
     Object.fromEntries(initialMembers.map((m) => [m.memberId, m.capacity]))
   );
+  const [logOpen, setLogOpen] = useState(true);
 
   const members = initialMembers.map((m) => ({ ...m, capacity: capacities[m.memberId] ?? m.capacity }));
 
@@ -188,22 +189,28 @@ export function BandwidthRail({ members: initialMembers, estimatedTickets, pendi
         })}
       </div>
 
-      {/* Session log */}
+      {/* Session log — collapsible */}
       {sessionLog && sessionLog.length > 0 && (
-        <div className="border-t border-white/10 shrink-0 flex flex-col" style={{ maxHeight: "35%" }}>
-          <div className="px-3 py-2 shrink-0">
+        <div className="border-t border-white/10 shrink-0 flex flex-col">
+          <button
+            onClick={() => setLogOpen((o) => !o)}
+            className="flex items-center justify-between px-3 py-2 shrink-0 hover:bg-white/3 transition-colors w-full text-left"
+          >
             <p className="text-[10px] text-white/30 font-medium uppercase tracking-wider">Session Log</p>
-          </div>
-          <div className="overflow-y-auto flex-1 px-3 pb-2 flex flex-col gap-1.5">
-            {[...sessionLog].reverse().map((entry) => (
-              <div key={entry.id} className="flex items-start gap-1.5">
-                <span className="text-[9px] text-white/20 font-mono shrink-0 mt-0.5">
-                  {entry.time.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                </span>
-                <span className="text-[10px] text-white/40 leading-snug">{entry.text}</span>
-              </div>
-            ))}
-          </div>
+            <span className="text-[10px] text-white/20">{logOpen ? "▲" : "▼"} {sessionLog.length}</span>
+          </button>
+          {logOpen && (
+            <div className="overflow-y-auto px-3 pb-2 flex flex-col gap-1.5" style={{ maxHeight: "160px" }}>
+              {[...sessionLog].reverse().map((entry) => (
+                <div key={entry.id} className="flex items-start gap-1.5">
+                  <span className="text-[10px] text-white/20 font-mono shrink-0 mt-0.5">
+                    {entry.time.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                  </span>
+                  <span className="text-xs text-white/50 leading-snug">{entry.text}</span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
     </aside>

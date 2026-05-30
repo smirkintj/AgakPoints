@@ -71,6 +71,7 @@ model PokerSession {
   sprintId        String
   sprintName      String
   name            String?
+  shortCode       String?              @unique
   status          SessionStatus        @default(WAITING)
   sprintStartDate DateTime?
   sprintEndDate   DateTime?

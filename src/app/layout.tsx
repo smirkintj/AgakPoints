@@ -11,6 +11,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" className="h-full">
       <body className="min-h-full text-white antialiased">
+        <div className="bg-blob-accent" aria-hidden="true" />
         <SessionProvider>{children}</SessionProvider>
       </body>
     </html>

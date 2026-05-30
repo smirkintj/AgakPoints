@@ -7,13 +7,15 @@ interface MemberAvatarProps {
   size?: number;
   showRing?: boolean;
   dimmed?: boolean;
+  title?: string;
 }
 
-export function MemberAvatar({ name, role, avatarUrl, size = 36, showRing = false, dimmed = false }: MemberAvatarProps) {
+export function MemberAvatar({ name, role, avatarUrl, size = 36, showRing = false, dimmed = false, title }: MemberAvatarProps) {
   const { hex } = getRoleColor(role);
 
   return (
     <div
+      title={title}
       className={`rounded-full flex items-center justify-center font-semibold text-white shrink-0 overflow-hidden transition-opacity ${dimmed ? "opacity-40" : ""}`}
       style={{
         width: size,

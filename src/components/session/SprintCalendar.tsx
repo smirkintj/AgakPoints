@@ -143,7 +143,7 @@ export function SprintCalendar({
     const sanity2 = subWorkingDays(dd, 2, phDates, dayStrings);
     if (sanity1) sanityDates.add(sanity1);
     if (sanity2) sanityDates.add(sanity2);
-    const uat = subWorkingDays(dd, 5, phDates, dayStrings);
+    const uat = subWorkingDays(dd, 3, phDates, dayStrings);
     if (uat) uatDates.add(uat);
   }
 
@@ -253,7 +253,7 @@ export function SprintCalendar({
             <button
               key={ds}
               onClick={() => setSelectedDate(isSelected ? null : ds)}
-              className={`${bgClass} ${borderClass} rounded-sm p-1 ${weekend ? "min-h-[52px]" : "min-h-[64px]"} flex flex-col gap-0.5 text-left transition-colors cursor-pointer`}
+              className={`${bgClass} ${borderClass} rounded-sm p-1 min-h-[60px] flex flex-col gap-0.5 text-left transition-colors cursor-pointer`}
             >
               <div className="flex items-baseline gap-0.5">
                 <span className={`text-xs font-bold ${weekend ? "text-white/20" : "text-white/70"}`}>{d.getDate()}</span>
@@ -281,9 +281,7 @@ export function SprintCalendar({
               {membersOnLeave.length > 0 && (
                 <div className="flex gap-0.5 flex-wrap mt-auto">
                   {membersOnLeave.slice(0, 3).map((m) => (
-                    <div key={m.id} title={m.name.split(" ")[0]}>
-                      <MemberAvatar name={m.name} role={m.role} size={20} />
-                    </div>
+                    <MemberAvatar key={m.id} name={m.name} role={m.role} size={20} title={m.name.split(" ")[0]} />
                   ))}
                   {membersOnLeave.length > 3 && (
                     <span className="text-[7px] text-white/30 leading-none self-center">+{membersOnLeave.length - 3}</span>

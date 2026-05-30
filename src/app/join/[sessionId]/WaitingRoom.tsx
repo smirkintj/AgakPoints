@@ -34,7 +34,14 @@ export function WaitingRoom({ session }: { session: SessionWithDetails }) {
 
   const { send } = usePartyRoom(session.id, (msg: MsgOut) => {
     if (msg.type === "PRESENCE_UPDATE") setCheckedIn(msg.checkedIn);
-    if (msg.type === "STATE_SYNC") setCheckedIn(msg.state.checkedIn);
+    if (msg.type === "STATE_SYNC") {
+      setCheckedIn(msg.state.checkedIn);
+      // Late joiner: session already running when they connected
+      if (msg.state.sessionStatus === "ACTIVE") {
+        const stored = sessionStorage.getItem(`agakpoints_member_${session.id}`);
+        if (stored) { router.push(`/session/${session.id}`); return; }
+      }
+    }
     if (msg.type === "SESSION_STARTED") router.push(`/session/${session.id}`);
   });
 

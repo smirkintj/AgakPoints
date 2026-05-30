@@ -86,6 +86,9 @@ export function ParticipantView({ session }: { session: SessionWithDetails }) {
       case "REACTION_RECEIVED":
         setReactions((r) => [...r.slice(-20), msg]);
         break;
+      case "NOTE_UPDATED":
+        setCurrentTicket((prev) => prev && prev.ticketId === msg.ticketId ? { ...prev, contextNote: msg.note } : prev);
+        break;
       case "SESSION_ENDED":
         setSessionEnded(true);
         break;

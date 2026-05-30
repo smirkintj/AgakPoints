@@ -29,6 +29,7 @@ type ParticipantWithMember = SessionParticipant & { member: Member };
 interface PokerSession {
   id: string;
   name?: string | null;
+  shortCode?: string | null;
   sprintName: string;
   sprintStartDate: Date | string | null;
   sprintEndDate: Date | string | null;
@@ -193,6 +194,7 @@ export function HostView({ session, productId }: { session: PokerSession; produc
   const addLogRef = useRef<(text: string) => void>(null!);
   addLogRef.current = (text: string) => setSessionLog((l) => [...l, { id: `${Date.now()}-${Math.random()}`, time: new Date(), text }]);
   const addLog = (text: string) => addLogRef.current(text);
+  const [sessionTimer, setSessionTimer] = useState<string>("");
 
   // Item 3: summary modal
   const [summaryModalOpen, setSummaryModalOpen] = useState(false);
@@ -214,7 +216,21 @@ export function HostView({ session, productId }: { session: PokerSession; produc
   const membersRef = useRef(session.product.members);
   membersRef.current = session.product.members;
 
-  const joinUrl = typeof window !== "undefined" ? `${window.location.origin}/join/${session.id}` : "";
+  useEffect(() => {
+    if (sessionStatus !== "ACTIVE") { setSessionTimer(""); return; }
+    if (!sessionStartedAt.current) sessionStartedAt.current = new Date();
+    const tick = () => {
+      const elapsed = Date.now() - (sessionStartedAt.current?.getTime() ?? Date.now());
+      const mins = Math.floor(elapsed / 60000);
+      const hrs = Math.floor(mins / 60);
+      setSessionTimer(hrs > 0 ? `${hrs}h ${mins % 60}m` : `${mins}m`);
+    };
+    tick();
+    const id = setInterval(tick, 30000);
+    return () => clearInterval(id);
+  }, [sessionStatus]);
+
+  const joinUrl = typeof window !== "undefined" ? `${window.location.origin}/join/${session.shortCode ?? session.id}` : "";
 
   const applyState = useCallback((state: PublicState) => {
     setSessionStatus(state.sessionStatus);
@@ -272,6 +288,7 @@ export function HostView({ session, productId }: { session: PokerSession; produc
       case "ESTIMATE_LOCKED": {
         setLockedTickets((l) => new Set([...l, msg.ticketId]));
         if (msg.assigneeId) setTicketAssignees((a) => ({ ...a, [msg.ticketId]: msg.assigneeId! }));
+        setTickets((t) => t.map((tk) => tk.id === msg.ticketId ? { ...tk, status: "ESTIMATED" as const, finalEstimate: msg.value } : tk));
         setCurrentTicketId(null); setRevealedVotes(null); setRevealMeta(null);
         const lockedTicketTitle = ticketsRef.current.find((t) => t.id === msg.ticketId)?.jiraKey ?? msg.ticketId;
         const assigneeName = msg.assigneeId ? membersRef.current.find((m) => m.id === msg.assigneeId)?.name?.split(" ")[0] : null;
@@ -295,6 +312,14 @@ export function HostView({ session, productId }: { session: PokerSession; produc
 
   const kickMember = (memberId: string) => {
     send({ type: "KICK_MEMBER", memberId });
+  };
+
+  const noteUpdateTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pushNoteToMembers = (ticketId: string, note: string) => {
+    if (noteUpdateTimer.current) clearTimeout(noteUpdateTimer.current);
+    noteUpdateTimer.current = setTimeout(() => {
+      send({ type: "UPDATE_NOTE", ticketId, note });
+    }, 800);
   };
 
   const openTicket = (t: TicketWithVotes) => {
@@ -374,6 +399,12 @@ export function HostView({ session, productId }: { session: PokerSession; produc
             {sprintStart && sprintEnd && (
               <span className="text-white/40 text-xs">
                 {sprintStart.toLocaleDateString("en-MY", { day: "numeric", month: "short" })} – {sprintEnd.toLocaleDateString("en-MY", { day: "numeric", month: "short" })}
+              </span>
+            )}
+            {sessionStatus === "ACTIVE" && sessionTimer && (
+              <span className="flex items-center gap-1 text-[10px] font-mono text-violet-400/60 bg-violet-500/10 px-2 py-0.5 rounded-full border border-violet-500/20">
+                <Clock className="w-3 h-3" />
+                {sessionTimer}
               </span>
             )}
             <span className="text-white/20 text-sm">·</span>
@@ -658,8 +689,11 @@ export function HostView({ session, productId }: { session: PokerSession; produc
                 <p className="text-[10px] text-white/30 uppercase tracking-widest font-medium">Host note</p>
                 <textarea
                   value={getNote(currentTicket.id)}
-                  onChange={(e) => setNote2(currentTicket.id, e.target.value)}
-                  placeholder="Note for this ticket (sent to members when ticket was opened)"
+                  onChange={(e) => {
+                    setNote2(currentTicket.id, e.target.value);
+                    pushNoteToMembers(currentTicket.id, e.target.value);
+                  }}
+                  placeholder="Host note — auto-synced to members"
                   rows={2}
                   className="w-full rounded-lg border border-white/10 bg-white/3 px-3 py-2 text-sm text-white placeholder:text-white/15 focus:border-violet-500/50 focus:outline-none resize-none"
                 />

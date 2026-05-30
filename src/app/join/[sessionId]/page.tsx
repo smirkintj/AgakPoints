@@ -5,8 +5,9 @@ import { WaitingRoom } from "./WaitingRoom";
 export default async function JoinPage({ params }: { params: Promise<{ sessionId: string }> }) {
   const { sessionId } = await params;
 
-  const session = await prisma.pokerSession.findUnique({
-    where: { id: sessionId },
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const session = await prisma.pokerSession.findFirst({
+    where: { OR: [{ id: sessionId }, { shortCode: sessionId } as any] },
     include: {
       product: { include: { members: { orderBy: { name: "asc" } } } },
       participants: { include: { member: true } },

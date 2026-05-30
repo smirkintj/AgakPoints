@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { nanoid } from "nanoid";
 import { fetchSprintIssues } from "@/lib/jira";
 
 export async function POST(req: NextRequest) {
@@ -55,6 +56,8 @@ export async function POST(req: NextRequest) {
       sprintId: String(sprintId),
       sprintName,
       name: name || undefined,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      shortCode: nanoid(8) as any,
       sprintStartDate: sprintStartDate ? new Date(sprintStartDate) : null,
       sprintEndDate: sprintEndDate ? new Date(sprintEndDate) : null,
       tickets: { create: tickets },

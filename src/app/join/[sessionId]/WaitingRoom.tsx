@@ -23,6 +23,7 @@ export function WaitingRoom({ session }: { session: SessionWithDetails }) {
   );
   const [selectedMember, setSelectedMember] = useState<Member | null>(null);
   const [busy, setBusy] = useState(false);
+  const [liveActive, setLiveActive] = useState(session.status === "ACTIVE");
 
   // Restore selected member from storage; redirect immediately if session is already active
   useEffect(() => {
@@ -43,15 +44,16 @@ export function WaitingRoom({ session }: { session: SessionWithDetails }) {
     if (msg.type === "PRESENCE_UPDATE") setCheckedIn(msg.checkedIn);
     if (msg.type === "STATE_SYNC") {
       setCheckedIn(msg.state.checkedIn);
-      // If session is active (either from PartyKit or from the DB status prop),
-      // redirect any member who has already checked in
-      const isActive = msg.state.sessionStatus === "ACTIVE" || session.status === "ACTIVE";
-      if (isActive) {
+      if (msg.state.sessionStatus === "ACTIVE") {
+        setLiveActive(true);
         const stored = sessionStorage.getItem(`agakpoints_member_${session.id}`);
         if (stored) { router.push(`/session/${session.id}`); return; }
       }
     }
-    if (msg.type === "SESSION_STARTED") router.push(`/session/${session.id}`);
+    if (msg.type === "SESSION_STARTED") {
+      setLiveActive(true);
+      router.push(`/session/${session.id}`);
+    }
   });
 
   const checkin = async (member: Member) => {
@@ -66,8 +68,8 @@ export function WaitingRoom({ session }: { session: SessionWithDetails }) {
     });
     send({ type: "CHECKIN", memberId: member.id, memberName: member.name, role: member.role });
     setBusy(false);
-    // Late joiner — session already active, go straight to participant view
-    if (session.status === "ACTIVE") {
+    // Redirect if session is active (DB or live PartyKit state)
+    if (liveActive) {
       router.push(`/session/${session.id}`);
     }
   };

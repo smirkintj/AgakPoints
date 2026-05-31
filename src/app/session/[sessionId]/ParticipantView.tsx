@@ -10,7 +10,7 @@ import { EmojiReaction } from "@/components/session/EmojiReaction";
 import { FIBONACCI_VALUES } from "@/lib/utils";
 import { MemberAvatar } from "@/components/session/MemberAvatar";
 import { TicketTypeIcon } from "@/components/session/TicketTypeIcon";
-import { Check, ChevronDown, ChevronRight, Clock, Sparkles } from "lucide-react";
+import { Check, ChevronDown, ChevronRight, Clock, Sparkles, CalendarX } from "lucide-react";
 
 const PRIORITY_COLORS: Record<string, string> = {
   Highest: "#ef4444", High: "#f97316", Medium: "#eab308", Low: "#3b82f6", Lowest: "#6b7280",
@@ -40,7 +40,6 @@ export function ParticipantView({ session }: { session: SessionWithDetails }) {
   const [lockedAssignees, setLockedAssignees] = useState<Record<string, string>>({});
   const [ticketEstimates, setTicketEstimates] = useState<Record<string, number>>({});
   const [sessionEnded, setSessionEnded] = useState(false);
-  const [sessionInfoOpen, setSessionInfoOpen] = useState(false);
   const [myAssignedOpen, setMyAssignedOpen] = useState(true);
   const [holidays, setHolidays] = useState<{ date: string; name: string; type: string }[]>([]);
   const [myLeaves, setMyLeaves] = useState<string[]>([]);
@@ -59,12 +58,17 @@ export function ParticipantView({ session }: { session: SessionWithDetails }) {
 
   useEffect(() => {
     if (!member) return;
-    fetch(`/api/sessions/${session.id}/leave`)
-      .then((r) => r.json())
-      .then((d: { leaves: { memberId: string; date: string }[] }) =>
-        setMyLeaves(d.leaves.filter((l) => l.memberId === member.id).map((l) => l.date))
-      )
-      .catch(() => {});
+    const fetchLeaves = () =>
+      fetch(`/api/sessions/${session.id}/leave`)
+        .then((r) => r.json())
+        .then((d: { leaves: { memberId: string; date: string }[] }) =>
+          setMyLeaves(d.leaves.filter((l) => l.memberId === member.id).map((l) => l.date))
+        )
+        .catch(() => {});
+    fetchLeaves();
+    // Refresh every 30s so host-assigned leaves show up without page reload
+    const id = setInterval(fetchLeaves, 30000);
+    return () => clearInterval(id);
   }, [session.id, member]);
 
   const { send } = usePartyRoom(session.id, useCallback((msg: MsgOut) => {
@@ -265,77 +269,46 @@ export function ParticipantView({ session }: { session: SessionWithDetails }) {
         )}
       </header>
 
-      {/* Session Info — collapsible strip */}
-      <div className="border-b border-white/8 shrink-0">
-        <button
-          onClick={() => setSessionInfoOpen((o) => !o)}
-          className="w-full flex items-center gap-2 px-4 py-2 text-xs text-white/30 hover:text-white/50 transition-colors"
-        >
-          {sessionInfoOpen ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
-          <span className="font-medium uppercase tracking-widest">Sprint Info</span>
+      {/* Sprint Info — always visible */}
+      <div className="border-b border-white/8 px-4 py-3 shrink-0 space-y-2">
+        <div className="flex items-center gap-3 flex-wrap">
+          <div>
+            <p className="text-[10px] text-white/40 uppercase tracking-widest font-medium">Session</p>
+            <p className="text-white font-semibold text-sm leading-tight">{session.name ?? session.sprintName}</p>
+          </div>
+          <div className="w-px h-8 bg-white/10 shrink-0" />
+          <div>
+            <p className="text-[10px] text-white/40 uppercase tracking-widest font-medium">Sprint</p>
+            <p className="text-white/80 text-sm leading-tight">{session.sprintName}</p>
+          </div>
           {sprintStart && sprintEnd && (
-            <span className="ml-auto text-white/20 font-mono">
-              {sprintStart.getDate()} {MONTH_SHORT[sprintStart.getMonth()]} – {sprintEnd.getDate()} {MONTH_SHORT[sprintEnd.getMonth()]}
-              {workingDays != null && <span className="ml-2">· {workingDays} WDs</span>}
-            </span>
-          )}
-        </button>
-        <AnimatePresence initial={false}>
-          {sessionInfoOpen && (
-            <motion.div
-              initial={{ height: 0, opacity: 0 }}
-              animate={{ height: "auto", opacity: 1 }}
-              exit={{ height: 0, opacity: 0 }}
-              transition={{ duration: 0.2 }}
-              className="overflow-hidden"
-            >
-              <div className="px-4 pb-4 space-y-3">
-                {/* Session & sprint details */}
-                <div className="grid grid-cols-2 gap-2 text-xs">
-                  <div className="rounded-lg bg-white/4 border border-white/8 px-3 py-2">
-                    <p className="text-white/30 uppercase tracking-widest text-[10px] mb-0.5">Session</p>
-                    <p className="text-white/80 font-medium">{session.name ?? session.sprintName}</p>
-                  </div>
-                  <div className="rounded-lg bg-white/4 border border-white/8 px-3 py-2">
-                    <p className="text-white/30 uppercase tracking-widest text-[10px] mb-0.5">Sprint</p>
-                    <p className="text-white/80 font-medium">{session.sprintName}</p>
-                  </div>
-                  {sprintStart && sprintEnd && (
-                    <div className="rounded-lg bg-white/4 border border-white/8 px-3 py-2">
-                      <p className="text-white/30 uppercase tracking-widest text-[10px] mb-0.5">Duration</p>
-                      <p className="text-white/80">{formatDate(sprintStart)} – {formatDate(sprintEnd)}</p>
-                      {workingDays != null && <p className="text-white/40 text-[10px] mt-0.5">{workingDays} working days</p>}
-                    </div>
-                  )}
-                  {phDuringSprint.length > 0 && (
-                    <div className="rounded-lg bg-red-500/10 border border-red-500/20 px-3 py-2">
-                      <p className="text-red-400/60 uppercase tracking-widest text-[10px] mb-1">Public Holidays</p>
-                      <div className="space-y-0.5">
-                        {phDuringSprint.map((h) => (
-                          <p key={h.date} className="text-white/60 text-[11px]">
-                            <span className="font-mono text-white/30 mr-1">{h.date}</span>{h.name}
-                          </p>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {/* My leaves */}
-                {myLeaves.length > 0 && (
-                  <div className="rounded-lg bg-amber-500/10 border border-amber-500/20 px-3 py-2">
-                    <p className="text-amber-400/60 uppercase tracking-widest text-[10px] mb-1">Your Leaves</p>
-                    <div className="flex flex-wrap gap-1.5">
-                      {myLeaves.map((d) => (
-                        <span key={d} className="text-xs font-mono text-amber-300/80 bg-amber-500/15 px-2 py-0.5 rounded">{d}</span>
-                      ))}
-                    </div>
-                  </div>
-                )}
+            <>
+              <div className="w-px h-8 bg-white/10 shrink-0" />
+              <div>
+                <p className="text-[10px] text-white/40 uppercase tracking-widest font-medium">Duration</p>
+                <p className="text-white/80 text-sm leading-tight">
+                  {formatDate(sprintStart)} – {formatDate(sprintEnd)}
+                  {workingDays != null && <span className="text-white/50 ml-1">· {workingDays} WDs</span>}
+                </p>
               </div>
-            </motion.div>
+            </>
           )}
-        </AnimatePresence>
+        </div>
+        {(phDuringSprint.length > 0 || myLeaves.length > 0) && (
+          <div className="flex flex-wrap gap-2">
+            {phDuringSprint.map((h) => (
+              <span key={h.date} className="flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-red-500/15 border border-red-500/25 text-red-300">
+                🏖️ {h.date} {h.name}
+              </span>
+            ))}
+            {myLeaves.length > 0 && (
+              <span className="flex items-center gap-1.5 text-xs px-2.5 py-0.5 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-300 font-medium">
+                <CalendarX className="w-3 h-3" />
+                On leave: {myLeaves.sort().join(", ")}
+              </span>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Main area */}

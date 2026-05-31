@@ -194,6 +194,7 @@ export function HostView({ session, productId }: { session: PokerSession; produc
   const [copied, setCopied] = useState(false);
   const [savingLock, setSavingLock] = useState(false);
   const [bulkDrawerOpen, setBulkDrawerOpen] = useState(false);
+  const [reassignTicketId, setReassignTicketId] = useState<string | null>(null);
   const [tickets, setTickets] = useState(session.tickets);
   const [jiraStatus, setJiraStatus] = useState<"idle" | "saving" | "synced" | "partial" | "failed">("idle");
 
@@ -335,7 +336,10 @@ export function HostView({ session, productId }: { session: PokerSession; produc
 
   const currentTicket = tickets.find((t) => t.id === currentTicketId) ?? null;
 
-  const startSession = () => send({ type: "START_SESSION" });
+  const startSession = () => {
+    send({ type: "START_SESSION" });
+    fetch(`/api/sessions/${session.id}/start`, { method: "POST" }).catch(() => {});
+  };
 
   const kickMember = (memberId: string) => {
     send({ type: "KICK_MEMBER", memberId });
@@ -535,7 +539,7 @@ export function HostView({ session, productId }: { session: PokerSession; produc
                         const assignee = assigneeId ? session.product.members.find((m) => m.id === assigneeId) : null;
                         return (
                           <div key={ticket.id} className="group w-full text-left px-3 py-2.5 border-l-2 border-l-transparent hover:bg-white/3 transition-colors">
-                            <div className="flex items-start gap-2">
+                            <div className="flex items-start gap-2 relative">
                               <div className="mt-0.5 shrink-0">
                                 <TicketTypeIcon type={ticket.issueType} size={12} />
                               </div>
@@ -554,18 +558,54 @@ export function HostView({ session, productId }: { session: PokerSession; produc
                                   </div>
                                 )}
                               </div>
-                              <button
-                                onClick={async () => {
-                                  await fetch(`/api/sessions/${session.id}/tickets/${ticket.id}/repoker`, { method: "POST" });
-                                  setLockedTickets((l) => { const n = new Set(l); n.delete(ticket.id); return n; });
-                                  setTicketAssignees((a) => { const n = { ...a }; delete n[ticket.id]; return n; });
-                                  setTickets((t) => t.map((tk) => tk.id === ticket.id ? { ...tk, status: "PENDING" as const, finalEstimate: null, assigneeId: null } : tk));
-                                }}
-                                className="opacity-0 group-hover:opacity-100 transition-opacity text-[10px] text-white/30 hover:text-amber-400 border border-white/10 hover:border-amber-400/40 rounded px-1.5 py-0.5 shrink-0"
-                                title="Repoker this ticket"
-                              >
-                                ↺
-                              </button>
+                                  <div className="opacity-0 group-hover:opacity-100 transition-opacity flex gap-1 shrink-0">
+                                {/* Reassign — keep estimate, just change owner */}
+                                <button
+                                  onClick={() => setReassignTicketId(reassignTicketId === ticket.id ? null : ticket.id)}
+                                  className="text-[10px] text-white/30 hover:text-violet-400 border border-white/10 hover:border-violet-400/40 rounded px-1.5 py-0.5"
+                                  title="Reassign without re-voting"
+                                >
+                                  ⇄
+                                </button>
+                                {/* Repoker — full reset */}
+                                <button
+                                  onClick={async () => {
+                                    await fetch(`/api/sessions/${session.id}/tickets/${ticket.id}/repoker`, { method: "POST" });
+                                    setLockedTickets((l) => { const n = new Set(l); n.delete(ticket.id); return n; });
+                                    setTicketAssignees((a) => { const n = { ...a }; delete n[ticket.id]; return n; });
+                                    setTickets((t) => t.map((tk) => tk.id === ticket.id ? { ...tk, status: "PENDING" as const, finalEstimate: null, assigneeId: null } : tk));
+                                  }}
+                                  className="text-[10px] text-white/30 hover:text-amber-400 border border-white/10 hover:border-amber-400/40 rounded px-1.5 py-0.5"
+                                  title="Repoker — reset estimate and re-vote"
+                                >
+                                  ↺
+                                </button>
+                              </div>
+                              {/* Inline reassign picker */}
+                              {reassignTicketId === ticket.id && (
+                                <div className="absolute right-0 top-full mt-1 z-10 bg-[#0d0b1a] border border-white/15 rounded-xl shadow-2xl p-2 w-40">
+                                  <p className="text-[10px] text-white/30 px-2 pb-1 uppercase tracking-widest">Reassign to</p>
+                                  {session.product.members.map((m) => (
+                                    <button
+                                      key={m.id}
+                                      onClick={async () => {
+                                        await fetch(`/api/sessions/${session.id}/bulk-assign`, {
+                                          method: "POST",
+                                          headers: { "Content-Type": "application/json" },
+                                          body: JSON.stringify({ assignments: [{ ticketId: ticket.id, memberId: m.id }] }),
+                                        });
+                                        setTicketAssignees((a) => ({ ...a, [ticket.id]: m.id }));
+                                        setTickets((t) => t.map((tk) => tk.id === ticket.id ? { ...tk, assigneeId: m.id } : tk));
+                                        setReassignTicketId(null);
+                                      }}
+                                      className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-white/8 transition-colors text-left"
+                                    >
+                                      <MemberAvatar name={m.name} role={m.role} size={18} />
+                                      <span className="text-xs text-white/70">{m.name.split(" ")[0]}</span>
+                                    </button>
+                                  ))}
+                                </div>
+                              )}
                             </div>
                           </div>
                         );

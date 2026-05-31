@@ -94,24 +94,17 @@ export function ParticipantView({ session }: { session: SessionWithDetails }) {
   }, [session.id]);
 
   useEffect(() => {
-    const fetchLeaves = () => {
-      const stored = sessionStorage.getItem(`agakpoints_member_${session.id}`);
-      if (!stored) { console.log("[leave] no member in sessionStorage"); return; }
-      let mId: string;
-      try { mId = JSON.parse(stored).id; } catch { return; }
-      if (!mId) { console.log("[leave] no id in stored member"); return; }
-      console.log("[leave] fetching for memberId", mId);
-      fetch(`/api/sessions/${session.id}/leave?memberId=${mId}`, { cache: "no-store" })
-        .then((r) => r.json())
-        .then((d: { leaves: { memberId: string; date: string }[] }) => {
-          console.log("[leave] response", d);
-          setMyLeaves(d.leaves.map((l) => l.date));
-        })
-        .catch((e) => console.error("[leave] fetch error", e));
-    };
-    fetchLeaves();
-    const id = setInterval(fetchLeaves, 5000);
-    return () => clearInterval(id);
+    const stored = sessionStorage.getItem(`agakpoints_member_${session.id}`);
+    if (!stored) return;
+    let mId: string;
+    try { mId = JSON.parse(stored).id; } catch { return; }
+    if (!mId) return;
+    fetch(`/api/sessions/${session.id}/leave?memberId=${mId}`, { cache: "no-store" })
+      .then((r) => r.json())
+      .then((d: { leaves: { memberId: string; date: string }[] }) => {
+        setMyLeaves(d.leaves.map((l) => l.date));
+      })
+      .catch(() => {});
   }, [session.id]);
 
   const { send } = usePartyRoom(session.id, useCallback((msg: MsgOut) => {

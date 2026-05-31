@@ -37,7 +37,7 @@ export async function POST(
   const sessionProduct = pokerSession ? decryptProduct(pokerSession.product) : null;
   if (sessionProduct?.jiraBaseUrl && sessionProduct.jiraEmail && sessionProduct.jiraApiToken) {
     const { jiraBaseUrl, jiraEmail, jiraApiToken } = sessionProduct;
-    const ticketMap = Object.fromEntries(pokerSession.tickets.map((t) => [t.id, t.jiraKey]));
+    const ticketMap = Object.fromEntries(pokerSession!.tickets.map((t) => [t.id, t.jiraKey]));
     Promise.all(
       assignments.map(({ ticketId, memberId }) => {
         const jiraKey = ticketMap[ticketId];

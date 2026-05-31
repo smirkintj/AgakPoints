@@ -169,8 +169,8 @@ export function ParticipantView({ session }: { session: SessionWithDetails }) {
         .filter((x) => x.ticket)
     : [];
 
-  const sprintStart = session.sprintStartDate ? new Date(session.sprintStartDate as string) : null;
-  const sprintEnd = session.sprintEndDate ? new Date(session.sprintEndDate as string) : null;
+  const sprintStart = session.sprintStartDate ? new Date(session.sprintStartDate as unknown as string) : null;
+  const sprintEnd = session.sprintEndDate ? new Date(session.sprintEndDate as unknown as string) : null;
   const phDuringSprint = holidays.filter((h) => h.type === "PH");
 
   const formatDate = (d: Date) => `${d.getDate()} ${MONTH_SHORT[d.getMonth()]} ${d.getFullYear()}`;

@@ -249,7 +249,7 @@ export default class ScrumPokerRoom implements Party.Server {
   // Reconnecting clients get current state automatically on connect
   private publicState(): PublicState {
     return {
-      serverVersion: "2026-05-31.1",
+      serverVersion: "2026-05-31.2",
       sessionStatus: this.state.sessionStatus,
       checkedIn: this.state.checkedIn,
       currentTicket: this.state.currentTicket,

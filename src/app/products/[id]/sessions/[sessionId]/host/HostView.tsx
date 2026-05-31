@@ -442,7 +442,7 @@ export function HostView({ session, productId }: { session: PokerSession; produc
           </Badge>
         </div>
         <div className="flex items-center gap-2">
-          {sessionStatus === "ACTIVE" && (
+          {(sessionStatus === "ACTIVE" || sessionStatus === "WAITING") && (
             <Button
               variant="ghost"
               size="sm"

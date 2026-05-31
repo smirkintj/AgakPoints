@@ -71,7 +71,12 @@ export function ParticipantView({ session }: { session: SessionWithDetails }) {
     switch (msg.type) {
       case "STATE_SYNC": {
         const s = msg.state;
-        setSessionStatus(s.sessionStatus);
+        // Only advance session status — never let a stale/evicted PartyKit room downgrade
+        // a DB-loaded ACTIVE/COMPLETED status back to WAITING
+        const STATUS_RANK: Record<string, number> = { WAITING: 0, ACTIVE: 1, COMPLETED: 2 };
+        setSessionStatus((prev) =>
+          (STATUS_RANK[s.sessionStatus] ?? 0) >= (STATUS_RANK[prev] ?? 0) ? s.sessionStatus : prev
+        );
         setCheckedIn(s.checkedIn);
         setCurrentTicket(s.currentTicket
           ? { ticketId: s.currentTicket.ticketId, jiraKey: s.currentTicket.jiraKey, title: s.currentTicket.title, description: s.currentTicket.description, contextNote: s.currentTicket.contextNote, issueType: s.currentTicket.issueType, priority: s.currentTicket.priority, deps: s.currentTicket.deps }

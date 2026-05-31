@@ -24,20 +24,29 @@ export function WaitingRoom({ session }: { session: SessionWithDetails }) {
   const [selectedMember, setSelectedMember] = useState<Member | null>(null);
   const [busy, setBusy] = useState(false);
 
-  // Restore selected member from storage on refresh
+  // Restore selected member from storage; redirect immediately if session is already active
   useEffect(() => {
     const stored = sessionStorage.getItem(`agakpoints_member_${session.id}`);
     if (stored) {
-      try { setSelectedMember(JSON.parse(stored)); } catch { /* ignore */ }
+      try {
+        setSelectedMember(JSON.parse(stored));
+        // Session was active when page loaded (SSR) — no need to wait for PartyKit
+        if (session.status === "ACTIVE") {
+          router.push(`/session/${session.id}`);
+        }
+      } catch { /* ignore */ }
     }
-  }, [session.id]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const { send } = usePartyRoom(session.id, (msg: MsgOut) => {
     if (msg.type === "PRESENCE_UPDATE") setCheckedIn(msg.checkedIn);
     if (msg.type === "STATE_SYNC") {
       setCheckedIn(msg.state.checkedIn);
-      // Late joiner: session already running when they connected
-      if (msg.state.sessionStatus === "ACTIVE") {
+      // If session is active (either from PartyKit or from the DB status prop),
+      // redirect any member who has already checked in
+      const isActive = msg.state.sessionStatus === "ACTIVE" || session.status === "ACTIVE";
+      if (isActive) {
         const stored = sessionStorage.getItem(`agakpoints_member_${session.id}`);
         if (stored) { router.push(`/session/${session.id}`); return; }
       }

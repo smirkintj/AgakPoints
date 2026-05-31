@@ -190,7 +190,7 @@ export function SprintCalendar({
   };
 
   return (
-    <div className="w-full max-w-xl">
+    <div className="w-full max-w-xs">
       {/* Header */}
       <div className="flex items-center gap-3 text-xs mb-3">
         <span className="text-white/50 font-medium">Sprint Calendar</span>
@@ -282,7 +282,7 @@ export function SprintCalendar({
                 <div className="flex gap-0.5 flex-wrap mt-auto">
                   {membersOnLeave.slice(0, 3).map((m) => (
                     <div key={m.id} className="relative group/av">
-                      <MemberAvatar name={m.name} role={m.role} size={25} />
+                      <MemberAvatar name={m.name} role={m.role} size={32} />
                       <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 px-1.5 py-0.5 rounded bg-black/80 border border-white/15 text-[10px] text-white/80 whitespace-nowrap pointer-events-none opacity-0 group-hover/av:opacity-100 transition-opacity z-50">
                         {m.name.split(" ")[0]}
                       </div>

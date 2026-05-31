@@ -10,7 +10,8 @@ export type MsgIn =
   | { type: "REQUEST_STATE" }
   | { type: "END_SESSION" }
   | { type: "KICK_MEMBER"; memberId: string }
-  | { type: "UPDATE_NOTE"; ticketId: string; note: string };
+  | { type: "UPDATE_NOTE"; ticketId: string; note: string }
+  | { type: "UPDATE_LEAVE"; memberId: string; date: string; active: boolean };
 
 // Messages sent server → client
 export type MsgOut =
@@ -24,7 +25,8 @@ export type MsgOut =
   | { type: "STATE_SYNC"; state: PublicState }
   | { type: "SESSION_ENDED" }
   | { type: "MEMBER_KICKED"; memberId: string }
-  | { type: "NOTE_UPDATED"; ticketId: string; note: string };
+  | { type: "NOTE_UPDATED"; ticketId: string; note: string }
+  | { type: "LEAVE_UPDATED"; memberId: string; date: string; active: boolean };
 
 export interface CheckedInMember {
   memberId: string;

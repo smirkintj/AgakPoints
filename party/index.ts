@@ -13,7 +13,8 @@ type MsgIn =
   | { type: "REQUEST_STATE" }
   | { type: "END_SESSION" }
   | { type: "KICK_MEMBER"; memberId: string }
-  | { type: "UPDATE_NOTE"; ticketId: string; note: string };
+  | { type: "UPDATE_NOTE"; ticketId: string; note: string }
+  | { type: "UPDATE_LEAVE"; memberId: string; date: string; active: boolean };
 
 type MsgOut =
   | { type: "PRESENCE_UPDATE"; checkedIn: CheckedInMember[] }
@@ -26,7 +27,8 @@ type MsgOut =
   | { type: "STATE_SYNC"; state: PublicState }
   | { type: "SESSION_ENDED" }
   | { type: "MEMBER_KICKED"; memberId: string }
-  | { type: "NOTE_UPDATED"; ticketId: string; note: string };
+  | { type: "NOTE_UPDATED"; ticketId: string; note: string }
+  | { type: "LEAVE_UPDATED"; memberId: string; date: string; active: boolean };
 
 interface CheckedInMember {
   memberId: string;
@@ -219,6 +221,11 @@ export default class ScrumPokerRoom implements Party.Server {
 
       case "REQUEST_STATE": {
         this.send(sender, { type: "STATE_SYNC", state: this.publicState() });
+        break;
+      }
+
+      case "UPDATE_LEAVE": {
+        this.broadcast({ type: "LEAVE_UPDATED", memberId: msg.memberId, date: msg.date, active: msg.active });
         break;
       }
 

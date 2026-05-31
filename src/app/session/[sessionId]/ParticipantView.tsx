@@ -141,6 +141,17 @@ export function ParticipantView({ session }: { session: SessionWithDetails }) {
       case "NOTE_UPDATED":
         setCurrentTicket((prev) => prev && prev.ticketId === msg.ticketId ? { ...prev, contextNote: msg.note } : prev);
         break;
+      case "LEAVE_UPDATED": {
+        const stored = sessionStorage.getItem(`agakpoints_member_${session.id}`);
+        if (!stored) break;
+        let myId: string;
+        try { myId = JSON.parse(stored).id; } catch { break; }
+        if (msg.memberId !== myId) break;
+        setMyLeaves((prev) =>
+          msg.active ? [...prev.filter((d) => d !== msg.date), msg.date] : prev.filter((d) => d !== msg.date)
+        );
+        break;
+      }
       case "SESSION_ENDED":
         setSessionEnded(true);
         break;

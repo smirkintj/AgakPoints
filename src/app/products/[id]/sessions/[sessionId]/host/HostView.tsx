@@ -216,7 +216,6 @@ export function HostView({ session, productId }: { session: PokerSession; produc
 
   // Auto-redirect to product page when recap is closed
   const closeRecap = () => {
-    setRecapOpen(false);
     router.push(`/products/${productId}`);
   };
 

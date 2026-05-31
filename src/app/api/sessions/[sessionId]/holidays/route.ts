@@ -17,7 +17,7 @@ export async function GET(
   const holidays = await prisma.sprintHoliday.findMany({
     where: { sessionId },
   });
-  return NextResponse.json({ holidays });
+  return NextResponse.json({ holidays }, { headers: { "Cache-Control": "no-store" } });
 }
 
 export async function POST(

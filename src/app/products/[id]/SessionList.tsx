@@ -91,18 +91,18 @@ export function SessionList({ productId, sessions }: { productId: string; sessio
       {completed.length > 0 && (active.length > 0 || waiting.length > 0) && (
         <div className="border-t border-white/8 mt-1 pt-1" />
       )}
-      {visibleCompleted.map((s) => (
-        <SessionRow key={s.id} s={s} productId={productId} onEnd={handleEnd} />
-      ))}
       {completed.length > 3 && (
         <button
           onClick={() => setShowAllCompleted((v) => !v)}
-          className="flex items-center gap-1.5 text-xs text-white/30 hover:text-white/50 transition-colors pt-2 w-full"
+          className="flex items-center gap-1.5 text-xs text-white/30 hover:text-white/50 transition-colors pb-1 w-full"
         >
           {showAllCompleted ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
           {showAllCompleted ? "Show less" : `Show ${completed.length - 3} more completed sessions`}
         </button>
       )}
+      {visibleCompleted.map((s) => (
+        <SessionRow key={s.id} s={s} productId={productId} onEnd={handleEnd} />
+      ))}
     </div>
   );
 }

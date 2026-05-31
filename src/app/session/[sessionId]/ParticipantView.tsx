@@ -51,7 +51,7 @@ export function ParticipantView({ session }: { session: SessionWithDetails }) {
   }, [session.id]);
 
   useEffect(() => {
-    fetch(`/api/sessions/${session.id}/holidays`)
+    fetch(`/api/sessions/${session.id}/holidays`, { cache: "no-store" })
       .then((r) => r.json())
       .then((d: { holidays: { date: string; name: string; type: string }[] }) => setHolidays(d.holidays ?? []))
       .catch(() => {});

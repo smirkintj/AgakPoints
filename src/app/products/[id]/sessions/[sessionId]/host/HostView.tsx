@@ -154,24 +154,6 @@ function JiraSyncBadge({ status }: { status: "idle" | "saving" | "synced" | "par
   );
 }
 
-// ── Active note send button ───────────────────────────────────────────────────
-function ActiveNoteSendButton({ onSend }: { onSend: () => void }) {
-  const [sent, setSent] = useState(false);
-  const handle = () => {
-    onSend();
-    setSent(true);
-    setTimeout(() => setSent(false), 1500);
-  };
-  return (
-    <button
-      onClick={handle}
-      className="text-xs text-white/30 hover:text-violet-400 border border-white/10 hover:border-violet-500/40 rounded px-2 py-0.5 transition-colors mt-1"
-    >
-      {sent ? "Sent!" : "Send to members"}
-    </button>
-  );
-}
-
 // ── Main Component ────────────────────────────────────────────────────────────
 
 export function HostView({ session, productId }: { session: PokerSession; productId: string }) {
@@ -596,6 +578,7 @@ export function HostView({ session, productId }: { session: PokerSession; produc
                                         });
                                         setTicketAssignees((a) => ({ ...a, [ticket.id]: m.id }));
                                         setTickets((t) => t.map((tk) => tk.id === ticket.id ? { ...tk, assigneeId: m.id } : tk));
+                                        send({ type: "LOCK_ESTIMATE", ticketId: ticket.id, value: ticket.finalEstimate!, assigneeId: m.id });
                                         setReassignTicketId(null);
                                       }}
                                       className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-white/8 transition-colors text-left"
@@ -809,9 +792,6 @@ export function HostView({ session, productId }: { session: PokerSession; produc
                   placeholder="Host note — auto-synced to members"
                   rows={2}
                   className="w-full rounded-lg border border-white/10 bg-white/3 px-3 py-2 text-sm text-white placeholder:text-white/15 focus:border-violet-500/50 focus:outline-none resize-none"
-                />
-                <ActiveNoteSendButton
-                  onSend={() => send({ type: "UPDATE_NOTE", ticketId: currentTicket.id, note: getNote(currentTicket.id) })}
                 />
               </div>
 

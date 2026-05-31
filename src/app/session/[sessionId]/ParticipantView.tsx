@@ -66,8 +66,8 @@ export function ParticipantView({ session }: { session: SessionWithDetails }) {
         )
         .catch(() => {});
     fetchLeaves();
-    // Refresh every 30s so host-assigned leaves show up without page reload
-    const id = setInterval(fetchLeaves, 30000);
+    // Refresh every 10s so host-assigned leaves show up without page reload
+    const id = setInterval(fetchLeaves, 10000);
     return () => clearInterval(id);
   }, [session.id, member]);
 
@@ -256,10 +256,7 @@ export function ParticipantView({ session }: { session: SessionWithDetails }) {
       <header className="border-b border-white/10 px-4 py-3 flex items-center justify-between shrink-0">
         <div className="flex items-center gap-2">
           <MemberAvatar name={member.name} role={member.role} size={28} showRing />
-          <div>
-            <p className="text-white text-sm font-semibold leading-tight">{member.name}</p>
-            <p className="text-white/40 text-xs leading-tight">{session.name ?? session.sprintName}</p>
-          </div>
+          <p className="text-white text-sm font-semibold leading-tight">{member.name}</p>
         </div>
         {myLoad > 0 && (
           <div className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-white/8 border border-white/15 text-xs">

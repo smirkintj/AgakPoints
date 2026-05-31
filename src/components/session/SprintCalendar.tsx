@@ -259,15 +259,18 @@ export function SprintCalendar({ sessionId, startDate, endDate, members, checked
                       {isUAT && <span className="text-[6px] text-amber-400/70 leading-tight">UAT</span>}
                       {membersOnLeave.length > 0 && (
                         <div className="flex gap-px flex-wrap mt-auto">
-                          {membersOnLeave.slice(0, 2).map((m) => (
-                            <div key={m.id} className="relative group/av">
-                              <MemberAvatar name={m.name} role={m.role} size={32} />
-                              <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 px-1.5 py-0.5 rounded bg-black/80 border border-white/15 text-[10px] text-white/80 whitespace-nowrap pointer-events-none opacity-0 group-hover/av:opacity-100 transition-opacity z-50">
-                                {m.name.split(" ")[0]}
+                          {membersOnLeave.slice(0, 3).map((m) => {
+                            const avSize = membersOnLeave.length >= 3 ? 11 : membersOnLeave.length === 2 ? 14 : 18;
+                            return (
+                              <div key={m.id} className="relative group/av">
+                                <MemberAvatar name={m.name} role={m.role} size={avSize} />
+                                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 px-1.5 py-0.5 rounded bg-black/80 border border-white/15 text-[10px] text-white/80 whitespace-nowrap pointer-events-none opacity-0 group-hover/av:opacity-100 transition-opacity z-50">
+                                  {m.name.split(" ")[0]}
+                                </div>
                               </div>
-                            </div>
-                          ))}
-                          {membersOnLeave.length > 2 && <span className="text-[7px] text-white/30 self-center">+{membersOnLeave.length - 2}</span>}
+                            );
+                          })}
+                          {membersOnLeave.length > 3 && <span className="text-[7px] text-white/30 self-center">+{membersOnLeave.length - 3}</span>}
                         </div>
                       )}
                     </button>

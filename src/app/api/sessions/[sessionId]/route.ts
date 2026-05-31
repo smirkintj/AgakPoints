@@ -21,7 +21,6 @@ export async function GET(
           members: {
             select: {
               id: true, name: true, role: true, capacity: true, avatarUrl: true,
-              jiraAssigneeAccountId: true,
             },
           },
         },

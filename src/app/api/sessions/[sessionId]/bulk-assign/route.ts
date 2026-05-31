@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { updateAssignee } from "@/lib/jira";
+import { decryptProduct } from "@/lib/crypto";
 
 export async function POST(
   req: NextRequest,
@@ -33,8 +34,9 @@ export async function POST(
     },
   });
 
-  if (pokerSession?.product.jiraBaseUrl && pokerSession.product.jiraEmail && pokerSession.product.jiraApiToken) {
-    const { jiraBaseUrl, jiraEmail, jiraApiToken } = pokerSession.product;
+  const sessionProduct = pokerSession ? decryptProduct(pokerSession.product) : null;
+  if (sessionProduct?.jiraBaseUrl && sessionProduct.jiraEmail && sessionProduct.jiraApiToken) {
+    const { jiraBaseUrl, jiraEmail, jiraApiToken } = sessionProduct;
     const ticketMap = Object.fromEntries(pokerSession.tickets.map((t) => [t.id, t.jiraKey]));
     Promise.all(
       assignments.map(({ ticketId, memberId }) => {

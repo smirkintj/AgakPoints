@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { postSessionComment } from "@/lib/jira";
+import { decryptProduct } from "@/lib/crypto";
 
 export async function POST(
   req: NextRequest,
@@ -95,7 +96,7 @@ export async function POST(
 
   let jiraSync = false;
 
-  const { product } = pokerSession;
+  const product = decryptProduct(pokerSession.product);
   if (product.jiraBaseUrl && product.jiraEmail && product.jiraApiToken) {
     try {
       // We post raw ADF body directly using a custom fetch since postSessionComment takes plain text

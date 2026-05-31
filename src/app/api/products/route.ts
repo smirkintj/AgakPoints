@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { encrypt } from "@/lib/crypto";
 
 export async function GET() {
   const session = await auth();
@@ -33,12 +34,12 @@ export async function POST(req: NextRequest) {
       jiraBaseUrl: jiraBaseUrl || null,
       jiraProjectKey: jiraProjectKey || null,
       jiraEmail: jiraEmail || null,
-      jiraApiToken: jiraApiToken || null,
+      jiraApiToken: encrypt(jiraApiToken || null),
       jiraBoardId: jiraBoardId || null,
       confluenceBaseUrl: confluenceBaseUrl || null,
       confluenceSpaceKey: confluenceSpaceKey || null,
       confluenceEmail: confluenceEmail || null,
-      confluenceToken: confluenceToken || null,
+      confluenceToken: encrypt(confluenceToken || null),
       members: {
         create: members
           .filter((m: { name: string }) => m.name?.trim())

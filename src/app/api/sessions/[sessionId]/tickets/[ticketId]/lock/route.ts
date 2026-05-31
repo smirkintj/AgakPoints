@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { updateStoryPoints, postSessionComment, buildSessionComment, updateAssignee } from "@/lib/jira";
+import { decryptProduct } from "@/lib/crypto";
 
 export async function POST(
   req: NextRequest,
@@ -19,7 +20,7 @@ export async function POST(
     include: { session: { include: { product: true, participants: { include: { member: true } } } } },
   });
 
-  const product = ticket.session.product;
+  const product = decryptProduct(ticket.session.product);
 
   const jiraSync = { points: false, comment: false, assignee: false };
 

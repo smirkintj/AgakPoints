@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { fetchSprintIssues } from "@/lib/jira";
+import { decryptProduct } from "@/lib/crypto";
 
 export async function POST(
   _req: NextRequest,
@@ -21,7 +22,7 @@ export async function POST(
   });
   if (!pokerSession) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  const { product } = pokerSession;
+  const product = decryptProduct(pokerSession.product);
 
   if (!product.jiraBaseUrl || !product.jiraEmail || !product.jiraApiToken) {
     return NextResponse.json({ error: "No JIRA configured" }, { status: 400 });

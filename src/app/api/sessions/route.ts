@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { nanoid } from "nanoid";
 import { fetchSprintIssues } from "@/lib/jira";
+import { decryptProduct } from "@/lib/crypto";
 
 export async function POST(req: NextRequest) {
   const session = await auth();
@@ -14,6 +15,7 @@ export async function POST(req: NextRequest) {
     where: { id: productId, adminId: session.user.id },
   });
   if (!product) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  const p = decryptProduct(product);
 
   let tickets: {
     jiraKey: string;
@@ -26,11 +28,11 @@ export async function POST(req: NextRequest) {
     priority?: string | null;
   }[] = [];
 
-  if (product.jiraBaseUrl && product.jiraEmail && product.jiraApiToken) {
+  if (p.jiraBaseUrl && p.jiraEmail && p.jiraApiToken) {
     const issues = await fetchSprintIssues(
-      product.jiraBaseUrl,
-      product.jiraEmail,
-      product.jiraApiToken,
+      p.jiraBaseUrl,
+      p.jiraEmail,
+      p.jiraApiToken,
       sprintId
     );
     tickets = issues

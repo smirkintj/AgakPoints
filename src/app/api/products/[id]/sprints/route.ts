@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { fetchSprints } from "@/lib/jira";
+import { decryptProduct } from "@/lib/crypto";
 
 export async function GET(
   _req: NextRequest,
@@ -15,16 +16,17 @@ export async function GET(
     where: { id, adminId: session.user.id },
   });
   if (!product) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  const p = decryptProduct(product);
 
-  if (!product.jiraBaseUrl || !product.jiraEmail || !product.jiraApiToken || !product.jiraBoardId) {
+  if (!p.jiraBaseUrl || !p.jiraEmail || !p.jiraApiToken || !p.jiraBoardId) {
     return NextResponse.json({ error: "JIRA not configured" }, { status: 400 });
   }
 
   const sprints = await fetchSprints(
-    product.jiraBaseUrl,
-    product.jiraEmail,
-    product.jiraApiToken,
-    product.jiraBoardId
+    p.jiraBaseUrl,
+    p.jiraEmail,
+    p.jiraApiToken,
+    p.jiraBoardId
   );
   return NextResponse.json(sprints);
 }

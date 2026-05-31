@@ -12,7 +12,6 @@ import { MemberAvatar } from "@/components/session/MemberAvatar";
 import { RoleBadge } from "@/components/session/RoleBadge";
 import { AssignmentPicker } from "@/components/session/AssignmentPicker";
 import { BandwidthRail, type SessionLogEntry } from "@/components/session/BandwidthRail";
-import { BulkAssignDrawer } from "@/components/session/BulkAssignDrawer";
 import { TicketTypeIcon } from "@/components/session/TicketTypeIcon";
 import { SprintCalendar } from "@/components/session/SprintCalendar";
 import type { Ticket, Member, SessionParticipant, Vote } from "@/types/models";
@@ -127,33 +126,6 @@ function TicketNode({
   );
 }
 
-// ── JIRA sync status badge ────────────────────────────────────────────────────
-
-function JiraSyncBadge({ status }: { status: "idle" | "saving" | "synced" | "partial" | "failed" }) {
-  if (status === "idle") return null;
-  if (status === "saving") return (
-    <span className="flex items-center gap-1 text-xs text-white/40">
-      <span className="w-3 h-3 border border-white/30 border-t-transparent rounded-full animate-spin" />
-      Syncing to JIRA…
-    </span>
-  );
-  if (status === "synced") return (
-    <span className="flex items-center gap-1 text-xs text-emerald-400">
-      <CheckCircle2 className="w-3.5 h-3.5" /> Synced to JIRA
-    </span>
-  );
-  if (status === "partial") return (
-    <span className="flex items-center gap-1 text-xs text-amber-400">
-      <AlertTriangle className="w-3.5 h-3.5" /> JIRA partial sync
-    </span>
-  );
-  return (
-    <span className="flex items-center gap-1 text-xs text-red-400">
-      <AlertTriangle className="w-3.5 h-3.5" /> JIRA sync failed
-    </span>
-  );
-}
-
 // ── Main Component ────────────────────────────────────────────────────────────
 
 export function HostView({ session, productId }: { session: PokerSession; productId: string }) {
@@ -175,11 +147,8 @@ export function HostView({ session, productId }: { session: PokerSession; produc
   // note state removed — host note (ticketNotes) is used as the JIRA comment note
   const [copied, setCopied] = useState(false);
   const [savingLock, setSavingLock] = useState(false);
-  const [bulkDrawerOpen, setBulkDrawerOpen] = useState(false);
   const [reassignTicketId, setReassignTicketId] = useState<string | null>(null);
   const [tickets, setTickets] = useState(session.tickets);
-  const [jiraStatus, setJiraStatus] = useState<"idle" | "saving" | "synced" | "partial" | "failed">("idle");
-
   // Task 3: pending ticket (host clicked but not yet opened)
   const [pendingTicket, setPendingTicket] = useState<TicketWithVotes | null>(null);
   // Per-ticket notes: retained when switching tickets
@@ -206,10 +175,6 @@ export function HostView({ session, productId }: { session: PokerSession; produc
   const addLog = (text: string) => addLogRef.current(text);
   const [sessionTimer, setSessionTimer] = useState<string>("");
 
-  // Item 3: summary modal
-  const [summaryModalOpen, setSummaryModalOpen] = useState(false);
-  const [summaryIssueKey, setSummaryIssueKey] = useState("");
-  const [summaryState, setSummaryState] = useState<"idle" | "loading" | "success" | "error">("idle");
   const [recapOpen, setRecapOpen] = useState(session.status === "COMPLETED");
   const [confirmEnd, setConfirmEnd] = useState(false);
   const [confirmKickId, setConfirmKickId] = useState<string | null>(null);
@@ -285,7 +250,6 @@ export function HostView({ session, productId }: { session: PokerSession; produc
         setVotedMemberIds([]); setVotedCount(0);
         setRevealedVotes(null); setRevealMeta(null);
         setSelectedEstimate(null); setSelectedAssigneeId(null);
-        setJiraStatus("idle");
         addLogRef.current(`Opened ${msg.jiraKey}: ${msg.title.slice(0, 40)}${msg.title.length > 40 ? "…" : ""}`);
         break;
       case "VOTE_PROGRESS":
@@ -353,26 +317,16 @@ export function HostView({ session, productId }: { session: PokerSession; produc
   const lockEstimate = async () => {
     if (!currentTicket || selectedEstimate === null) return;
     setSavingLock(true);
-    setJiraStatus("saving");
     const lockNote = getNote(currentTicket.id);
     send({ type: "LOCK_ESTIMATE", ticketId: currentTicket.id, value: selectedEstimate, note: lockNote || undefined, assigneeId: selectedAssigneeId ?? undefined });
     try {
-      const res = await fetch(`/api/sessions/${session.id}/tickets/${currentTicket.id}/lock`, {
+      await fetch(`/api/sessions/${session.id}/tickets/${currentTicket.id}/lock`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ value: selectedEstimate, note: lockNote, votes: revealedVotes ?? [], assigneeId: selectedAssigneeId }),
       });
-      const data = await res.json();
-      if (data.jiraSync) {
-        const { points, comment, assignee } = data.jiraSync;
-        const allOk = points && comment;
-        const anyOk = points || comment || assignee;
-        setJiraStatus(allOk ? "synced" : anyOk ? "partial" : "failed");
-      } else {
-        setJiraStatus("failed");
-      }
     } catch {
-      setJiraStatus("failed");
+      // Lock saved locally; JIRA sync happens at session end
     }
     setSavingLock(false);
   };
@@ -456,19 +410,6 @@ export function HostView({ session, productId }: { session: PokerSession; produc
                 End Session
               </Button>
             )
-          )}
-          {estimatedTickets.length > 0 && (
-            <Button variant="ghost" size="sm" onClick={() => setSummaryModalOpen(true)}>
-              <FileText className="w-3.5 h-3.5" />
-              Summary
-            </Button>
-          )}
-          {lockedTickets.size > 0 && (
-            <Button variant="ghost" size="sm" onClick={() => setBulkDrawerOpen(true)}>
-              <GitMerge className="w-3.5 h-3.5" />
-              Bulk Assign
-              <span className="ml-1 text-violet-400 font-mono text-xs">{lockedTickets.size}</span>
-            </Button>
           )}
           <button
             onClick={copyLink}
@@ -933,7 +874,6 @@ export function HostView({ session, productId }: { session: PokerSession; produc
                         <Lock className="w-4 h-4" />
                         {savingLock ? "Saving..." : `Lock${selectedEstimate ? ` — ${selectedEstimate} pts` : ""}`}
                       </Button>
-                      <JiraSyncBadge status={jiraStatus} />
                     </div>
                   </div>
                 ) : (
@@ -942,7 +882,6 @@ export function HostView({ session, productId }: { session: PokerSession; produc
                       <Check className="w-4 h-4" />
                       <span className="text-sm font-medium">Estimate locked</span>
                     </div>
-                    <JiraSyncBadge status={jiraStatus} />
                   </div>
                 )}
               </div>
@@ -964,21 +903,6 @@ export function HostView({ session, productId }: { session: PokerSession; produc
           />
         )}
       </div>
-
-      {/* Bulk assign drawer */}
-      <BulkAssignDrawer
-        open={bulkDrawerOpen}
-        onClose={() => setBulkDrawerOpen(false)}
-        sessionId={session.id}
-        tickets={enrichedTickets as (TicketWithVotes & { assigneeId: string | null })[]}
-        members={session.product.members as (Member & { capacity: number })[]}
-        estimatedTickets={enrichedTickets}
-        onCommit={(assignments) => {
-          const map = Object.fromEntries(assignments.map((a) => [a.ticketId, a.memberId]));
-          setTickets((prev) => prev.map((t) => (map[t.id] ? { ...t, assigneeId: map[t.id] } : t)));
-          setTicketAssignees((prev) => ({ ...prev, ...map }));
-        }}
-      />
 
       {/* Session Recap overlay */}
       <AnimatePresence>
@@ -1063,10 +987,6 @@ export function HostView({ session, productId }: { session: PokerSession; produc
               </div>
 
               <div className="px-8 py-4 border-t border-white/10 flex items-center justify-between">
-                <Button variant="ghost" size="sm" onClick={() => setSummaryModalOpen(true)}>
-                  <FileText className="w-3.5 h-3.5" />
-                  Post to JIRA
-                </Button>
                 <Button variant="ghost" onClick={closeRecap}>
                   Close
                 </Button>
@@ -1076,60 +996,6 @@ export function HostView({ session, productId }: { session: PokerSession; produc
         )}
       </AnimatePresence>
 
-      {/* Summary modal */}
-      {summaryModalOpen && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
-          onClick={(e) => { if (e.target === e.currentTarget) setSummaryModalOpen(false); }}
-        >
-          <div className="bg-[#111] border border-white/15 rounded-2xl shadow-2xl p-6 w-full max-w-sm space-y-4">
-            <h3 className="text-white font-semibold text-base">Post Sprint Summary to JIRA</h3>
-            <input
-              type="text"
-              placeholder="JIRA issue key (e.g. PROJ-123)"
-              value={summaryIssueKey}
-              onChange={(e) => setSummaryIssueKey(e.target.value)}
-              className="w-full rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-white/20 focus:border-violet-500 focus:outline-none"
-              disabled={summaryState === "loading"}
-            />
-            {summaryState === "success" && (
-              <p className="text-emerald-400 text-sm flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4" /> Posted successfully!
-              </p>
-            )}
-            {summaryState === "error" && (
-              <p className="text-red-400 text-sm flex items-center gap-2">
-                <AlertTriangle className="w-4 h-4" /> Failed to post. Check the issue key.
-              </p>
-            )}
-            <div className="flex gap-2">
-              <Button
-                variant="success"
-                disabled={!summaryIssueKey.trim() || summaryState === "loading"}
-                onClick={async () => {
-                  setSummaryState("loading");
-                  try {
-                    const res = await fetch(`/api/sessions/${session.id}/summary`, {
-                      method: "POST",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({ jiraIssueKey: summaryIssueKey.trim() }),
-                    });
-                    const data = await res.json();
-                    setSummaryState(data.success ? "success" : "error");
-                  } catch {
-                    setSummaryState("error");
-                  }
-                }}
-              >
-                {summaryState === "loading" ? "Posting…" : "Post to JIRA"}
-              </Button>
-              <Button variant="ghost" onClick={() => { setSummaryModalOpen(false); setSummaryState("idle"); setSummaryIssueKey(""); }}>
-                Cancel
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

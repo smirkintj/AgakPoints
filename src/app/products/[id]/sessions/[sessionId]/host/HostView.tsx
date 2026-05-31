@@ -352,7 +352,7 @@ export function HostView({ session, productId }: { session: PokerSession; produc
   const openTicket = (t: TicketWithVotes) => {
     const note = getNote(t.id);
     setPendingTicket(null);
-    send({ type: "OPEN_TICKET", ticketId: t.id, jiraKey: t.jiraKey, title: t.title, description: t.description ?? undefined, contextNote: note || undefined, issueType: t.issueType ?? undefined, priority: t.priority ?? undefined });
+    send({ type: "OPEN_TICKET", ticketId: t.id, jiraKey: t.jiraKey, title: t.title, description: t.description ?? undefined, contextNote: note || undefined, issueType: t.issueType ?? undefined, priority: t.priority ?? undefined, deps: getDeps(t.id).length > 0 ? getDeps(t.id) : undefined });
   };
 
   const reveal = () => send({ type: "REVEAL_VOTES" });

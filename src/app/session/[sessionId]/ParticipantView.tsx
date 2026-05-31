@@ -7,14 +7,15 @@ import type { Ticket, Member, Product, PokerSession } from "@/types/models";
 import { VotingCard } from "@/components/session/VotingCard";
 import { RevealCard } from "@/components/session/RevealCard";
 import { EmojiReaction } from "@/components/session/EmojiReaction";
-import { FIBONACCI_VALUES, isConsensus } from "@/lib/utils";
+import { FIBONACCI_VALUES } from "@/lib/utils";
 import { MemberAvatar } from "@/components/session/MemberAvatar";
 import { TicketTypeIcon } from "@/components/session/TicketTypeIcon";
-import { Check, Clock, Sparkles } from "lucide-react";
+import { Check, ChevronDown, ChevronRight, Clock, Sparkles } from "lucide-react";
 
 const PRIORITY_COLORS: Record<string, string> = {
   Highest: "#ef4444", High: "#f97316", Medium: "#eab308", Low: "#3b82f6", Lowest: "#6b7280",
 };
+const MONTH_SHORT = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 import confetti from "canvas-confetti";
 
 type SessionWithDetails = PokerSession & {
@@ -26,7 +27,10 @@ export function ParticipantView({ session }: { session: SessionWithDetails }) {
   const [member, setMember] = useState<Member | null>(null);
   const [checkedIn, setCheckedIn] = useState<CheckedInMember[]>([]);
   const [sessionStatus, setSessionStatus] = useState<string>(session.status);
-  const [currentTicket, setCurrentTicket] = useState<{ ticketId: string; jiraKey: string; title: string; description?: string; contextNote?: string; issueType?: string; priority?: string } | null>(null);
+  const [currentTicket, setCurrentTicket] = useState<{
+    ticketId: string; jiraKey: string; title: string; description?: string;
+    contextNote?: string; issueType?: string; priority?: string; deps?: string[];
+  } | null>(null);
   const [myVote, setMyVote] = useState<number | null>(null);
   const [votedMemberIds, setVotedMemberIds] = useState<string[]>([]);
   const [revealedVotes, setRevealedVotes] = useState<RevealedVote[] | null>(null);
@@ -36,11 +40,32 @@ export function ParticipantView({ session }: { session: SessionWithDetails }) {
   const [lockedAssignees, setLockedAssignees] = useState<Record<string, string>>({});
   const [ticketEstimates, setTicketEstimates] = useState<Record<string, number>>({});
   const [sessionEnded, setSessionEnded] = useState(false);
+  const [sessionInfoOpen, setSessionInfoOpen] = useState(false);
+  const [myAssignedOpen, setMyAssignedOpen] = useState(true);
+  const [holidays, setHolidays] = useState<{ date: string; name: string; type: string }[]>([]);
+  const [myLeaves, setMyLeaves] = useState<string[]>([]);
 
   useEffect(() => {
     const stored = sessionStorage.getItem(`agakpoints_member_${session.id}`);
     if (stored) setMember(JSON.parse(stored));
   }, [session.id]);
+
+  useEffect(() => {
+    fetch(`/api/sessions/${session.id}/holidays`)
+      .then((r) => r.json())
+      .then((d: { holidays: { date: string; name: string; type: string }[] }) => setHolidays(d.holidays ?? []))
+      .catch(() => {});
+  }, [session.id]);
+
+  useEffect(() => {
+    if (!member) return;
+    fetch(`/api/sessions/${session.id}/leave`)
+      .then((r) => r.json())
+      .then((d: { leaves: { memberId: string; date: string }[] }) =>
+        setMyLeaves(d.leaves.filter((l) => l.memberId === member.id).map((l) => l.date))
+      )
+      .catch(() => {});
+  }, [session.id, member]);
 
   const { send } = usePartyRoom(session.id, useCallback((msg: MsgOut) => {
     switch (msg.type) {
@@ -48,7 +73,10 @@ export function ParticipantView({ session }: { session: SessionWithDetails }) {
         const s = msg.state;
         setSessionStatus(s.sessionStatus);
         setCheckedIn(s.checkedIn);
-        setCurrentTicket(s.currentTicket ? { ticketId: s.currentTicket.ticketId, jiraKey: s.currentTicket.jiraKey, title: s.currentTicket.title, description: s.currentTicket.description, contextNote: s.currentTicket.contextNote, issueType: s.currentTicket.issueType, priority: s.currentTicket.priority } : null);
+        setCurrentTicket(s.currentTicket
+          ? { ticketId: s.currentTicket.ticketId, jiraKey: s.currentTicket.jiraKey, title: s.currentTicket.title, description: s.currentTicket.description, contextNote: s.currentTicket.contextNote, issueType: s.currentTicket.issueType, priority: s.currentTicket.priority, deps: s.currentTicket.deps }
+          : null
+        );
         setVotedMemberIds(s.votedMemberIds);
         setRevealedVotes(s.revealedVotes);
         setLockedTickets(new Set(s.lockedTickets));
@@ -73,7 +101,7 @@ export function ParticipantView({ session }: { session: SessionWithDetails }) {
         setCheckedIn(msg.checkedIn);
         break;
       case "TICKET_OPENED":
-        setCurrentTicket({ ticketId: msg.ticketId, jiraKey: msg.jiraKey, title: msg.title, description: msg.description, contextNote: msg.contextNote, issueType: msg.issueType, priority: msg.priority });
+        setCurrentTicket({ ticketId: msg.ticketId, jiraKey: msg.jiraKey, title: msg.title, description: msg.description, contextNote: msg.contextNote, issueType: msg.issueType, priority: msg.priority, deps: msg.deps });
         setMyVote(null);
         setVotedMemberIds([]);
         setRevealedVotes(null);
@@ -109,7 +137,7 @@ export function ParticipantView({ session }: { session: SessionWithDetails }) {
         }
         break;
     }
-  }, [member, session.id]));
+  }, [member, session.id, session.tickets]));
 
   const castVote = useCallback((value: number) => {
     if (!member || myVote !== null || !currentTicket || revealedVotes) return;
@@ -125,7 +153,33 @@ export function ParticipantView({ session }: { session: SessionWithDetails }) {
   const myLoad = member ? Object.entries(lockedAssignees)
     .filter(([, mId]) => mId === member.id)
     .reduce((sum, [ticketId]) => sum + (ticketEstimates[ticketId] ?? 0), 0) : 0;
-  const myCapacity = member ? (session.product.members.find((m) => m.id === member.id) as (Member & { capacity?: number }))?.capacity ?? 20 : 20;
+
+  const myAssigned = member
+    ? Object.entries(lockedAssignees)
+        .filter(([, mId]) => mId === member.id)
+        .map(([ticketId]) => ({
+          ticket: session.tickets.find((t) => t.id === ticketId),
+          sp: ticketEstimates[ticketId] ?? 0,
+        }))
+        .filter((x) => x.ticket)
+    : [];
+
+  const sprintStart = session.sprintStartDate ? new Date(session.sprintStartDate as string) : null;
+  const sprintEnd = session.sprintEndDate ? new Date(session.sprintEndDate as string) : null;
+  const phDuringSprint = holidays.filter((h) => h.type === "PH");
+
+  const formatDate = (d: Date) => `${d.getDate()} ${MONTH_SHORT[d.getMonth()]} ${d.getFullYear()}`;
+  const workingDays = (() => {
+    if (!sprintStart || !sprintEnd) return null;
+    let count = 0;
+    const cur = new Date(sprintStart);
+    while (cur <= sprintEnd) {
+      const day = cur.getDay();
+      if (day !== 0 && day !== 6) count++;
+      cur.setDate(cur.getDate() + 1);
+    }
+    return count - phDuringSprint.length;
+  })();
 
   if (!member) {
     return (
@@ -144,17 +198,7 @@ export function ParticipantView({ session }: { session: SessionWithDetails }) {
   }
 
   if (sessionEnded) {
-    const myAssigned = member
-      ? Object.entries(lockedAssignees)
-          .filter(([, mId]) => mId === member.id)
-          .map(([ticketId]) => ({
-            ticket: session.tickets.find((t) => t.id === ticketId),
-            sp: ticketEstimates[ticketId] ?? 0,
-          }))
-          .filter((x) => x.ticket)
-      : [];
     const totalSP = myAssigned.reduce((s, x) => s + x.sp, 0);
-
     return (
       <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black/90 backdrop-blur-sm px-6 py-10 overflow-y-auto">
         <div className="w-full max-w-md space-y-6 text-center">
@@ -163,9 +207,8 @@ export function ParticipantView({ session }: { session: SessionWithDetails }) {
               <Sparkles className="w-5 h-5 text-violet-400" />
             </div>
             <h2 className="text-2xl font-bold text-white">Session Ended</h2>
-            <p className="text-white/40 text-sm mt-1">{session.sprintName}</p>
+            <p className="text-white/40 text-sm mt-1">{session.name ?? session.sprintName}</p>
           </div>
-
           {myAssigned.length > 0 ? (
             <div className="rounded-2xl border border-white/10 bg-white/5 p-5 text-left space-y-3">
               <div className="flex items-center justify-between">
@@ -187,7 +230,6 @@ export function ParticipantView({ session }: { session: SessionWithDetails }) {
           ) : (
             <p className="text-white/30 text-sm">No tickets assigned to you this sprint.</p>
           )}
-
           <a href={`/join/${session.id}`} className="inline-block px-5 py-2 rounded-lg bg-violet-600 hover:bg-violet-500 text-white text-sm font-medium transition-colors">
             Return to lobby
           </a>
@@ -196,47 +238,124 @@ export function ParticipantView({ session }: { session: SessionWithDetails }) {
     );
   }
 
+  const NON_VOTING = ["UI_UX", "SM", "TECH_LEAD"];
+  const isObserver = NON_VOTING.includes(member.role);
+
   return (
     <div className="min-h-screen flex flex-col">
-      <header className="border-b border-white/10 px-6 py-3 flex items-center justify-between">
-        <div>
-          <p className="text-white font-semibold text-sm">{session.product.name}</p>
-          <p className="text-white/40 text-xs">{session.sprintName}</p>
-        </div>
+      {/* Header */}
+      <header className="border-b border-white/10 px-4 py-3 flex items-center justify-between shrink-0">
         <div className="flex items-center gap-2">
           <MemberAvatar name={member.name} role={member.role} size={28} showRing />
-          <span className="text-white/60 text-sm">{member.name}</span>
-          {member && myLoad > 0 && (
-            <div className="flex items-center gap-1 px-2 py-1 rounded-full bg-white/8 border border-white/15 text-xs">
-              <span className="text-white/50">Load:</span>
-              <span className="text-white font-mono font-semibold">{myLoad}</span>
-              <span className="text-white/30 font-mono">/{myCapacity}pts</span>
-            </div>
-          )}
+          <div>
+            <p className="text-white text-sm font-semibold leading-tight">{member.name}</p>
+            <p className="text-white/40 text-xs leading-tight">{session.name ?? session.sprintName}</p>
+          </div>
         </div>
+        {myLoad > 0 && (
+          <div className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-white/8 border border-white/15 text-xs">
+            <span className="text-white/40">Load:</span>
+            <span className="text-white font-mono font-bold">{myLoad} SP</span>
+          </div>
+        )}
       </header>
 
-      <main className="flex-1 flex flex-col items-center justify-center px-6 py-10 gap-8">
+      {/* Session Info — collapsible strip */}
+      <div className="border-b border-white/8 shrink-0">
+        <button
+          onClick={() => setSessionInfoOpen((o) => !o)}
+          className="w-full flex items-center gap-2 px-4 py-2 text-xs text-white/30 hover:text-white/50 transition-colors"
+        >
+          {sessionInfoOpen ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
+          <span className="font-medium uppercase tracking-widest">Sprint Info</span>
+          {sprintStart && sprintEnd && (
+            <span className="ml-auto text-white/20 font-mono">
+              {sprintStart.getDate()} {MONTH_SHORT[sprintStart.getMonth()]} – {sprintEnd.getDate()} {MONTH_SHORT[sprintEnd.getMonth()]}
+              {workingDays != null && <span className="ml-2">· {workingDays} WDs</span>}
+            </span>
+          )}
+        </button>
+        <AnimatePresence initial={false}>
+          {sessionInfoOpen && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: "auto", opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              className="overflow-hidden"
+            >
+              <div className="px-4 pb-4 space-y-3">
+                {/* Session & sprint details */}
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  <div className="rounded-lg bg-white/4 border border-white/8 px-3 py-2">
+                    <p className="text-white/30 uppercase tracking-widest text-[10px] mb-0.5">Session</p>
+                    <p className="text-white/80 font-medium">{session.name ?? session.sprintName}</p>
+                  </div>
+                  <div className="rounded-lg bg-white/4 border border-white/8 px-3 py-2">
+                    <p className="text-white/30 uppercase tracking-widest text-[10px] mb-0.5">Sprint</p>
+                    <p className="text-white/80 font-medium">{session.sprintName}</p>
+                  </div>
+                  {sprintStart && sprintEnd && (
+                    <div className="rounded-lg bg-white/4 border border-white/8 px-3 py-2">
+                      <p className="text-white/30 uppercase tracking-widest text-[10px] mb-0.5">Duration</p>
+                      <p className="text-white/80">{formatDate(sprintStart)} – {formatDate(sprintEnd)}</p>
+                      {workingDays != null && <p className="text-white/40 text-[10px] mt-0.5">{workingDays} working days</p>}
+                    </div>
+                  )}
+                  {phDuringSprint.length > 0 && (
+                    <div className="rounded-lg bg-red-500/10 border border-red-500/20 px-3 py-2">
+                      <p className="text-red-400/60 uppercase tracking-widest text-[10px] mb-1">Public Holidays</p>
+                      <div className="space-y-0.5">
+                        {phDuringSprint.map((h) => (
+                          <p key={h.date} className="text-white/60 text-[11px]">
+                            <span className="font-mono text-white/30 mr-1">{h.date}</span>{h.name}
+                          </p>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* My leaves */}
+                {myLeaves.length > 0 && (
+                  <div className="rounded-lg bg-amber-500/10 border border-amber-500/20 px-3 py-2">
+                    <p className="text-amber-400/60 uppercase tracking-widest text-[10px] mb-1">Your Leaves</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {myLeaves.map((d) => (
+                        <span key={d} className="text-xs font-mono text-amber-300/80 bg-amber-500/15 px-2 py-0.5 rounded">{d}</span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+
+      {/* Main area */}
+      <main className="flex-1 flex flex-col items-center px-4 py-6 gap-5 overflow-y-auto">
         <AnimatePresence mode="wait">
           {!currentTicket ? (
-            <motion.div key="waiting" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="text-center">
-              <div className="w-12 h-12 rounded-full bg-violet-600/20 border border-violet-500/30 flex items-center justify-center mx-auto mb-4">
+            <motion.div key="waiting" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="text-center flex-1 flex flex-col items-center justify-center gap-4 w-full">
+              <div className="w-12 h-12 rounded-full bg-violet-600/20 border border-violet-500/30 flex items-center justify-center mx-auto">
                 <Clock className="w-5 h-5 text-violet-400" />
               </div>
-              <h2 className="text-xl font-bold text-white mb-2">
-                {sessionStatus === "ACTIVE" ? "Session in progress" : "Waiting for host"}
-              </h2>
-              <p className="text-white/40 text-sm">
-                {sessionStatus === "ACTIVE" ? "Host is selecting the next ticket..." : "The host will start the session shortly."}
-              </p>
-              <div className="flex justify-center gap-1.5 mt-6">
+              <div>
+                <h2 className="text-xl font-bold text-white mb-1">
+                  {sessionStatus === "ACTIVE" ? "Session in progress" : "Waiting for host"}
+                </h2>
+                <p className="text-white/40 text-sm">
+                  {sessionStatus === "ACTIVE" ? "Host is selecting the next ticket..." : "The host will start the session shortly."}
+                </p>
+              </div>
+              <div className="flex justify-center gap-1.5">
                 {[0, 150, 300].map((d) => (
                   <div key={d} className="w-2 h-2 bg-violet-400 rounded-full animate-bounce" style={{ animationDelay: `${d}ms` }} />
                 ))}
               </div>
-              {/* Show who else is here */}
               {checkedIn.length > 1 && (
-                <div className="mt-6 flex flex-wrap gap-1.5 justify-center">
+                <div className="flex flex-wrap gap-1.5 justify-center">
                   {checkedIn.filter((c) => c.memberId !== member.id).map((c) => (
                     <span key={c.memberId} className="text-xs px-2 py-1 bg-white/10 rounded-full text-white/40">
                       {c.memberName}
@@ -248,13 +367,14 @@ export function ParticipantView({ session }: { session: SessionWithDetails }) {
           ) : (
             <motion.div
               key={currentTicket.ticketId}
-              initial={{ opacity: 0, y: 20 }}
+              initial={{ opacity: 0, y: 16 }}
               animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              className="w-full max-w-lg space-y-8"
+              exit={{ opacity: 0, y: -16 }}
+              className="w-full max-w-lg space-y-4"
             >
-              {/* Ticket info */}
-              <div className="rounded-2xl border border-white/10 bg-white/5 backdrop-blur-sm px-6 py-5 space-y-3">
+              {/* ── Ticket card ── */}
+              <div className="rounded-2xl border border-white/10 bg-white/5 backdrop-blur-sm px-5 py-4 space-y-3">
+                {/* Type + key + priority */}
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <TicketTypeIcon type={currentTicket.issueType} size={13} />
@@ -269,24 +389,41 @@ export function ParticipantView({ session }: { session: SessionWithDetails }) {
                     </span>
                   )}
                 </div>
-                <h2 className="text-xl font-bold text-white leading-snug">{currentTicket.title}</h2>
+
+                {/* Title */}
+                <h2 className="text-lg font-bold text-white leading-snug">{currentTicket.title}</h2>
+
                 {currentTicket.description && (
                   <p className="text-sm text-white/50 leading-relaxed border-t border-white/8 pt-3">
                     {currentTicket.description}
                   </p>
                 )}
-              </div>
-              {currentTicket.contextNote && (
-                <div className="rounded-xl bg-amber-500/8 border border-amber-500/20 px-4 py-3">
-                  <p className="text-[10px] text-amber-400/80 font-semibold uppercase tracking-widest mb-1">Host notes</p>
-                  <p className="text-sm text-white/60 leading-relaxed">{currentTicket.contextNote}</p>
-                </div>
-              )}
 
-              {/* Voting cards — only for voting roles */}
+                {/* Host note */}
+                {currentTicket.contextNote && (
+                  <div className="rounded-lg bg-amber-500/8 border border-amber-500/20 px-3 py-2.5">
+                    <p className="text-[10px] text-amber-400/80 font-semibold uppercase tracking-widest mb-1">Host note</p>
+                    <p className="text-sm text-white/60 leading-relaxed">{currentTicket.contextNote}</p>
+                  </div>
+                )}
+
+                {/* Dependencies */}
+                {currentTicket.deps && currentTicket.deps.length > 0 && (
+                  <div className="border-t border-white/8 pt-3">
+                    <p className="text-[10px] text-white/30 font-semibold uppercase tracking-widest mb-2">Dependencies</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {currentTicket.deps.map((dep) => (
+                        <span key={dep} className="px-2.5 py-0.5 rounded-full text-xs font-medium border border-amber-500/40 bg-amber-500/12 text-amber-300">
+                          {dep}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* ── Voting ── */}
               {!revealedVotes && (() => {
-                const NON_VOTING = ["UI_UX", "SM", "TECH_LEAD"];
-                const isObserver = NON_VOTING.includes(member.role);
                 if (isObserver) {
                   return (
                     <div className="text-center py-4">
@@ -298,11 +435,11 @@ export function ParticipantView({ session }: { session: SessionWithDetails }) {
                   );
                 }
                 return (
-                  <div className="space-y-4">
+                  <div className="space-y-3">
                     <p className="text-center text-white/40 text-sm">
                       {myVote !== null ? `You voted ${myVote} — waiting for reveal...` : "Pick your estimate"}
                     </p>
-                    <div className="flex gap-3 justify-center flex-wrap">
+                    <div className="flex gap-2.5 justify-center flex-wrap">
                       {FIBONACCI_VALUES.map((v) => (
                         <VotingCard key={v} value={v} selected={myVote === v} disabled={myVote !== null} onSelect={castVote} />
                       ))}
@@ -327,8 +464,8 @@ export function ParticipantView({ session }: { session: SessionWithDetails }) {
 
               {/* Revealed */}
               {revealedVotes && revealMeta && (
-                <div className="space-y-6">
-                  <div className="flex flex-wrap gap-4 justify-center">
+                <div className="space-y-5">
+                  <div className="flex flex-wrap gap-3 justify-center">
                     {revealedVotes.map((vote, i) => {
                       const voter = checkedIn.find((c) => c.memberId === vote.memberId);
                       return (
@@ -339,12 +476,12 @@ export function ParticipantView({ session }: { session: SessionWithDetails }) {
                   <div className="text-center text-sm text-white/40">
                     Median: <span className="text-white font-bold">{revealMeta.median}</span>
                     {revealMeta.isConsensus && (
-                      <span className="ml-2 flex items-center gap-1 text-emerald-400 font-semibold">
+                      <span className="ml-2 inline-flex items-center gap-1 text-emerald-400 font-semibold">
                         <Sparkles className="w-3.5 h-3.5" /> Consensus
                       </span>
                     )}
                   </div>
-                  <div className="border-t border-white/10 pt-4 flex justify-center">
+                  <div className="border-t border-white/10 pt-3 flex justify-center">
                     <EmojiReaction reactions={reactions} onReact={sendReaction} />
                   </div>
                 </div>
@@ -358,6 +495,42 @@ export function ParticipantView({ session }: { session: SessionWithDetails }) {
             </motion.div>
           )}
         </AnimatePresence>
+
+        {/* ── My assigned tickets panel ── */}
+        {myAssigned.length > 0 && (
+          <div className="w-full max-w-lg mt-auto">
+            <button
+              onClick={() => setMyAssignedOpen((o) => !o)}
+              className="w-full flex items-center gap-2 px-3 py-2 rounded-t-xl border border-white/10 bg-white/4 text-xs text-white/40 hover:text-white/60 transition-colors"
+            >
+              {myAssignedOpen ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
+              <span className="font-medium uppercase tracking-widest">Your tickets</span>
+              <span className="ml-auto font-mono text-emerald-400 font-semibold">{myLoad} SP</span>
+            </button>
+            <AnimatePresence initial={false}>
+              {myAssignedOpen && (
+                <motion.div
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: "auto", opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  transition={{ duration: 0.18 }}
+                  className="overflow-hidden"
+                >
+                  <div className="border border-t-0 border-white/10 rounded-b-xl bg-white/3 divide-y divide-white/6">
+                    {myAssigned.map(({ ticket, sp }) => ticket && (
+                      <div key={ticket.id} className="flex items-center gap-3 px-3 py-2.5">
+                        <TicketTypeIcon type={ticket.issueType} size={12} />
+                        <span className="text-xs font-mono text-violet-400/70 shrink-0">{ticket.jiraKey}</span>
+                        <span className="text-xs text-white/60 flex-1 truncate">{ticket.title}</span>
+                        <span className="text-xs font-mono text-emerald-400 shrink-0">{sp} pts</span>
+                      </div>
+                    ))}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+        )}
       </main>
     </div>
   );

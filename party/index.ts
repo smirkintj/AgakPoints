@@ -5,7 +5,7 @@ import type * as Party from "partykit/server";
 type MsgIn =
   | { type: "CHECKIN"; memberId: string; memberName: string; role: string }
   | { type: "START_SESSION" }
-  | { type: "OPEN_TICKET"; ticketId: string; jiraKey: string; title: string; description?: string; contextNote?: string; issueType?: string; priority?: string }
+  | { type: "OPEN_TICKET"; ticketId: string; jiraKey: string; title: string; description?: string; contextNote?: string; issueType?: string; priority?: string; deps?: string[] }
   | { type: "VOTE_CAST"; memberId: string; value: number }
   | { type: "REACTION"; memberId: string; memberName: string; emoji: string }
   | { type: "REVEAL_VOTES" }
@@ -18,7 +18,7 @@ type MsgIn =
 type MsgOut =
   | { type: "PRESENCE_UPDATE"; checkedIn: CheckedInMember[] }
   | { type: "SESSION_STARTED" }
-  | { type: "TICKET_OPENED"; ticketId: string; jiraKey: string; title: string; description?: string; contextNote?: string; issueType?: string; priority?: string }
+  | { type: "TICKET_OPENED"; ticketId: string; jiraKey: string; title: string; description?: string; contextNote?: string; issueType?: string; priority?: string; deps?: string[] }
   | { type: "VOTE_PROGRESS"; votedCount: number; totalCount: number; votedMemberIds: string[] }
   | { type: "VOTES_REVEALED"; votes: RevealedVote[]; median: number; isConsensus: boolean }
   | { type: "ESTIMATE_LOCKED"; ticketId: string; value: number; assigneeId?: string }
@@ -43,7 +43,7 @@ interface RevealedVote {
 interface PublicState {
   sessionStatus: "WAITING" | "ACTIVE" | "COMPLETED";
   checkedIn: CheckedInMember[];
-  currentTicket: { ticketId: string; jiraKey: string; title: string; description?: string; contextNote?: string; issueType?: string; priority?: string } | null;
+  currentTicket: { ticketId: string; jiraKey: string; title: string; description?: string; contextNote?: string; issueType?: string; priority?: string; deps?: string[] } | null;
   votedMemberIds: string[];
   revealed: boolean;
   revealedVotes: RevealedVote[] | null;
@@ -56,7 +56,7 @@ interface PublicState {
 interface RoomState {
   sessionStatus: "WAITING" | "ACTIVE" | "COMPLETED";
   checkedIn: CheckedInMember[];
-  currentTicket: { ticketId: string; jiraKey: string; title: string; description?: string; contextNote?: string; issueType?: string; priority?: string } | null;
+  currentTicket: { ticketId: string; jiraKey: string; title: string; description?: string; contextNote?: string; issueType?: string; priority?: string; deps?: string[] } | null;
   votes: Record<string, number>; // memberId → value (hidden until reveal)
   revealed: boolean;
   revealedVotes: RevealedVote[] | null;
@@ -138,6 +138,7 @@ export default class ScrumPokerRoom implements Party.Server {
           contextNote: msg.contextNote,
           issueType: msg.issueType,
           priority: msg.priority,
+          deps: msg.deps,
         };
         this.state.votes = {};
         this.state.revealed = false;
@@ -152,6 +153,7 @@ export default class ScrumPokerRoom implements Party.Server {
           contextNote: msg.contextNote,
           issueType: msg.issueType,
           priority: msg.priority,
+          deps: msg.deps,
         });
         break;
       }

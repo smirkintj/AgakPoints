@@ -190,7 +190,7 @@ export function SprintCalendar({
   };
 
   return (
-    <div className="w-full">
+    <div className="w-full max-w-xl">
       {/* Header */}
       <div className="flex items-center gap-3 text-xs mb-3">
         <span className="text-white/50 font-medium">Sprint Calendar</span>

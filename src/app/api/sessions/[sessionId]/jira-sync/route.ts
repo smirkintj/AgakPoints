@@ -39,16 +39,7 @@ export async function POST(
 
   const product = decryptProduct(pokerSession.product);
   if (!product.jiraBaseUrl || !product.jiraEmail || !product.jiraApiToken) {
-    return NextResponse.json({
-      results: pokerSession.tickets.map((t) => ({
-        ticketId: t.id,
-        jiraKey: t.jiraKey,
-        title: t.title,
-        sp: { ok: false, error: "No JIRA credentials" },
-        assignee: { ok: false, skipped: true },
-        comment: { ok: false, error: "No JIRA credentials" },
-      })),
-    });
+    return NextResponse.json({ error: "No JIRA credentials configured for this product." }, { status: 400 });
   }
 
   const authHeader = "Basic " + Buffer.from(`${product.jiraEmail}:${product.jiraApiToken}`).toString("base64");

@@ -29,12 +29,13 @@ export async function POST(req: NextRequest) {
   }[] = [];
 
   if (p.jiraBaseUrl && p.jiraEmail && p.jiraApiToken) {
-    const issues = await fetchSprintIssues(
-      p.jiraBaseUrl,
-      p.jiraEmail,
-      p.jiraApiToken,
-      sprintId
-    );
+    let issues;
+    try {
+      issues = await fetchSprintIssues(p.jiraBaseUrl, p.jiraEmail, p.jiraApiToken, sprintId);
+    } catch (err) {
+      console.error("JIRA fetchSprintIssues failed:", err);
+      return NextResponse.json({ error: "Failed to fetch tickets from JIRA. Check your credentials and try again." }, { status: 502 });
+    }
     tickets = issues
       .filter((issue) => {
         const t = issue.fields.issuetype?.name;
@@ -52,19 +53,21 @@ export async function POST(req: NextRequest) {
       }));
   }
 
-  const pokerSession = await prisma.pokerSession.create({
-    data: {
-      productId,
-      sprintId: String(sprintId),
-      sprintName,
-      name: name || undefined,
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      shortCode: nanoid(8) as any,
-      sprintStartDate: sprintStartDate ? new Date(sprintStartDate) : null,
-      sprintEndDate: sprintEndDate ? new Date(sprintEndDate) : null,
-      tickets: { create: tickets },
-    },
-    include: { tickets: true },
+  const pokerSession = await prisma.$transaction(async (tx) => {
+    return tx.pokerSession.create({
+      data: {
+        productId,
+        sprintId: String(sprintId),
+        sprintName,
+        name: name || undefined,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        shortCode: nanoid(8) as any,
+        sprintStartDate: sprintStartDate ? new Date(sprintStartDate) : null,
+        sprintEndDate: sprintEndDate ? new Date(sprintEndDate) : null,
+        tickets: { create: tickets },
+      },
+      include: { tickets: true },
+    });
   });
 
   return NextResponse.json(pokerSession);

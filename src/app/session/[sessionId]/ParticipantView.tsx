@@ -91,7 +91,7 @@ export function ParticipantView({ session }: { session: SessionWithDetails }) {
     fetch(`/api/sessions/${session.id}/holidays`, { cache: "no-store" })
       .then((r) => r.json())
       .then((d: { holidays: { date: string; name: string; type: string; country?: string | null }[] }) => setHolidays(d.holidays ?? []))
-      .catch(() => {});
+      .catch((err) => console.warn("Failed to load holidays:", err));
   }, [session.id]);
 
   useEffect(() => {
@@ -105,7 +105,7 @@ export function ParticipantView({ session }: { session: SessionWithDetails }) {
       .then((d: { leaves: { memberId: string; date: string }[] }) => {
         setMyLeaves(d.leaves.map((l) => l.date));
       })
-      .catch(() => {});
+      .catch((err) => console.warn("Failed to load leave data:", err));
   }, [session.id]);
 
   const { send } = usePartyRoom(session.id, useCallback((msg: MsgOut) => {

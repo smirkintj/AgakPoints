@@ -38,11 +38,13 @@ export async function POST(
   if (sessionProduct?.jiraBaseUrl && sessionProduct.jiraEmail && sessionProduct.jiraApiToken) {
     const { jiraBaseUrl, jiraEmail, jiraApiToken } = sessionProduct;
     const ticketMap = Object.fromEntries(pokerSession!.tickets.map((t) => [t.id, t.jiraKey]));
-    Promise.all(
+    void Promise.all(
       assignments.map(({ ticketId, memberId }) => {
         const jiraKey = ticketMap[ticketId];
         if (!jiraKey) return Promise.resolve();
-        return updateAssignee(jiraBaseUrl, jiraEmail, jiraApiToken, jiraKey, memberId).catch(console.error);
+        return updateAssignee(jiraBaseUrl, jiraEmail, jiraApiToken, jiraKey, memberId).catch((err) =>
+          console.error(`[bulk-assign] JIRA updateAssignee failed for ${jiraKey}:`, err)
+        );
       })
     );
   }

@@ -40,6 +40,10 @@ export function usePartyRoom(
       onOpenRef.current?.();
     });
 
+    socket.addEventListener("error", (event) => {
+      console.error("[PartyKit] WebSocket error:", event);
+    });
+
     socketRef.current = socket;
     return () => socket.close();
   }, [sessionId]);

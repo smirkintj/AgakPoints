@@ -12,11 +12,14 @@ export async function POST(
   const { sessionId, ticketId } = await params;
   const { value, note, assigneeId } = await req.json();
 
+  const ticket = await prisma.ticket.findFirst({ where: { id: ticketId, sessionId }, select: { id: true, status: true } });
+  if (!ticket) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  if (ticket.status === "ESTIMATED") return NextResponse.json({ success: true });
+
   await prisma.ticket.update({
     where: { id: ticketId },
     data: { finalEstimate: value, status: "ESTIMATED", adminNote: note ?? null, assigneeId: assigneeId ?? null },
   });
 
-  void sessionId;
   return NextResponse.json({ success: true });
 }

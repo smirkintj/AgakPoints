@@ -130,8 +130,12 @@ export default class ScrumPokerRoom implements Party.Server {
   }
 
   private async persist() {
-    const { adminConnectionIds, ...persistable } = this.state;
-    await this.room.storage.put("state", persistable);
+    try {
+      const { adminConnectionIds, ...persistable } = this.state;
+      await this.room.storage.put("state", persistable);
+    } catch (err) {
+      console.error("[PartyKit] persist failed:", err);
+    }
   }
 
   private isAdmin(sender: Party.Connection): boolean {

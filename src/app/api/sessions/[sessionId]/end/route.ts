@@ -27,6 +27,10 @@ export async function POST(
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
+  if (pokerSession.status === "COMPLETED") {
+    return NextResponse.json({ success: true });
+  }
+
   await prisma.pokerSession.update({
     where: { id: sessionId },
     data: { status: "COMPLETED", completedAt: new Date() },

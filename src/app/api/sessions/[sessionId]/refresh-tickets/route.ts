@@ -28,12 +28,13 @@ export async function POST(
     return NextResponse.json({ error: "No JIRA configured" }, { status: 400 });
   }
 
-  const issues = await fetchSprintIssues(
-    product.jiraBaseUrl,
-    product.jiraEmail,
-    product.jiraApiToken,
-    pokerSession.sprintId
-  );
+  let issues;
+  try {
+    issues = await fetchSprintIssues(product.jiraBaseUrl, product.jiraEmail, product.jiraApiToken, pokerSession.sprintId);
+  } catch (err) {
+    console.error("JIRA fetchSprintIssues failed:", err);
+    return NextResponse.json({ error: "Failed to fetch tickets from JIRA. Check your credentials and try again." }, { status: 502 });
+  }
 
   const freshTickets = issues
     .filter((issue) => {

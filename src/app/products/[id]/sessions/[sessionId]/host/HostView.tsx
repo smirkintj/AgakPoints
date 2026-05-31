@@ -382,15 +382,17 @@ export function HostView({ session, productId }: { session: PokerSession; produc
     if (!currentTicket || selectedEstimate === null) return;
     setSavingLock(true);
     const lockNote = getNote(currentTicket.id);
-    send({ type: "LOCK_ESTIMATE", ticketId: currentTicket.id, value: selectedEstimate, note: lockNote || undefined, assigneeId: selectedAssigneeId ?? undefined });
     try {
-      await fetch(`/api/sessions/${session.id}/tickets/${currentTicket.id}/lock`, {
+      const res = await fetch(`/api/sessions/${session.id}/tickets/${currentTicket.id}/lock`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ value: selectedEstimate, note: lockNote, votes: revealedVotes ?? [], assigneeId: selectedAssigneeId }),
       });
-    } catch {
-      // Lock saved locally; JIRA sync happens at session end
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      send({ type: "LOCK_ESTIMATE", ticketId: currentTicket.id, value: selectedEstimate, note: lockNote || undefined, assigneeId: selectedAssigneeId ?? undefined });
+    } catch (err) {
+      console.error("Lock estimate failed:", err);
+      alert("Failed to save estimate. Please try again.");
     }
     setSavingLock(false);
   };
@@ -572,7 +574,8 @@ export function HostView({ session, productId }: { session: PokerSession; produc
                                 {/* Repoker — full reset */}
                                 <button
                                   onClick={async () => {
-                                    await fetch(`/api/sessions/${session.id}/tickets/${ticket.id}/repoker`, { method: "POST" });
+                                    const res = await fetch(`/api/sessions/${session.id}/tickets/${ticket.id}/repoker`, { method: "POST" });
+                                    if (!res.ok) { console.error("Repoker failed", res.status); return; }
                                     setLockedTickets((l) => { const n = new Set(l); n.delete(ticket.id); return n; });
                                     setTicketAssignees((a) => { const n = { ...a }; delete n[ticket.id]; return n; });
                                     setTickets((t) => t.map((tk) => tk.id === ticket.id ? { ...tk, status: "PENDING" as const, finalEstimate: null, assigneeId: null } : tk));
@@ -591,11 +594,12 @@ export function HostView({ session, productId }: { session: PokerSession; produc
                                     <button
                                       key={m.id}
                                       onClick={async () => {
-                                        await fetch(`/api/sessions/${session.id}/bulk-assign`, {
+                                        const res = await fetch(`/api/sessions/${session.id}/bulk-assign`, {
                                           method: "POST",
                                           headers: { "Content-Type": "application/json" },
                                           body: JSON.stringify({ assignments: [{ ticketId: ticket.id, memberId: m.id }] }),
                                         });
+                                        if (!res.ok) { console.error("Reassign failed", res.status); return; }
                                         setTicketAssignees((a) => ({ ...a, [ticket.id]: m.id }));
                                         setTickets((t) => t.map((tk) => tk.id === ticket.id ? { ...tk, assigneeId: m.id } : tk));
                                         send({ type: "LOCK_ESTIMATE", ticketId: ticket.id, value: ticket.finalEstimate!, assigneeId: m.id });

@@ -1,6 +1,5 @@
 "use client";
 import { useState, useEffect, useCallback, useRef } from "react";
-import { toPng } from "html-to-image";
 import { motion, AnimatePresence } from "framer-motion";
 import { usePartyRoom } from "@/hooks/usePartyRoom";
 import type { MsgOut, RevealedVote, CheckedInMember } from "@/types/partykit";
@@ -221,27 +220,43 @@ export function ParticipantView({ session }: { session: SessionWithDetails }) {
             <h2 className="text-2xl font-bold text-white">Session Ended</h2>
             <p className="text-white/40 text-sm mt-1">{session.name ?? session.sprintName}</p>
           </div>
-          {myAssigned.length > 0 ? (
-            <div className="rounded-2xl border border-white/10 bg-white/5 p-5 text-left space-y-3">
-              <div className="flex items-center justify-between">
-                <p className="text-xs text-white/40 uppercase tracking-widest font-medium">Your assignments</p>
-                <span className="text-sm font-bold text-violet-400 font-mono">{totalSP} SP total</span>
-              </div>
-              <div className="space-y-2">
-                {myAssigned.map(({ ticket, sp }) => ticket && (
-                  <div key={ticket.id} className="py-1.5 border-b border-white/8 last:border-0">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-xs font-mono text-violet-400/70 shrink-0">{ticket.jiraKey}</span>
-                      <span className="text-xs font-mono text-emerald-400 shrink-0">{sp} pts</span>
+          <div ref={recapRef} className="space-y-4">
+            {myAssigned.length > 0 ? (
+              <div className="rounded-2xl border border-white/10 bg-white/5 p-5 text-left space-y-3">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs text-white/40 uppercase tracking-widest font-medium">Your assignments</p>
+                  <span className="text-sm font-bold text-violet-400 font-mono">{totalSP} SP total</span>
+                </div>
+                <div className="space-y-2">
+                  {myAssigned.map(({ ticket, sp }) => ticket && (
+                    <div key={ticket.id} className="py-1.5 border-b border-white/8 last:border-0">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-xs font-mono text-violet-400/70 shrink-0">{ticket.jiraKey}</span>
+                        <span className="text-xs font-mono text-emerald-400 shrink-0">{sp} pts</span>
+                      </div>
+                      <p className="text-sm text-white/70 mt-0.5">{ticket.title}</p>
                     </div>
-                    <p className="text-sm text-white/70 mt-0.5">{ticket.title}</p>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
-            </div>
-          ) : (
-            <p className="text-white/30 text-sm">No tickets assigned to you this sprint.</p>
-          )}
+            ) : (
+              <p className="text-white/30 text-sm">No tickets assigned to you this sprint.</p>
+            )}
+            <button
+              onClick={async () => {
+                if (!recapRef.current) return;
+                const { toPng } = await import("html-to-image");
+                const url = await toPng(recapRef.current, { backgroundColor: "#0d0b1a" });
+                const a = document.createElement("a");
+                a.href = url;
+                a.download = `${session.sprintName}-recap.png`;
+                a.click();
+              }}
+              className="text-xs text-white/25 hover:text-violet-400 border border-white/8 hover:border-violet-500/30 rounded-lg px-4 py-2 transition-colors"
+            >
+              Save as image
+            </button>
+          </div>
         </div>
       </div>
     );

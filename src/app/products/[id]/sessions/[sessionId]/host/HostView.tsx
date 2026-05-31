@@ -443,7 +443,7 @@ export function HostView({ session, productId }: { session: PokerSession; produc
             confirmEnd ? (
               <div className="flex items-center gap-1.5">
                 <span className="text-xs text-white/50">End session?</span>
-                <Button variant="destructive" size="sm" onClick={async () => {
+                <Button variant="danger" size="sm" onClick={async () => {
                   setConfirmEnd(false);
                   send({ type: "END_SESSION" });
                   await fetch(`/api/sessions/${session.id}/end`, { method: "POST" });

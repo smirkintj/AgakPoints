@@ -782,7 +782,8 @@ export function HostView({ session, productId }: { session: PokerSession; produc
 
           {/* ACTIVE — ticket open */}
           {sessionStatus === "ACTIVE" && currentTicket && (
-            <div className="flex flex-col items-center gap-6 px-8 py-8 flex-1">
+            <div className="flex flex-col flex-1 min-h-0">
+            <div className="flex flex-col items-center gap-6 px-8 py-8 flex-1 overflow-y-auto">
 
               {/* Ticket node — centered card */}
               <TicketNode
@@ -899,46 +900,53 @@ export function HostView({ session, productId }: { session: PokerSession; produc
                   {/* Floating reactions from members — read-only for host */}
                   <EmojiReaction reactions={reactions} onReact={() => {}} readOnly />
 
-                  {/* Lock estimate */}
-                  {!lockedTickets.has(currentTicket.id) ? (
-                    <div className="border-t border-white/8 pt-5 space-y-4">
-                      <p className="text-xs text-white/30 uppercase tracking-widest font-medium">Lock estimate</p>
-                      <div className="flex gap-2 flex-wrap">
-                        {FIBONACCI_VALUES.map((v) => (
-                          <button
-                            key={v}
-                            onClick={() => setSelectedEstimate(v)}
-                            className={`w-11 h-16 rounded-xl border-2 font-bold text-lg transition-all ${
-                              selectedEstimate === v
-                                ? "border-violet-400 bg-violet-600/40 text-white scale-110"
-                                : "border-white/15 text-white/40 hover:border-violet-400/60 hover:text-white hover:scale-105"
-                            }`}
-                          >
-                            {v}
-                          </button>
-                        ))}
-                      </div>
-                      <AssignmentPicker members={checkedIn} selectedMemberId={selectedAssigneeId} onChange={setSelectedAssigneeId} />
-                      <div className="flex items-center gap-3">
-                        <Button onClick={lockEstimate} disabled={selectedEstimate === null || !selectedAssigneeId || savingLock} variant="success">
-                          <Lock className="w-4 h-4" />
-                          {savingLock ? "Saving..." : `Lock${selectedEstimate ? ` — ${selectedEstimate} pts` : ""}`}
-                          <ChevronRight className="w-4 h-4" />
-                        </Button>
-                        <JiraSyncBadge status={jiraStatus} />
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="flex items-center gap-3 pt-2">
-                      <div className="flex items-center gap-2 text-emerald-400">
-                        <Check className="w-4 h-4" />
-                        <span className="text-sm font-medium">Locked</span>
-                      </div>
-                      <JiraSyncBadge status={jiraStatus} />
-                    </div>
-                  )}
                 </div>
               )}
+            </div>
+
+            {/* ── Sticky lock bar — always visible at bottom of panel ── */}
+            {revealedVotes && (
+              <div className="shrink-0 border-t border-white/8 bg-black/20 px-8 py-4">
+                {!lockedTickets.has(currentTicket.id) ? (
+                  <div className="flex items-center gap-4 flex-wrap">
+                    {/* Compact SP chips */}
+                    <div className="flex gap-1.5 flex-wrap">
+                      {FIBONACCI_VALUES.map((v) => (
+                        <button
+                          key={v}
+                          onClick={() => setSelectedEstimate(v)}
+                          className={`w-9 h-9 rounded-lg border-2 font-bold text-sm transition-all ${
+                            selectedEstimate === v
+                              ? "border-violet-400 bg-violet-600/40 text-white scale-110"
+                              : "border-white/15 text-white/40 hover:border-violet-400/60 hover:text-white"
+                          }`}
+                        >
+                          {v}
+                        </button>
+                      ))}
+                    </div>
+                    <div className="w-px h-8 bg-white/10 shrink-0" />
+                    <AssignmentPicker members={checkedIn} selectedMemberId={selectedAssigneeId} onChange={setSelectedAssigneeId} />
+                    <div className="w-px h-8 bg-white/10 shrink-0" />
+                    <div className="flex items-center gap-3">
+                      <Button onClick={lockEstimate} disabled={selectedEstimate === null || !selectedAssigneeId || savingLock} variant="success">
+                        <Lock className="w-4 h-4" />
+                        {savingLock ? "Saving..." : `Lock${selectedEstimate ? ` — ${selectedEstimate} pts` : ""}`}
+                      </Button>
+                      <JiraSyncBadge status={jiraStatus} />
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2 text-emerald-400">
+                      <Check className="w-4 h-4" />
+                      <span className="text-sm font-medium">Estimate locked</span>
+                    </div>
+                    <JiraSyncBadge status={jiraStatus} />
+                  </div>
+                )}
+              </div>
+            )}
             </div>
           )}
         </main>

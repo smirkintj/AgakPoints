@@ -240,9 +240,6 @@ export function ParticipantView({ session }: { session: SessionWithDetails }) {
           ) : (
             <p className="text-white/30 text-sm">No tickets assigned to you this sprint.</p>
           )}
-          <a href={`/join/${session.id}`} className="inline-block px-5 py-2 rounded-lg bg-violet-600 hover:bg-violet-500 text-white text-sm font-medium transition-colors">
-            Return to lobby
-          </a>
         </div>
       </div>
     );

@@ -5,16 +5,9 @@ import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Plus, ExternalLink, FileText } from "lucide-react";
-import { EndSessionButton } from "./EndSessionButton";
-
-const ROLE_COLORS: Record<string, string> = {
-  DEV: "default",
-  QA: "success",
-  UI_UX: "warning",
-  SM: "danger",
-  TECH_LEAD: "ghost",
-};
+import { ArrowLeft, Plus } from "lucide-react";
+import { MemberManager } from "./MemberManager";
+import { SessionList } from "./SessionList";
 
 export default async function ProductPage({ params }: { params: Promise<{ id: string }> }) {
   const session = await auth();
@@ -27,9 +20,7 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
       members: { orderBy: { createdAt: "asc" } },
       pokerSessions: {
         orderBy: { createdAt: "desc" },
-        include: {
-          _count: { select: { tickets: true, participants: true } },
-        },
+        include: { _count: { select: { tickets: true } } },
       },
     },
   });
@@ -55,12 +46,8 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
         <div>
           <h1 className="text-2xl font-bold text-white">{product.name}</h1>
           <div className="flex items-center gap-3 mt-2">
-            {product.jiraProjectKey && (
-              <Badge variant="ghost">JIRA: {product.jiraProjectKey}</Badge>
-            )}
-            {product.confluenceSpaceKey && (
-              <Badge variant="ghost">Confluence: {product.confluenceSpaceKey}</Badge>
-            )}
+            {product.jiraProjectKey && <Badge variant="ghost">JIRA: {product.jiraProjectKey}</Badge>}
+            {product.confluenceSpaceKey && <Badge variant="ghost">Confluence: {product.confluenceSpaceKey}</Badge>}
           </div>
         </div>
 
@@ -71,60 +58,40 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
               <CardTitle>Team Members ({product.members.length})</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="space-y-2">
-                {product.members.map((m: { id: string; name: string; role: string }) => (
-                  <div key={m.id} className="flex items-center justify-between py-1.5">
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-full bg-violet-600/30 flex items-center justify-center text-sm font-bold text-violet-300">
-                        {m.name[0]?.toUpperCase()}
-                      </div>
-                      <span className="text-white text-sm">{m.name}</span>
-                    </div>
-                    <Badge variant={ROLE_COLORS[m.role] as "default" | "success" | "warning" | "danger" | "ghost"}>
-                      {m.role}
-                    </Badge>
-                  </div>
-                ))}
-              </div>
+              <MemberManager
+                productId={id}
+                initialMembers={product.members.map((m) => ({
+                  id: m.id,
+                  name: m.name,
+                  role: m.role,
+                  capacity: (m as typeof m & { capacity?: number }).capacity ?? 20,
+                }))}
+              />
             </CardContent>
           </Card>
 
           {/* Sessions */}
           <Card>
-            <CardHeader>
+            <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle>Sessions ({product.pokerSessions.length})</CardTitle>
             </CardHeader>
             <CardContent>
-              {product.pokerSessions.length === 0 ? (
-                <div className="text-center py-8">
-                  <p className="text-white/40 text-sm mb-4">No sessions yet</p>
+              <SessionList
+                productId={id}
+                sessions={product.pokerSessions.map((s) => ({
+                  id: s.id,
+                  name: s.name,
+                  sprintName: s.sprintName,
+                  createdAt: s.createdAt,
+                  status: s.status,
+                  _count: s._count,
+                }))}
+              />
+              {product.pokerSessions.length === 0 && (
+                <div className="text-center pt-2">
                   <Link href={`/products/${id}/sessions/new`}>
                     <Button size="sm">Start First Session</Button>
                   </Link>
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  {product.pokerSessions.map((s: { id: string; name?: string | null; sprintName: string; createdAt: Date; status: string; _count: { tickets: number } }) => (
-                    <div key={s.id} className="flex items-center justify-between py-2 border-b border-white/5 last:border-0">
-                      <div>
-                        <p className="text-white text-sm font-medium">{s.name ?? s.sprintName}</p>
-                        <p className="text-white/40 text-xs">
-                          {s.sprintName} · {new Date(s.createdAt).toLocaleDateString()} · {s._count.tickets} tickets
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Badge variant={s.status === "COMPLETED" ? "success" : s.status === "ACTIVE" ? "warning" : "ghost"}>
-                          {s.status}
-                        </Badge>
-                        {s.status === "ACTIVE" && <EndSessionButton sessionId={s.id} />}
-                        <Link href={s.status === "COMPLETED" ? `/products/${id}/sessions/${s.id}/summary` : `/products/${id}/sessions/${s.id}/host`}>
-                          <Button size="sm" variant="ghost" title={s.status === "COMPLETED" ? "View summary" : "Open session"}>
-                            {s.status === "COMPLETED" ? <FileText className="w-3.5 h-3.5" /> : <ExternalLink className="w-3.5 h-3.5" />}
-                          </Button>
-                        </Link>
-                      </div>
-                    </div>
-                  ))}
                 </div>
               )}
             </CardContent>

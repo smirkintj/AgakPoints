@@ -24,6 +24,14 @@ export function WaitingRoom({ session }: { session: SessionWithDetails }) {
   const [selectedMember, setSelectedMember] = useState<Member | null>(null);
   const [busy, setBusy] = useState(false);
   const [liveActive, setLiveActive] = useState(session.status === "ACTIVE");
+  const [streaks, setStreaks] = useState<Record<string, number>>({});
+
+  useEffect(() => {
+    fetch(`/api/sessions/${session.id}/member-streaks`)
+      .then((r) => r.json())
+      .then((d: { streaks: Record<string, number> }) => setStreaks(d.streaks ?? {}))
+      .catch(() => {});
+  }, [session.id]);
 
   // Restore selected member from storage; redirect immediately if session is already active
   useEffect(() => {
@@ -144,6 +152,12 @@ export function WaitingRoom({ session }: { session: SessionWithDetails }) {
                         <div className="flex items-center gap-1.5 flex-wrap">
                           <p className={`font-medium truncate text-sm ${inRoom ? "text-emerald-300" : "text-white"}`}>{member.name}</p>
                           <RoleBadge role={member.role} size="sm" />
+                          {(streaks[member.id] ?? 0) >= 5 && (
+                            <span className="text-xs font-bold text-orange-400">🔥🔥{streaks[member.id]}</span>
+                          )}
+                          {(streaks[member.id] ?? 0) >= 2 && (streaks[member.id] ?? 0) < 5 && (
+                            <span className="text-xs font-bold text-amber-400">🔥{streaks[member.id]}</span>
+                          )}
                         </div>
                         {inRoom && (() => {
                           const p = session.participants.find((x) => x.member.id === member.id);

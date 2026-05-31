@@ -21,6 +21,7 @@ import {
   Layers, Lock, Play, RefreshCw, Sparkles, Users,
 } from "lucide-react";
 import confetti from "canvas-confetti";
+import { getAutoReaction } from "@/lib/gameReactions";
 
 type TicketWithVotes = Ticket & { votes: (Vote & { member: Member })[] };
 type ParticipantWithMember = SessionParticipant & { member: Member };
@@ -128,6 +129,14 @@ function TicketNode({
 
 // ── Main Component ────────────────────────────────────────────────────────────
 
+function fireConsensusBurst() {
+  const colors = ["#7c3aed", "#a78bfa", "#10b981", "#ffffff", "#4f46e5"];
+  confetti({ particleCount: 80, spread: 55, origin: { x: 0.5, y: 0.55 }, colors, scalar: 1.1, gravity: 0.9 });
+  setTimeout(() => {
+    confetti({ particleCount: 50, spread: 80, origin: { x: 0.5, y: 0.5 }, colors, scalar: 0.9, gravity: 1.1, ticks: 180 });
+  }, 150);
+}
+
 export function HostView({ session, productId }: { session: PokerSession; productId: string }) {
   const router = useRouter();
   const [sessionStatus, setSessionStatus] = useState<"WAITING" | "ACTIVE" | "COMPLETED">(
@@ -174,6 +183,8 @@ export function HostView({ session, productId }: { session: PokerSession; produc
   addLogRef.current = (text: string) => setSessionLog((l) => [...l, { id: `${Date.now()}-${Math.random()}`, time: new Date(), text }]);
   const addLog = (text: string) => addLogRef.current(text);
   const [sessionTimer, setSessionTimer] = useState<string>("");
+
+  const [autoReaction, setAutoReaction] = useState<{ emoji: string; label: string } | null>(null);
 
   const [recapOpen, setRecapOpen] = useState(session.status === "COMPLETED");
   const [confirmEnd, setConfirmEnd] = useState(false);
@@ -257,7 +268,12 @@ export function HostView({ session, productId }: { session: PokerSession; produc
       case "VOTES_REVEALED":
         setRevealedVotes(msg.votes);
         setRevealMeta({ median: msg.median, isConsensus: msg.isConsensus });
-        if (msg.isConsensus) confetti({ particleCount: 120, spread: 70, origin: { y: 0.6 } });
+        if (msg.isConsensus) fireConsensusBurst();
+        {
+          const ar = getAutoReaction(msg.votes.map((v) => v.value));
+          setAutoReaction(ar);
+          if (ar) setTimeout(() => setAutoReaction(null), 4000);
+        }
         addLogRef.current(`Votes revealed — median ${msg.median}${msg.isConsensus ? " (consensus)" : ""}`);
         break;
       case "ESTIMATE_LOCKED": {
@@ -815,6 +831,21 @@ export function HostView({ session, productId }: { session: PokerSession; produc
               {/* Post-reveal */}
               {revealedVotes && revealMeta && (
                 <div className="w-full max-w-2xl space-y-5">
+                  {/* Auto reaction pill */}
+                  <AnimatePresence>
+                    {autoReaction && (
+                      <motion.div
+                        initial={{ opacity: 0, scale: 0.8, y: -10 }}
+                        animate={{ opacity: 1, scale: 1, y: 0 }}
+                        exit={{ opacity: 0, scale: 0.9, y: -5 }}
+                        transition={{ type: "spring", stiffness: 400, damping: 20 }}
+                        className="flex items-center gap-2 px-4 py-2 rounded-full bg-white/10 border border-white/20 text-white font-semibold text-sm mx-auto w-fit"
+                      >
+                        <span className="text-xl">{autoReaction.emoji}</span>
+                        {autoReaction.label}
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
                   {/* Flip cards */}
                   <div className="flex flex-wrap gap-3">
                     {revealedVotes.map((vote, i) => {

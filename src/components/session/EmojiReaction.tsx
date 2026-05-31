@@ -13,13 +13,14 @@ interface EmojiReactionProps {
   onReact: (emoji: string) => void;
   disabled?: boolean;
   readOnly?: boolean;
+  emojis?: string[];
 }
 
 const EMOJIS = ["👍", "🎯", "🤔", "💥", "😱", "🔥", "🎉", "💀"];
 
 let emojiCounter = 0;
 
-export function EmojiReaction({ reactions, onReact, disabled, readOnly }: EmojiReactionProps) {
+export function EmojiReaction({ reactions, onReact, disabled, readOnly, emojis = EMOJIS }: EmojiReactionProps) {
   const [floating, setFloating] = useState<FloatingEmoji[]>([]);
 
   useEffect(() => {
@@ -53,7 +54,7 @@ export function EmojiReaction({ reactions, onReact, disabled, readOnly }: EmojiR
       {/* Reaction buttons — hidden in readOnly mode */}
       {!readOnly && (
         <div className="flex gap-1 flex-wrap">
-          {EMOJIS.map((emoji) => (
+          {emojis.map((emoji) => (
             <button
               key={emoji}
               onClick={() => !disabled && onReact(emoji)}

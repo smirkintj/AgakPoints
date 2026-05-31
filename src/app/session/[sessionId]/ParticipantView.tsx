@@ -12,11 +12,20 @@ import { MemberAvatar } from "@/components/session/MemberAvatar";
 import { TicketTypeIcon } from "@/components/session/TicketTypeIcon";
 import { Check, ChevronDown, ChevronRight, Clock, Sparkles, CalendarX } from "lucide-react";
 
+function fireConsensusBurst() {
+  const colors = ["#7c3aed", "#a78bfa", "#10b981", "#ffffff", "#4f46e5"];
+  confetti({ particleCount: 80, spread: 55, origin: { x: 0.5, y: 0.55 }, colors, scalar: 1.1, gravity: 0.9 });
+  setTimeout(() => {
+    confetti({ particleCount: 50, spread: 80, origin: { x: 0.5, y: 0.5 }, colors, scalar: 0.9, gravity: 1.1, ticks: 180 });
+  }, 150);
+}
+
 const PRIORITY_COLORS: Record<string, string> = {
   Highest: "#ef4444", High: "#f97316", Medium: "#eab308", Low: "#3b82f6", Lowest: "#6b7280",
 };
 const MONTH_SHORT = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 import confetti from "canvas-confetti";
+import { getAutoReaction } from "@/lib/gameReactions";
 
 type SessionWithDetails = PokerSession & {
   tickets: Ticket[];
@@ -40,6 +49,7 @@ export function ParticipantView({ session }: { session: SessionWithDetails }) {
   const [lockedAssignees, setLockedAssignees] = useState<Record<string, string>>({});
   const [ticketEstimates, setTicketEstimates] = useState<Record<string, number>>({});
   const [sessionEnded, setSessionEnded] = useState(false);
+  const [autoReaction, setAutoReaction] = useState<{ emoji: string; label: string } | null>(null);
   const [myAssignedOpen, setMyAssignedOpen] = useState(true);
   const [holidays, setHolidays] = useState<{ date: string; name: string; type: string; country?: string | null }[]>([]);
   const [myLeaves, setMyLeaves] = useState<string[]>([]);
@@ -129,7 +139,12 @@ export function ParticipantView({ session }: { session: SessionWithDetails }) {
       case "VOTES_REVEALED":
         setRevealedVotes(msg.votes);
         setRevealMeta({ median: msg.median, isConsensus: msg.isConsensus });
-        if (msg.isConsensus) confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
+        if (msg.isConsensus) fireConsensusBurst();
+        {
+          const ar = getAutoReaction(msg.votes.map((v) => v.value));
+          setAutoReaction(ar);
+          if (ar) setTimeout(() => setAutoReaction(null), 4000);
+        }
         break;
       case "ESTIMATE_LOCKED":
         setLockedTickets((l) => new Set([...l, msg.ticketId]));
@@ -491,6 +506,21 @@ export function ParticipantView({ session }: { session: SessionWithDetails }) {
               {/* Revealed */}
               {revealedVotes && revealMeta && (
                 <div className="space-y-5">
+                  {/* Auto reaction pill */}
+                  <AnimatePresence>
+                    {autoReaction && (
+                      <motion.div
+                        initial={{ opacity: 0, scale: 0.8, y: -10 }}
+                        animate={{ opacity: 1, scale: 1, y: 0 }}
+                        exit={{ opacity: 0, scale: 0.9, y: -5 }}
+                        transition={{ type: "spring", stiffness: 400, damping: 20 }}
+                        className="flex items-center gap-2 px-4 py-2 rounded-full bg-white/10 border border-white/20 text-white font-semibold text-sm mx-auto w-fit"
+                      >
+                        <span className="text-xl">{autoReaction.emoji}</span>
+                        {autoReaction.label}
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
                   <div className="flex flex-wrap gap-3 justify-center">
                     {revealedVotes.map((vote, i) => {
                       const voter = checkedIn.find((c) => c.memberId === vote.memberId);
@@ -508,7 +538,7 @@ export function ParticipantView({ session }: { session: SessionWithDetails }) {
                     )}
                   </div>
                   <div className="border-t border-white/10 pt-3 flex justify-center">
-                    <EmojiReaction reactions={reactions} onReact={sendReaction} />
+                    <EmojiReaction reactions={reactions} onReact={sendReaction} emojis={["👍", "🤔", "🔥", "💀"]} />
                   </div>
                 </div>
               )}

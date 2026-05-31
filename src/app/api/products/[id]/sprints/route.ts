@@ -4,6 +4,18 @@ import { prisma } from "@/lib/prisma";
 import { fetchSprints } from "@/lib/jira";
 import { decryptProduct } from "@/lib/crypto";
 
+const sprintCache = new Map<string, { data: unknown; expiresAt: number }>();
+
+function getCachedSprints(key: string) {
+  const entry = sprintCache.get(key);
+  if (entry && Date.now() < entry.expiresAt) return entry.data;
+  return null;
+}
+
+function setCachedSprints(key: string, data: unknown) {
+  sprintCache.set(key, { data, expiresAt: Date.now() + 60_000 });
+}
+
 export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -22,11 +34,16 @@ export async function GET(
     return NextResponse.json({ error: "JIRA not configured" }, { status: 400 });
   }
 
+  const cacheKey = `${id}:${p.jiraBoardId}`;
+  const cached = getCachedSprints(cacheKey);
+  if (cached) return NextResponse.json(cached);
+
   const sprints = await fetchSprints(
     p.jiraBaseUrl,
     p.jiraEmail,
     p.jiraApiToken,
     p.jiraBoardId
   );
+  setCachedSprints(cacheKey, sprints);
   return NextResponse.json(sprints);
 }

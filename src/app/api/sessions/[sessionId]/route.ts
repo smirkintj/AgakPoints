@@ -10,8 +10,22 @@ export async function GET(
   const session = await prisma.pokerSession.findFirst({
     where: { OR: [{ id: sessionId }, { shortCode: sessionId }] },
     include: {
-      tickets: { orderBy: { order: "asc" }, include: { votes: { include: { member: true } } } },
-      participants: { include: { member: true } },
+      tickets: {
+        orderBy: { order: "asc" },
+        select: {
+          id: true, sessionId: true, jiraKey: true, title: true, description: true,
+          status: true, finalEstimate: true, adminNote: true, order: true,
+          assigneeId: true, issueType: true, jiraAssigneeName: true,
+          jiraAssigneeAccountId: true, contextNote: true, priority: true,
+          designReadiness: true, designComplexity: true, designLink: true, tags: true,
+        },
+      },
+      participants: {
+        select: {
+          id: true, memberId: true, checkedIn: true,
+          member: { select: { id: true, name: true, role: true, capacity: true, country: true, avatarUrl: true } },
+        },
+      },
       product: {
         select: {
           id: true,

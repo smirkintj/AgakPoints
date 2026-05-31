@@ -122,6 +122,18 @@ export default class ScrumPokerRoom implements Party.Server {
 
   constructor(readonly room: Party.Room) {}
 
+  async onStart() {
+    const stored = await this.room.storage.get<Partial<RoomState>>("state");
+    if (stored) {
+      this.state = { ...this.state, ...stored, adminConnectionIds: new Set() };
+    }
+  }
+
+  private async persist() {
+    const { adminConnectionIds, ...persistable } = this.state;
+    await this.room.storage.put("state", persistable);
+  }
+
   private isAdmin(sender: Party.Connection): boolean {
     return this.state.adminConnectionIds.has(sender.id);
   }
@@ -135,7 +147,7 @@ export default class ScrumPokerRoom implements Party.Server {
     this.state.adminConnectionIds.delete(conn.id);
   }
 
-  onMessage(raw: string, sender: Party.Connection) {
+  async onMessage(raw: string, sender: Party.Connection) {
     let msg: MsgIn;
     try {
       msg = JSON.parse(raw) as MsgIn;
@@ -163,6 +175,7 @@ export default class ScrumPokerRoom implements Party.Server {
           });
         }
         this.broadcast({ type: "PRESENCE_UPDATE", checkedIn: this.state.checkedIn });
+        await this.persist();
         break;
       }
 
@@ -170,6 +183,7 @@ export default class ScrumPokerRoom implements Party.Server {
         if (!this.isAdmin(sender)) return;
         this.state.sessionStatus = "ACTIVE";
         this.broadcast({ type: "SESSION_STARTED" });
+        await this.persist();
         break;
       }
 
@@ -201,6 +215,7 @@ export default class ScrumPokerRoom implements Party.Server {
           priority: msg.priority,
           deps: msg.deps,
         });
+        await this.persist();
         break;
       }
 
@@ -215,6 +230,7 @@ export default class ScrumPokerRoom implements Party.Server {
           totalCount: this.state.checkedIn.length,
           votedMemberIds: Object.keys(this.state.votes),
         });
+        await this.persist();
         break;
       }
 
@@ -239,6 +255,7 @@ export default class ScrumPokerRoom implements Party.Server {
           median: median(values),
           isConsensus: isConsensus(values),
         });
+        await this.persist();
         break;
       }
 
@@ -252,6 +269,7 @@ export default class ScrumPokerRoom implements Party.Server {
         this.state.revealedVotes = null;
 
         this.broadcast({ type: "ESTIMATE_LOCKED", ticketId: msg.ticketId, value: msg.value, assigneeId: msg.assigneeId });
+        await this.persist();
         break;
       }
 
@@ -283,12 +301,14 @@ export default class ScrumPokerRoom implements Party.Server {
           this.state.currentTicket.contextNote = msg.note;
         }
         this.broadcast({ type: "NOTE_UPDATED", ticketId: msg.ticketId, note: msg.note });
+        await this.persist();
         break;
       }
 
       case "END_SESSION": {
         if (!this.isAdmin(sender)) return;
         this.broadcast({ type: "SESSION_ENDED" });
+        await this.persist();
         break;
       }
 
@@ -313,6 +333,7 @@ export default class ScrumPokerRoom implements Party.Server {
         delete this.state.votes[msg.memberId];
         this.broadcast({ type: "MEMBER_KICKED", memberId: msg.memberId });
         this.broadcast({ type: "PRESENCE_UPDATE", checkedIn: this.state.checkedIn });
+        await this.persist();
         break;
       }
     }

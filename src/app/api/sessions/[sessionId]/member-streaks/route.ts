@@ -22,25 +22,36 @@ export async function GET(
     if (!isMember) return NextResponse.json({}, { status: 403 });
   }
 
-  // Fetch all sessions for product ordered desc, with participant checkedIn status
-  const allSessions = await prisma.pokerSession.findMany({
-    where: { productId: session.productId },
-    orderBy: { createdAt: "desc" },
-    select: { id: true, participants: { select: { memberId: true, checkedIn: true } } },
-  });
+  // Single query: all sessions desc with only checkedIn participants
+  // Using a flat participants query avoids the nested loop O(sessions × members)
+  const [allSessions, members] = await Promise.all([
+    prisma.pokerSession.findMany({
+      where: { productId: session.productId },
+      orderBy: { createdAt: "desc" },
+      select: {
+        id: true,
+        participants: {
+          where: { checkedIn: true },
+          select: { memberId: true },
+        },
+      },
+    }),
+    prisma.member.findMany({
+      where: { productId: session.productId },
+      select: { id: true },
+    }),
+  ]);
 
-  const members = await prisma.member.findMany({
-    where: { productId: session.productId },
-    select: { id: true },
-  });
+  // Pre-build a Set<memberId> per session for O(1) lookup instead of O(n) find
+  const attendedSets = allSessions.map(
+    (s) => new Set(s.participants.map((p) => p.memberId))
+  );
 
-  // Build attendance map: memberId → boolean[] ordered desc (true = attended)
   const streaks: Record<string, number> = {};
   for (const m of members) {
     let streak = 0;
-    for (const s of allSessions) {
-      const p = s.participants.find((p) => p.memberId === m.id);
-      if (p?.checkedIn) streak++;
+    for (const attended of attendedSets) {
+      if (attended.has(m.id)) streak++;
       else break;
     }
     streaks[m.id] = streak;

@@ -1,5 +1,6 @@
 "use client";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
+import { toPng } from "html-to-image";
 import { motion, AnimatePresence } from "framer-motion";
 import { usePartyRoom } from "@/hooks/usePartyRoom";
 import type { MsgOut, RevealedVote, CheckedInMember } from "@/types/partykit";
@@ -43,6 +44,7 @@ export function ParticipantView({ session }: { session: SessionWithDetails }) {
   const [myAssignedOpen, setMyAssignedOpen] = useState(true);
   const [holidays, setHolidays] = useState<{ date: string; name: string; type: string }[]>([]);
   const [myLeaves, setMyLeaves] = useState<string[]>([]);
+  const recapRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const stored = sessionStorage.getItem(`agakpoints_member_${session.id}`);
@@ -59,10 +61,10 @@ export function ParticipantView({ session }: { session: SessionWithDetails }) {
   useEffect(() => {
     if (!member) return;
     const fetchLeaves = () =>
-      fetch(`/api/sessions/${session.id}/leave`)
+      fetch(`/api/sessions/${session.id}/leave?memberId=${member.id}`)
         .then((r) => r.json())
         .then((d: { leaves: { memberId: string; date: string }[] }) =>
-          setMyLeaves(d.leaves.filter((l) => l.memberId === member.id).map((l) => l.date))
+          setMyLeaves(d.leaves.map((l) => l.date))
         )
         .catch(() => {});
     fetchLeaves();
@@ -211,7 +213,7 @@ export function ParticipantView({ session }: { session: SessionWithDetails }) {
     const totalSP = myAssigned.reduce((s, x) => s + x.sp, 0);
     return (
       <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black/90 backdrop-blur-sm px-6 py-10 overflow-y-auto">
-        <div className="w-full max-w-md space-y-6 text-center">
+        <div className="w-full max-w-lg space-y-6 text-center">
           <div>
             <div className="w-12 h-12 rounded-full bg-violet-600/30 border border-violet-500/30 flex items-center justify-center mx-auto mb-4">
               <Sparkles className="w-5 h-5 text-violet-400" />
@@ -227,12 +229,12 @@ export function ParticipantView({ session }: { session: SessionWithDetails }) {
               </div>
               <div className="space-y-2">
                 {myAssigned.map(({ ticket, sp }) => ticket && (
-                  <div key={ticket.id} className="flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-2 min-w-0">
+                  <div key={ticket.id} className="py-1.5 border-b border-white/8 last:border-0">
+                    <div className="flex items-center justify-between gap-2">
                       <span className="text-xs font-mono text-violet-400/70 shrink-0">{ticket.jiraKey}</span>
-                      <span className="text-xs text-white/60 truncate">{ticket.title}</span>
+                      <span className="text-xs font-mono text-emerald-400 shrink-0">{sp} pts</span>
                     </div>
-                    <span className="text-xs font-mono text-emerald-400 shrink-0">{sp} pts</span>
+                    <p className="text-sm text-white/70 mt-0.5">{ticket.title}</p>
                   </div>
                 ))}
               </div>

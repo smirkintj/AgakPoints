@@ -10,14 +10,15 @@ async function getSessionForAdmin(sessionId: string, userId: string) {
 }
 
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ sessionId: string }> }
 ) {
   const { sessionId } = await params;
-  const leaves = await prisma.sprintLeave.findMany({
-    where: { sessionId },
-    select: { memberId: true, date: true },
-  });
+  const url = new URL(req.url);
+  const memberId = url.searchParams.get("memberId");
+  const where: Record<string, unknown> = { sessionId };
+  if (memberId) where.memberId = memberId;
+  const leaves = await prisma.sprintLeave.findMany({ where, select: { memberId: true, date: true } });
   return NextResponse.json({ leaves });
 }
 

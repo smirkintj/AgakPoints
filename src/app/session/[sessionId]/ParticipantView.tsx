@@ -12,7 +12,8 @@ import { MemberAvatar } from "@/components/session/MemberAvatar";
 import { TicketTypeIcon } from "@/components/session/TicketTypeIcon";
 import { Check, ChevronDown, ChevronRight, Clock, Sparkles, CalendarX } from "lucide-react";
 
-function fireConsensusBurst() {
+async function fireConsensusBurst() {
+  const confetti = (await import("canvas-confetti")).default as typeof confettiType;
   const colors = ["#7c3aed", "#a78bfa", "#10b981", "#ffffff", "#4f46e5"];
   confetti({ particleCount: 80, spread: 55, origin: { x: 0.5, y: 0.55 }, colors, scalar: 1.1, gravity: 0.9 });
   setTimeout(() => {
@@ -24,7 +25,7 @@ const PRIORITY_COLORS: Record<string, string> = {
   Highest: "#ef4444", High: "#f97316", Medium: "#eab308", Low: "#3b82f6", Lowest: "#6b7280",
 };
 const MONTH_SHORT = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-import confetti from "canvas-confetti";
+import type confettiType from "canvas-confetti";
 import { getAutoReaction } from "@/lib/gameReactions";
 
 type SessionWithDetails = PokerSession & {

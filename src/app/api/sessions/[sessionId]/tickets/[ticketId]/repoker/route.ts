@@ -16,6 +16,7 @@ export async function POST(
   });
   if (!pokerSession) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
+  await prisma.vote.deleteMany({ where: { ticketId } });
   await prisma.ticket.update({
     where: { id: ticketId },
     data: { status: "PENDING", finalEstimate: null, assigneeId: null },

@@ -20,7 +20,7 @@ import {
   Award, Check, ChevronDown, ChevronRight, Clock, Copy, Eye, ExternalLink,
   Layers, Lock, Play, RefreshCw, Sparkles, Users,
 } from "lucide-react";
-import confetti from "canvas-confetti";
+import type confettiType from "canvas-confetti";
 import { getAutoReaction } from "@/lib/gameReactions";
 
 type TicketWithVotes = Ticket & { votes: (Vote & { member: Member })[] };
@@ -129,7 +129,8 @@ function TicketNode({
 
 // ── Main Component ────────────────────────────────────────────────────────────
 
-function fireConsensusBurst() {
+async function fireConsensusBurst() {
+  const confetti = (await import("canvas-confetti")).default as typeof confettiType;
   const colors = ["#7c3aed", "#a78bfa", "#10b981", "#ffffff", "#4f46e5"];
   confetti({ particleCount: 80, spread: 55, origin: { x: 0.5, y: 0.55 }, colors, scalar: 1.1, gravity: 0.9 });
   setTimeout(() => {

@@ -11,7 +11,9 @@ export type MsgIn =
   | { type: "END_SESSION" }
   | { type: "KICK_MEMBER"; memberId: string }
   | { type: "UPDATE_NOTE"; ticketId: string; note: string }
-  | { type: "UPDATE_LEAVE"; memberId: string; date: string; active: boolean };
+  | { type: "UPDATE_LEAVE"; memberId: string; date: string; active: boolean }
+  | { type: "UPDATE_TICKET_DESIGN"; ticketId: string; designReadiness?: string | null; designComplexity?: string | null; designLink?: string | null }
+  | { type: "UPDATE_TICKET_TAGS"; ticketId: string; tags: string[] };
 
 // Messages sent server → client
 export type MsgOut =
@@ -26,7 +28,9 @@ export type MsgOut =
   | { type: "SESSION_ENDED" }
   | { type: "MEMBER_KICKED"; memberId: string }
   | { type: "NOTE_UPDATED"; ticketId: string; note: string }
-  | { type: "LEAVE_UPDATED"; memberId: string; date: string; active: boolean };
+  | { type: "LEAVE_UPDATED"; memberId: string; date: string; active: boolean }
+  | { type: "TICKET_DESIGN_UPDATED"; ticketId: string; designReadiness?: string | null; designComplexity?: string | null; designLink?: string | null }
+  | { type: "TICKET_TAGS_UPDATED"; ticketId: string; tags: string[] };
 
 export interface CheckedInMember {
   memberId: string;

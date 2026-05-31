@@ -118,8 +118,24 @@ model Ticket {
   jiraAssigneeAccountId String?
   contextNote           String?
   priority              String?
+  designReadiness  DesignReadiness?
+  designComplexity DesignComplexity?
+  designLink       String?
+  tags             String[]
   votes                 Vote[]
   createdAt             DateTime     @default(now())
+}
+
+enum DesignReadiness {
+  READY
+  IN_PROGRESS
+  NOT_STARTED
+}
+
+enum DesignComplexity {
+  LOW
+  MEDIUM
+  HIGH
 }
 
 enum TicketStatus {

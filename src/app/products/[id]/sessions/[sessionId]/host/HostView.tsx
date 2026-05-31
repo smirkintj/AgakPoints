@@ -302,6 +302,17 @@ export function HostView({ session, productId }: { session: PokerSession; produc
         addLogRef.current(`Locked ${lockedTicketTitle} at ${msg.value}pts${assigneeName ? ` → ${assigneeName}` : ""}`);
         break;
       }
+      case "TICKET_DESIGN_UPDATED":
+        setTickets(prev => prev.map(t => t.id === msg.ticketId ? {
+          ...t,
+          ...(msg.designReadiness !== undefined && { designReadiness: msg.designReadiness as "READY" | "IN_PROGRESS" | "NOT_STARTED" | null }),
+          ...(msg.designComplexity !== undefined && { designComplexity: msg.designComplexity as "LOW" | "MEDIUM" | "HIGH" | null }),
+          ...(msg.designLink !== undefined && { designLink: msg.designLink }),
+        } : t));
+        break;
+      case "TICKET_TAGS_UPDATED":
+        setTickets(prev => prev.map(t => t.id === msg.ticketId ? { ...t, tags: msg.tags } : t));
+        break;
       case "REACTION_RECEIVED": setReactions((r) => [...r.slice(-20), msg]); break;
       case "MEMBER_KICKED": {
         const kickedName = checkedInRef.current.find((c) => c.memberId === msg.memberId)?.memberName;
@@ -626,6 +637,12 @@ export function HostView({ session, productId }: { session: PokerSession; produc
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-1.5 mb-0.5">
                           <span className="text-xs font-mono text-violet-400/80 shrink-0">{ticket.jiraKey}</span>
+                          {ticket.designReadiness === "READY" && <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" title="Design Ready" />}
+                          {ticket.designReadiness === "IN_PROGRESS" && <span className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" title="Design In Progress" />}
+                          {ticket.designReadiness === "NOT_STARTED" && <span className="w-1.5 h-1.5 rounded-full bg-red-400 shrink-0" title="Design Not Started" />}
+                          {ticket.tags && ticket.tags.length > 0 && (
+                            <span className="text-[9px] text-violet-400/60 font-mono">#{ticket.tags.length}</span>
+                          )}
                         </div>
                         <p className="text-xs text-white/60 leading-snug line-clamp-2">{ticket.title}</p>
                         {assignee && (

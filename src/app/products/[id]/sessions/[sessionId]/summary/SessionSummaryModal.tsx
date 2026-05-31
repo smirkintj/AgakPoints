@@ -131,6 +131,50 @@ export function SessionSummaryModal({
             </div>
           </div>
 
+          {/* Session Health Summary */}
+          {estimatedTickets.length > 0 && (() => {
+            const designReady = estimatedTickets.filter(t => t.designReadiness === "READY").length;
+            const designInProgress = estimatedTickets.filter(t => t.designReadiness === "IN_PROGRESS").length;
+            const designNotStarted = estimatedTickets.filter(t => t.designReadiness === "NOT_STARTED").length;
+            const tagCounts: Record<string, number> = {};
+            for (const t of estimatedTickets) {
+              for (const tag of (t.tags ?? [])) { tagCounts[tag] = (tagCounts[tag] ?? 0) + 1; }
+            }
+            const topTags = Object.entries(tagCounts).sort(([,a],[,b]) => b - a).slice(0, 3);
+            const hasDesignInfo = designReady + designInProgress + designNotStarted > 0;
+            if (!hasDesignInfo && topTags.length === 0) return null;
+            return (
+              <div>
+                <p className="text-[10px] text-white/30 font-semibold uppercase tracking-widest mb-3">Session Insights</p>
+                <div className="grid grid-cols-3 gap-3">
+                  {hasDesignInfo && (
+                    <div className="bg-white/3 rounded-lg p-3 border border-white/8 col-span-2">
+                      <p className="text-[10px] text-white/30 mb-2">Design Readiness</p>
+                      <div className="flex items-center gap-3 text-xs">
+                        {designReady > 0 && <span className="flex items-center gap-1 text-emerald-400"><span className="w-2 h-2 rounded-full bg-emerald-400" />{designReady} ready</span>}
+                        {designInProgress > 0 && <span className="flex items-center gap-1 text-amber-400"><span className="w-2 h-2 rounded-full bg-amber-400" />{designInProgress} in progress</span>}
+                        {designNotStarted > 0 && <span className="flex items-center gap-1 text-red-400"><span className="w-2 h-2 rounded-full bg-red-400" />{designNotStarted} not started</span>}
+                      </div>
+                    </div>
+                  )}
+                  {topTags.length > 0 && (
+                    <div className="bg-white/3 rounded-lg p-3 border border-white/8">
+                      <p className="text-[10px] text-white/30 mb-2">Top Tags</p>
+                      <div className="space-y-0.5">
+                        {topTags.map(([tag, count]) => (
+                          <div key={tag} className="flex items-center justify-between">
+                            <span className="text-[10px] font-mono text-white/50">#{tag}</span>
+                            <span className="text-[10px] text-violet-300 font-bold">{count}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })()}
+
           {/* Estimated tickets */}
           <div>
             <p className="text-[10px] text-white/30 font-semibold uppercase tracking-widest mb-3">

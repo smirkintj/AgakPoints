@@ -56,6 +56,30 @@ export function ParticipantView({ session }: { session: SessionWithDetails }) {
   const [holidays, setHolidays] = useState<{ date: string; name: string; type: string; country?: string | null }[]>([]);
   const [myLeaves, setMyLeaves] = useState<string[]>([]);
   const recapRef = useRef<HTMLDivElement>(null);
+
+  // Design fields (UI/UX only)
+  const [ticketDesign, setTicketDesign] = useState<{
+    designReadiness: string | null;
+    designComplexity: string | null;
+    designLink: string | null;
+  }>({ designReadiness: null, designComplexity: null, designLink: null });
+
+  // Tags (all roles)
+  const [ticketTags, setTicketTags] = useState<string[]>([]);
+  const [tagsOpen, setTagsOpen] = useState(false);
+
+  // Session health (SM + TECH_LEAD)
+  const [sessionHealth, setSessionHealth] = useState({
+    ticketsEstimated: 0,
+    totalTickets: session.tickets.length,
+    consensusCount: 0,
+    reEstimateCount: 0,
+    avgTimePerTicket: 0,
+    ticketStartTime: Date.now(),
+    tagDistribution: {} as Record<string, number>,
+  });
+  const sessionHealthRef = useRef(sessionHealth);
+  sessionHealthRef.current = sessionHealth;
   revealedVotesRef.current = revealedVotes;
 
   useEffect(() => {
@@ -129,20 +153,32 @@ export function ParticipantView({ session }: { session: SessionWithDetails }) {
       case "PRESENCE_UPDATE":
         setCheckedIn(msg.checkedIn);
         break;
-      case "TICKET_OPENED":
+      case "TICKET_OPENED": {
+        const wasEstimated = session.tickets.find((t) => t.id === msg.ticketId)?.status === "ESTIMATED";
         setCurrentTicket({ ticketId: msg.ticketId, jiraKey: msg.jiraKey, title: msg.title, description: msg.description, contextNote: msg.contextNote, issueType: msg.issueType, priority: msg.priority, deps: msg.deps });
         setMyVote(null);
         setVotedMemberIds([]);
         setRevealedVotes(null);
         setRevealMeta(null);
+        setTicketDesign({ designReadiness: null, designComplexity: null, designLink: null });
+        setTicketTags([]);
+        setSessionHealth((prev) => ({
+          ...prev,
+          ticketStartTime: Date.now(),
+          reEstimateCount: wasEstimated ? prev.reEstimateCount + 1 : prev.reEstimateCount,
+        }));
         break;
+      }
       case "VOTE_PROGRESS":
         setVotedMemberIds(msg.votedMemberIds);
         break;
       case "VOTES_REVEALED":
         setRevealedVotes(msg.votes);
         setRevealMeta({ median: msg.median, isConsensus: msg.isConsensus });
-        if (msg.isConsensus) fireConsensusBurst();
+        if (msg.isConsensus) {
+          fireConsensusBurst();
+          setSessionHealth((prev) => ({ ...prev, consensusCount: prev.consensusCount + 1 }));
+        }
         {
           const ar = getAutoReaction(msg.votes.map((v) => v.value));
           setAutoReaction(ar);
@@ -152,6 +188,12 @@ export function ParticipantView({ session }: { session: SessionWithDetails }) {
       case "ESTIMATE_LOCKED":
         setLockedTickets((l) => new Set([...l, msg.ticketId]));
         if (msg.assigneeId) setLockedAssignees((a) => ({ ...a, [msg.ticketId]: msg.assigneeId! }));
+        setSessionHealth((prev) => {
+          const elapsed = (Date.now() - prev.ticketStartTime) / 1000;
+          const newEstimated = prev.ticketsEstimated + 1;
+          const newAvg = (prev.avgTimePerTicket * prev.ticketsEstimated + elapsed) / newEstimated;
+          return { ...prev, ticketsEstimated: newEstimated, avgTimePerTicket: newAvg };
+        });
         setTicketEstimates((e) => ({ ...e, [msg.ticketId]: msg.value }));
         {
           const votes = revealedVotesRef.current;
@@ -167,6 +209,22 @@ export function ParticipantView({ session }: { session: SessionWithDetails }) {
           }
         }
         setCurrentTicket(null);
+        break;
+      case "TICKET_DESIGN_UPDATED":
+        setTicketDesign((d) => ({
+          ...d,
+          ...(msg.designReadiness !== undefined && { designReadiness: msg.designReadiness ?? null }),
+          ...(msg.designComplexity !== undefined && { designComplexity: msg.designComplexity ?? null }),
+          ...(msg.designLink !== undefined && { designLink: msg.designLink ?? null }),
+        }));
+        break;
+      case "TICKET_TAGS_UPDATED":
+        setTicketTags(msg.tags);
+        setSessionHealth((prev) => {
+          const dist = { ...prev.tagDistribution };
+          for (const tag of msg.tags) { dist[tag] = (dist[tag] ?? 0) + 1; }
+          return { ...prev, tagDistribution: dist };
+        });
         break;
       case "REACTION_RECEIVED":
         setReactions((r) => [...r.slice(-20), msg]);
@@ -196,6 +254,30 @@ export function ParticipantView({ session }: { session: SessionWithDetails }) {
         break;
     }
   }, [member, session.id, session.tickets]));
+
+  const PRESET_TAGS = ["backend", "frontend", "infra", "data-migration", "SAP", "third-party", "auth", "performance"];
+
+  const updateDesign = async (patch: Partial<{ designReadiness: string | null; designComplexity: string | null; designLink: string | null }>) => {
+    if (!currentTicket) return;
+    setTicketDesign((d) => ({ ...d, ...patch }));
+    send({ type: "UPDATE_TICKET_DESIGN", ticketId: currentTicket.ticketId, ...patch });
+    await fetch(`/api/sessions/${session.id}/tickets/${currentTicket.ticketId}/design`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(patch),
+    });
+  };
+
+  const updateTags = async (tags: string[]) => {
+    if (!currentTicket) return;
+    setTicketTags(tags);
+    send({ type: "UPDATE_TICKET_TAGS", ticketId: currentTicket.ticketId, tags });
+    await fetch(`/api/sessions/${session.id}/tickets/${currentTicket.ticketId}/tags`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ tags }),
+    });
+  };
 
   const castVote = useCallback((value: number) => {
     if (!member || myVote !== null || !currentTicket || revealedVotes) return;
@@ -474,6 +556,137 @@ export function ParticipantView({ session }: { session: SessionWithDetails }) {
               {/* ── Voting ── */}
               {!revealedVotes && (() => {
                 if (isObserver) {
+                  // UI/UX gets design panel
+                  if (member.role === "UI_UX") {
+                    return (
+                      <div className="space-y-4 rounded-xl border border-white/10 bg-white/3 px-4 py-4">
+                        <p className="text-[10px] text-white/30 font-semibold uppercase tracking-widest">Design Info</p>
+                        {/* Design Readiness */}
+                        <div>
+                          <p className="text-xs text-white/40 mb-2 uppercase tracking-wider">Design Readiness</p>
+                          <div className="flex gap-2 flex-wrap">
+                            {[
+                              { value: "READY", label: "✅ Ready" },
+                              { value: "IN_PROGRESS", label: "🔄 In Progress" },
+                              { value: "NOT_STARTED", label: "❌ Not Started" },
+                            ].map(opt => (
+                              <button
+                                key={opt.value}
+                                onClick={() => updateDesign({ designReadiness: opt.value })}
+                                className={`px-3 py-1.5 rounded-lg text-xs border transition-all ${
+                                  ticketDesign.designReadiness === opt.value
+                                    ? "bg-white/15 border-white/30 text-white"
+                                    : "bg-white/5 border-white/10 text-white/50 hover:bg-white/10"
+                                }`}
+                              >
+                                {opt.label}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                        {/* Design Complexity */}
+                        <div>
+                          <p className="text-xs text-white/40 mb-2 uppercase tracking-wider">Design Complexity</p>
+                          <div className="flex gap-2">
+                            {[
+                              { value: "LOW", label: "Low" },
+                              { value: "MEDIUM", label: "Medium" },
+                              { value: "HIGH", label: "High" },
+                            ].map(opt => (
+                              <button
+                                key={opt.value}
+                                onClick={() => updateDesign({ designComplexity: opt.value })}
+                                className={`px-3 py-1.5 rounded-lg text-xs border transition-all ${
+                                  ticketDesign.designComplexity === opt.value
+                                    ? "bg-violet-600/30 border-violet-400/50 text-violet-300"
+                                    : "bg-white/5 border-white/10 text-white/50 hover:bg-white/10"
+                                }`}
+                              >
+                                {opt.label}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                        {/* Design Link */}
+                        <div>
+                          <p className="text-xs text-white/40 mb-2 uppercase tracking-wider">Design Link</p>
+                          <input
+                            type="url"
+                            placeholder="https://figma.com/..."
+                            value={ticketDesign.designLink ?? ""}
+                            onChange={e => setTicketDesign(d => ({ ...d, designLink: e.target.value }))}
+                            onBlur={e => updateDesign({ designLink: e.target.value || null })}
+                            className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-xs text-white/70 placeholder:text-white/25 focus:outline-none focus:border-white/25"
+                          />
+                          {ticketDesign.designLink && (
+                            <a href={ticketDesign.designLink} target="_blank" rel="noopener noreferrer" className="text-xs text-violet-400 hover:underline mt-1 inline-block">
+                              Open design ↗
+                            </a>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  }
+                  // SM + TECH_LEAD get health panel
+                  if (member.role === "SM" || member.role === "TECH_LEAD") {
+                    return (
+                      <div className="space-y-4 py-2 w-full">
+                        <p className="text-[10px] text-white/30 font-semibold uppercase tracking-widest">Session Health</p>
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="bg-white/5 rounded-lg p-3 border border-white/10">
+                            <p className="text-[10px] text-white/40 mb-1">Estimated</p>
+                            <p className="text-lg font-bold text-white">{sessionHealth.ticketsEstimated}<span className="text-white/30 text-sm">/{sessionHealth.totalTickets}</span></p>
+                          </div>
+                          <div className="bg-white/5 rounded-lg p-3 border border-white/10">
+                            <p className="text-[10px] text-white/40 mb-1">Consensus Rate</p>
+                            <p className="text-lg font-bold text-emerald-400">
+                              {sessionHealth.ticketsEstimated > 0 ? Math.round((sessionHealth.consensusCount / sessionHealth.ticketsEstimated) * 100) : 0}%
+                            </p>
+                          </div>
+                          <div className="bg-white/5 rounded-lg p-3 border border-white/10">
+                            <p className="text-[10px] text-white/40 mb-1">Avg Time</p>
+                            <p className="text-lg font-bold text-white">
+                              {sessionHealth.ticketsEstimated > 0 ? Math.round(sessionHealth.avgTimePerTicket / 60) : "—"}<span className="text-white/30 text-sm">m</span>
+                            </p>
+                          </div>
+                          <div className="bg-white/5 rounded-lg p-3 border border-white/10">
+                            <p className="text-[10px] text-white/40 mb-1">Re-estimates</p>
+                            <p className="text-lg font-bold text-amber-400">{sessionHealth.reEstimateCount}</p>
+                          </div>
+                        </div>
+                        {/* Waiting on */}
+                        {votedMemberIds.length < checkedIn.length && (
+                          <div>
+                            <p className="text-[10px] text-white/30 mb-2">Waiting on</p>
+                            <div className="flex flex-wrap gap-2">
+                              {checkedIn.filter(c => !votedMemberIds.includes(c.memberId)).map(c => (
+                                <span key={c.memberId} className="text-xs text-white/50 px-2 py-0.5 bg-white/5 rounded-full border border-white/10">
+                                  {c.memberName.split(" ")[0]}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        {/* TL-only tag distribution */}
+                        {member.role === "TECH_LEAD" && Object.keys(sessionHealth.tagDistribution).length > 0 && (
+                          <div>
+                            <p className="text-[10px] text-white/30 mb-2">Sprint Tag Breakdown</p>
+                            <div className="space-y-1">
+                              {Object.entries(sessionHealth.tagDistribution)
+                                .sort(([,a],[,b]) => b - a)
+                                .map(([tag, count]) => (
+                                  <div key={tag} className="flex items-center justify-between">
+                                    <span className="text-xs font-mono text-white/50">#{tag}</span>
+                                    <span className="text-xs text-violet-300 font-bold">{count}</span>
+                                  </div>
+                                ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  }
+                  // Default observer (shouldn't reach here for the above roles)
                   return (
                     <div className="text-center py-4">
                       <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/8 border border-white/15 text-xs text-white/40 font-medium">
@@ -558,6 +771,123 @@ export function ParticipantView({ session }: { session: SessionWithDetails }) {
                   </div>
                 </div>
               )}
+
+              {/* ── Design panel (UI/UX, always shown when ticket is active — also post-reveal) ── */}
+              {member.role === "UI_UX" && revealedVotes && (
+                <div className="space-y-4 rounded-xl border border-white/10 bg-white/3 px-4 py-4">
+                  <p className="text-[10px] text-white/30 font-semibold uppercase tracking-widest">Design Info</p>
+                  <div>
+                    <p className="text-xs text-white/40 mb-2 uppercase tracking-wider">Design Readiness</p>
+                    <div className="flex gap-2 flex-wrap">
+                      {[
+                        { value: "READY", label: "✅ Ready" },
+                        { value: "IN_PROGRESS", label: "🔄 In Progress" },
+                        { value: "NOT_STARTED", label: "❌ Not Started" },
+                      ].map(opt => (
+                        <button
+                          key={opt.value}
+                          onClick={() => updateDesign({ designReadiness: opt.value })}
+                          className={`px-3 py-1.5 rounded-lg text-xs border transition-all ${
+                            ticketDesign.designReadiness === opt.value
+                              ? "bg-white/15 border-white/30 text-white"
+                              : "bg-white/5 border-white/10 text-white/50 hover:bg-white/10"
+                          }`}
+                        >
+                          {opt.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <p className="text-xs text-white/40 mb-2 uppercase tracking-wider">Design Complexity</p>
+                    <div className="flex gap-2">
+                      {[
+                        { value: "LOW", label: "Low" },
+                        { value: "MEDIUM", label: "Medium" },
+                        { value: "HIGH", label: "High" },
+                      ].map(opt => (
+                        <button
+                          key={opt.value}
+                          onClick={() => updateDesign({ designComplexity: opt.value })}
+                          className={`px-3 py-1.5 rounded-lg text-xs border transition-all ${
+                            ticketDesign.designComplexity === opt.value
+                              ? "bg-violet-600/30 border-violet-400/50 text-violet-300"
+                              : "bg-white/5 border-white/10 text-white/50 hover:bg-white/10"
+                          }`}
+                        >
+                          {opt.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <p className="text-xs text-white/40 mb-2 uppercase tracking-wider">Design Link</p>
+                    <input
+                      type="url"
+                      placeholder="https://figma.com/..."
+                      value={ticketDesign.designLink ?? ""}
+                      onChange={e => setTicketDesign(d => ({ ...d, designLink: e.target.value }))}
+                      onBlur={e => updateDesign({ designLink: e.target.value || null })}
+                      className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-xs text-white/70 placeholder:text-white/25 focus:outline-none focus:border-white/25"
+                    />
+                    {ticketDesign.designLink && (
+                      <a href={ticketDesign.designLink} target="_blank" rel="noopener noreferrer" className="text-xs text-violet-400 hover:underline mt-1 inline-block">
+                        Open design ↗
+                      </a>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* ── SM / TECH_LEAD health panel (post-reveal) ── */}
+              {(member.role === "SM" || member.role === "TECH_LEAD") && revealedVotes && (
+                <div className="space-y-3 rounded-xl border border-white/10 bg-white/3 px-4 py-4">
+                  <p className="text-[10px] text-white/30 font-semibold uppercase tracking-widest">Session Health</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="bg-white/5 rounded-lg p-3 border border-white/10">
+                      <p className="text-[10px] text-white/40 mb-1">Estimated</p>
+                      <p className="text-lg font-bold text-white">{sessionHealth.ticketsEstimated}<span className="text-white/30 text-sm">/{sessionHealth.totalTickets}</span></p>
+                    </div>
+                    <div className="bg-white/5 rounded-lg p-3 border border-white/10">
+                      <p className="text-[10px] text-white/40 mb-1">Consensus Rate</p>
+                      <p className="text-lg font-bold text-emerald-400">
+                        {sessionHealth.ticketsEstimated > 0 ? Math.round((sessionHealth.consensusCount / sessionHealth.ticketsEstimated) * 100) : 0}%
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* ── Tags panel (all roles) ── */}
+              <div className="mt-3">
+                <button
+                  onClick={() => setTagsOpen(o => !o)}
+                  className="flex items-center gap-2 text-[10px] text-white/30 hover:text-white/50 uppercase tracking-widest font-semibold mb-2 transition-colors"
+                >
+                  {tagsOpen || member.role === "TECH_LEAD" || member.role === "SM" ? "▾" : "▸"} Tags
+                  {ticketTags.length > 0 && <span className="text-violet-400 font-mono">#{ticketTags.length}</span>}
+                </button>
+                {(tagsOpen || member.role === "TECH_LEAD" || member.role === "SM") && (
+                  <div className="flex flex-wrap gap-1.5">
+                    {PRESET_TAGS.map(tag => {
+                      const active = ticketTags.includes(tag);
+                      return (
+                        <button
+                          key={tag}
+                          onClick={() => updateTags(active ? ticketTags.filter(t => t !== tag) : [...ticketTags, tag])}
+                          className={`px-2 py-0.5 rounded text-[10px] font-mono border transition-all ${
+                            active
+                              ? "bg-violet-600/25 border-violet-400/40 text-violet-300"
+                              : "bg-white/5 border-white/10 text-white/40 hover:bg-white/10"
+                          }`}
+                        >
+                          #{tag}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
 
               {lockedTickets.has(currentTicket.ticketId) && (
                 <p className="text-center text-emerald-400 text-sm font-medium flex items-center justify-center gap-1.5">

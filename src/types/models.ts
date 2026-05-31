@@ -71,6 +71,10 @@ export interface Ticket {
   jiraAssigneeName: string | null;
   jiraAssigneeAccountId: string | null;
   priority: string | null;
+  designReadiness: 'READY' | 'IN_PROGRESS' | 'NOT_STARTED' | null;
+  designComplexity: 'LOW' | 'MEDIUM' | 'HIGH' | null;
+  designLink: string | null;
+  tags: string[];
   createdAt: Date;
 }
 

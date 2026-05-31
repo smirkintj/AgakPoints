@@ -121,7 +121,7 @@ export function WaitingRoom({ session }: { session: SessionWithDetails }) {
         ) : (
           <div>
             <p className="text-white/60 text-sm text-center mb-5">Click your name to check in</p>
-            <div className="space-y-2">
+            <div className="grid grid-cols-2 gap-2">
               <AnimatePresence>
                 {session.product.members.map((member) => {
                   const inRoom = isIn(member.id);
@@ -133,16 +133,16 @@ export function WaitingRoom({ session }: { session: SessionWithDetails }) {
                       animate={{ opacity: 1, y: 0 }}
                       onClick={() => checkin(member)}
                       disabled={inRoom || busy}
-                      className={`w-full flex items-center gap-4 p-4 rounded-xl border transition-all ${
+                      className={`flex items-center gap-3 p-3 rounded-xl border transition-all ${
                         inRoom
                           ? "border-emerald-500/40 bg-emerald-600/10 cursor-default"
                           : "border-white/10 hover:border-violet-500 hover:bg-violet-600/10 cursor-pointer active:scale-[0.98]"
                       }`}
                     >
-                      <MemberAvatar name={member.name} role={member.role} size={40} showRing={inRoom} dimmed={false} />
+                      <MemberAvatar name={member.name} role={member.role} size={36} showRing={inRoom} dimmed={false} />
                       <div className="text-left flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <p className={`font-medium truncate ${inRoom ? "text-emerald-300" : "text-white"}`}>{member.name}</p>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <p className={`font-medium truncate text-sm ${inRoom ? "text-emerald-300" : "text-white"}`}>{member.name}</p>
                           <RoleBadge role={member.role} size="sm" />
                         </div>
                         {inRoom && (() => {

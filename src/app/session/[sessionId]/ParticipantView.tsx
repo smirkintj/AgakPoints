@@ -58,19 +58,23 @@ export function ParticipantView({ session }: { session: SessionWithDetails }) {
   }, [session.id]);
 
   useEffect(() => {
-    if (!member) return;
-    const fetchLeaves = () =>
-      fetch(`/api/sessions/${session.id}/leave?memberId=${member.id}`)
+    const fetchLeaves = () => {
+      const stored = sessionStorage.getItem(`agakpoints_member_${session.id}`);
+      if (!stored) return;
+      let mId: string;
+      try { mId = JSON.parse(stored).id; } catch { return; }
+      if (!mId) return;
+      fetch(`/api/sessions/${session.id}/leave?memberId=${mId}`)
         .then((r) => r.json())
         .then((d: { leaves: { memberId: string; date: string }[] }) =>
           setMyLeaves(d.leaves.map((l) => l.date))
         )
         .catch(() => {});
+    };
     fetchLeaves();
-    // Refresh every 10s so host-assigned leaves show up without page reload
     const id = setInterval(fetchLeaves, 5000);
     return () => clearInterval(id);
-  }, [session.id, member]);
+  }, [session.id]);
 
   const { send } = usePartyRoom(session.id, useCallback((msg: MsgOut) => {
     switch (msg.type) {

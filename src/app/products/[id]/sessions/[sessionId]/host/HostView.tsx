@@ -581,7 +581,7 @@ export function HostView({ session, productId }: { session: PokerSession; produc
                               </div>
                               {/* Inline reassign picker */}
                               {reassignTicketId === ticket.id && (
-                                <div className="absolute right-0 top-full mt-1 z-10 bg-[#0d0b1a] border border-white/15 rounded-xl shadow-2xl p-2 w-40">
+                                <div className="absolute right-0 top-full mt-1 z-20 bg-[#0d0b1a] border border-white/15 rounded-xl shadow-2xl p-2 min-w-[160px] max-w-[240px]">
                                   <p className="text-[10px] text-white/30 px-2 pb-1 uppercase tracking-widest">Reassign to</p>
                                   {session.product.members.map((m) => (
                                     <button
@@ -600,7 +600,7 @@ export function HostView({ session, productId }: { session: PokerSession; produc
                                       className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-white/8 transition-colors text-left"
                                     >
                                       <MemberAvatar name={m.name} role={m.role} size={18} />
-                                      <span className="text-xs text-white/70">{m.name.split(" ")[0]}</span>
+                                      <span className="text-xs text-white/70 truncate">{m.name}</span>
                                     </button>
                                   ))}
                                 </div>
@@ -920,7 +920,7 @@ export function HostView({ session, productId }: { session: PokerSession; produc
                       </div>
                       <AssignmentPicker members={checkedIn} selectedMemberId={selectedAssigneeId} onChange={setSelectedAssigneeId} />
                       <div className="flex items-center gap-3">
-                        <Button onClick={lockEstimate} disabled={selectedEstimate === null || savingLock} variant="success">
+                        <Button onClick={lockEstimate} disabled={selectedEstimate === null || !selectedAssigneeId || savingLock} variant="success">
                           <Lock className="w-4 h-4" />
                           {savingLock ? "Saving..." : `Lock${selectedEstimate ? ` — ${selectedEstimate} pts` : ""}`}
                           <ChevronRight className="w-4 h-4" />

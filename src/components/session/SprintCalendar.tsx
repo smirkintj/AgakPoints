@@ -325,11 +325,23 @@ export function SprintCalendar({ sessionId, startDate, endDate, members, checked
                       onBlur={() => { if (panelPH) setEvent(selectedDate, "PH", panelPHName || "Public Holiday", false, panelPHCountry || null); }}
                       disabled={!panelPH} placeholder="Holiday name"
                       className="flex-1 rounded border border-white/10 bg-white/5 px-2 py-1 text-xs text-white placeholder:text-white/20 focus:border-violet-500 focus:outline-none disabled:opacity-30" />
-                    <input type="text" value={panelPHCountry} onChange={(e) => setPanelPHCountry(e.target.value)}
-                      onBlur={() => { if (panelPH) setEvent(selectedDate, "PH", panelPHName || "Public Holiday", false, panelPHCountry || null); }}
-                      placeholder="Country (optional)"
-                      disabled={!panelPH}
-                      className="w-24 rounded border border-white/10 bg-white/5 px-2 py-1 text-xs text-white placeholder:text-white/20 focus:border-violet-500 focus:outline-none disabled:opacity-30" />
+                    {(() => {
+                      const countries = [...new Set(members.map((m) => (m as { country?: string | null }).country).filter(Boolean) as string[])];
+                      return countries.length > 0 ? (
+                        <select
+                          value={panelPHCountry}
+                          onChange={(e) => {
+                            setPanelPHCountry(e.target.value);
+                            if (panelPH) setEvent(selectedDate, "PH", panelPHName || "Public Holiday", false, e.target.value || null);
+                          }}
+                          disabled={!panelPH}
+                          className="w-28 rounded border border-white/10 bg-[#0d0b1a] px-2 py-1 text-xs text-white focus:border-violet-500 focus:outline-none disabled:opacity-30"
+                        >
+                          <option value="">All countries</option>
+                          {countries.map((c) => <option key={c} value={c}>{c}</option>)}
+                        </select>
+                      ) : null;
+                    })()}
                   </div>
                   <div className="flex items-center gap-3">
                     <input type="checkbox" id="panel-deploy" checked={panelDeploy}

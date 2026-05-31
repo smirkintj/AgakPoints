@@ -39,6 +39,7 @@ export interface RevealedVote {
 }
 
 export interface PublicState {
+  serverVersion?: string;
   sessionStatus: "WAITING" | "ACTIVE" | "COMPLETED";
   checkedIn: CheckedInMember[];
   currentTicket: { ticketId: string; jiraKey: string; title: string; description?: string; contextNote?: string; issueType?: string; priority?: string; deps?: string[] } | null;

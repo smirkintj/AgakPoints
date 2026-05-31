@@ -41,6 +41,7 @@ interface RevealedVote {
 }
 
 interface PublicState {
+  serverVersion: string;
   sessionStatus: "WAITING" | "ACTIVE" | "COMPLETED";
   checkedIn: CheckedInMember[];
   currentTicket: { ticketId: string; jiraKey: string; title: string; description?: string; contextNote?: string; issueType?: string; priority?: string; deps?: string[] } | null;
@@ -248,6 +249,7 @@ export default class ScrumPokerRoom implements Party.Server {
   // Reconnecting clients get current state automatically on connect
   private publicState(): PublicState {
     return {
+      serverVersion: "2026-05-31.1",
       sessionStatus: this.state.sessionStatus,
       checkedIn: this.state.checkedIn,
       currentTicket: this.state.currentTicket,

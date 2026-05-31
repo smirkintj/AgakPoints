@@ -22,6 +22,9 @@ export function usePartyRoom(
     socket.addEventListener("message", (event) => {
       try {
         const msg = JSON.parse(event.data as string) as MsgOut;
+        if (msg.type === "STATE_SYNC" && msg.state.serverVersion) {
+          console.log(`[PartyKit] server version: ${msg.state.serverVersion}`);
+        }
         onMessageRef.current(msg);
       } catch {
         // ignore malformed

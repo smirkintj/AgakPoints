@@ -19,7 +19,7 @@ export async function GET(
   const where: Record<string, unknown> = { sessionId };
   if (memberId) where.memberId = memberId;
   const leaves = await prisma.sprintLeave.findMany({ where, select: { memberId: true, date: true } });
-  return NextResponse.json({ leaves });
+  return NextResponse.json({ leaves }, { headers: { "Cache-Control": "no-store" } });
 }
 
 export async function POST(

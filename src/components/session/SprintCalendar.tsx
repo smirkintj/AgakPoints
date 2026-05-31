@@ -120,8 +120,10 @@ export function SprintCalendar({ sessionId, startDate, endDate, members, checked
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ memberId, date: dateStr, active }),
-      }).catch(() => {});
-      onLeaveToggle?.(memberId, dateStr, active);
+      }).then((r) => {
+        if (!r.ok) r.json().then((e) => console.error("[leave] save failed", r.status, e)).catch(() => {});
+        else onLeaveToggle?.(memberId, dateStr, active);
+      }).catch((e) => console.error("[leave] save error", e));
       return { ...prev, [memberId]: set };
     });
   };

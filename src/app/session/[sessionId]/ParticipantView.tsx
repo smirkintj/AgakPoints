@@ -60,16 +60,18 @@ export function ParticipantView({ session }: { session: SessionWithDetails }) {
   useEffect(() => {
     const fetchLeaves = () => {
       const stored = sessionStorage.getItem(`agakpoints_member_${session.id}`);
-      if (!stored) return;
+      if (!stored) { console.log("[leave] no member in sessionStorage"); return; }
       let mId: string;
       try { mId = JSON.parse(stored).id; } catch { return; }
-      if (!mId) return;
-      fetch(`/api/sessions/${session.id}/leave?memberId=${mId}`)
+      if (!mId) { console.log("[leave] no id in stored member"); return; }
+      console.log("[leave] fetching for memberId", mId);
+      fetch(`/api/sessions/${session.id}/leave?memberId=${mId}`, { cache: "no-store" })
         .then((r) => r.json())
-        .then((d: { leaves: { memberId: string; date: string }[] }) =>
-          setMyLeaves(d.leaves.map((l) => l.date))
-        )
-        .catch(() => {});
+        .then((d: { leaves: { memberId: string; date: string }[] }) => {
+          console.log("[leave] response", d);
+          setMyLeaves(d.leaves.map((l) => l.date));
+        })
+        .catch((e) => console.error("[leave] fetch error", e));
     };
     fetchLeaves();
     const id = setInterval(fetchLeaves, 5000);

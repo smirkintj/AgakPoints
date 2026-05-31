@@ -211,6 +211,8 @@ export function HostView({ session, productId }: { session: PokerSession; produc
   const [summaryIssueKey, setSummaryIssueKey] = useState("");
   const [summaryState, setSummaryState] = useState<"idle" | "loading" | "success" | "error">("idle");
   const [recapOpen, setRecapOpen] = useState(session.status === "COMPLETED");
+  const [confirmEnd, setConfirmEnd] = useState(false);
+  const [confirmKickId, setConfirmKickId] = useState<string | null>(null);
 
   // Auto-redirect to product page when recap is closed
   const closeRecap = () => {
@@ -324,7 +326,13 @@ export function HostView({ session, productId }: { session: PokerSession; produc
   };
 
   const kickMember = (memberId: string) => {
-    send({ type: "KICK_MEMBER", memberId });
+    if (confirmKickId === memberId) {
+      send({ type: "KICK_MEMBER", memberId });
+      setConfirmKickId(null);
+    } else {
+      setConfirmKickId(memberId);
+      setTimeout(() => setConfirmKickId((id) => id === memberId ? null : id), 4000);
+    }
   };
 
   const noteUpdateTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -378,6 +386,9 @@ export function HostView({ session, productId }: { session: PokerSession; produc
 
   const enrichedTickets = tickets.map((t) => ({ ...t, assigneeId: ticketAssignees[t.id] ?? t.assigneeId }));
 
+  const NON_VOTING_ROLES = ["UI_UX", "SM", "TECH_LEAD"];
+  const voterCount = checkedIn.filter((c) => !NON_VOTING_ROLES.includes(c.role)).length;
+
   const presentMembers = session.product.members
     .filter((m) => checkedIn.some((c) => c.memberId === m.id))
     .map((m) => ({
@@ -429,18 +440,23 @@ export function HostView({ session, productId }: { session: PokerSession; produc
         </div>
         <div className="flex items-center gap-2">
           {(sessionStatus === "ACTIVE" || sessionStatus === "WAITING") && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={async () => {
-                send({ type: "END_SESSION" });
-                await fetch(`/api/sessions/${session.id}/end`, { method: "POST" });
-                setSessionStatus("COMPLETED");
-                setRecapOpen(true);
-              }}
-            >
-              End Session
-            </Button>
+            confirmEnd ? (
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs text-white/50">End session?</span>
+                <Button variant="destructive" size="sm" onClick={async () => {
+                  setConfirmEnd(false);
+                  send({ type: "END_SESSION" });
+                  await fetch(`/api/sessions/${session.id}/end`, { method: "POST" });
+                  setSessionStatus("COMPLETED");
+                  setRecapOpen(true);
+                }}>Confirm</Button>
+                <Button variant="ghost" size="sm" onClick={() => setConfirmEnd(false)}>Cancel</Button>
+              </div>
+            ) : (
+              <Button variant="ghost" size="sm" onClick={() => setConfirmEnd(true)}>
+                End Session
+              </Button>
+            )
           )}
           {estimatedTickets.length > 0 && (
             <Button variant="ghost" size="sm" onClick={() => setSummaryModalOpen(true)}>
@@ -817,12 +833,12 @@ export function HostView({ session, productId }: { session: PokerSession; produc
                   <div className="flex-1 h-1.5 bg-white/8 rounded-full overflow-hidden">
                     <motion.div
                       className="h-full bg-violet-500 rounded-full"
-                      animate={{ width: checkedIn.length > 0 ? `${(votedCount / checkedIn.length) * 100}%` : "0%" }}
+                      animate={{ width: voterCount > 0 ? `${(votedCount / voterCount) * 100}%` : "0%" }}
                       transition={{ type: "spring", stiffness: 200, damping: 20 }}
                     />
                   </div>
                   <span className="text-xs text-white/30 shrink-0 tabular-nums font-mono">
-                    {votedCount}/{checkedIn.length}
+                    {votedCount}/{voterCount}
                   </span>
                   <Badge variant={revealedVotes ? "success" : "warning"} >
                     {revealedVotes ? "Revealed" : "Voting"}

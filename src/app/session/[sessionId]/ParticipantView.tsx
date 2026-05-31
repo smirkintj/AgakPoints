@@ -67,7 +67,7 @@ export function ParticipantView({ session }: { session: SessionWithDetails }) {
         .catch(() => {});
     fetchLeaves();
     // Refresh every 10s so host-assigned leaves show up without page reload
-    const id = setInterval(fetchLeaves, 10000);
+    const id = setInterval(fetchLeaves, 5000);
     return () => clearInterval(id);
   }, [session.id, member]);
 
@@ -176,8 +176,9 @@ export function ParticipantView({ session }: { session: SessionWithDetails }) {
   const sprintStart = session.sprintStartDate ? new Date(session.sprintStartDate as unknown as string) : null;
   const sprintEnd = session.sprintEndDate ? new Date(session.sprintEndDate as unknown as string) : null;
   const phDuringSprint = holidays.filter((h) => h.type === "PH");
+  const deployEvents = holidays.filter((h) => h.type === "DEPLOY");
 
-  const formatDate = (d: Date) => `${d.getDate()} ${MONTH_SHORT[d.getMonth()]} ${d.getFullYear()}`;
+  const formatDate = (d: Date) => `${d.getDate()} ${MONTH_SHORT[d.getMonth()]}`;
   const workingDays = (() => {
     if (!sprintStart || !sprintEnd) return null;
     let count = 0;
@@ -291,17 +292,25 @@ export function ParticipantView({ session }: { session: SessionWithDetails }) {
             </>
           )}
         </div>
-        {(phDuringSprint.length > 0 || myLeaves.length > 0) && (
+        {(phDuringSprint.length > 0 || myLeaves.length > 0 || deployEvents.length > 0) && (
           <div className="flex flex-wrap gap-2">
             {phDuringSprint.map((h) => (
               <span key={h.date} className="flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-red-500/15 border border-red-500/25 text-red-300">
                 🏖️ {h.date} {h.name}
               </span>
             ))}
+            {deployEvents.map((de) => {
+              const fmtDs = (ds: string) => { const d = new Date(ds); return `${d.getDate()} ${MONTH_SHORT[d.getMonth()]}`; };
+              return (
+                <span key={de.date} className="flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-violet-500/15 border border-violet-500/25 text-violet-300">
+                  🚀 Deploy {fmtDs(de.date)}
+                </span>
+              );
+            })}
             {myLeaves.length > 0 && (
               <span className="flex items-center gap-1.5 text-xs px-2.5 py-0.5 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-300 font-medium">
                 <CalendarX className="w-3 h-3" />
-                On leave: {myLeaves.sort().join(", ")}
+                On leave: {myLeaves.sort().map(ds => { const d = new Date(ds); return `${d.getDate()} ${MONTH_SHORT[d.getMonth()]}`; }).join(", ")}
               </span>
             )}
           </div>
@@ -409,14 +418,22 @@ export function ParticipantView({ session }: { session: SessionWithDetails }) {
                     </div>
                   );
                 }
+                if (myVote !== null) {
+                  return (
+                    <div className="text-center py-6">
+                      <div className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-violet-600/15 border border-violet-500/30">
+                        <span className="text-2xl font-bold text-violet-300 font-mono">{myVote}</span>
+                        <span className="text-white/40 text-sm">— waiting for reveal...</span>
+                      </div>
+                    </div>
+                  );
+                }
                 return (
-                  <div className="space-y-3">
-                    <p className="text-center text-white/40 text-sm">
-                      {myVote !== null ? `You voted ${myVote} — waiting for reveal...` : "Pick your estimate"}
-                    </p>
+                  <div className="space-y-3 pt-2">
+                    <p className="text-center text-white/40 text-sm">Pick your estimate</p>
                     <div className="flex gap-2.5 justify-center flex-wrap">
                       {FIBONACCI_VALUES.map((v) => (
-                        <VotingCard key={v} value={v} selected={myVote === v} disabled={myVote !== null} onSelect={castVote} />
+                        <VotingCard key={v} value={v} selected={false} disabled={false} onSelect={castVote} />
                       ))}
                     </div>
                   </div>

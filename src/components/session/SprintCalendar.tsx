@@ -183,11 +183,28 @@ export function SprintCalendar({ sessionId, startDate, endDate, members, checked
               <span className="text-amber-400/60">Leave:</span>{" "}
               {membersWithLeave.map((m) => {
                 const leaveDays = [...(leaveMap[m.id] ?? [])].filter((d) => dayStrings.includes(d)).sort();
-                return `${m.name.split(" ")[0]} (${leaveDays.join(", ")})`;
+                return `${m.name.split(" ")[0]} (${leaveDays.map(ds => { const d = new Date(ds); return `${d.getDate()} ${MONTH_SHORT[d.getMonth()]}`; }).join(", ")})`;
               }).join(" · ")}
             </p>
           )}
-          {phList.length === 0 && membersWithLeave.length === 0 && (
+          {events.filter((e) => e.type === "DEPLOY").map((de) => {
+            const sanity1 = subWorkingDays(de.date, 1, phDates, dayStrings);
+            const sanity2 = subWorkingDays(de.date, 2, phDates, dayStrings);
+            const uat = subWorkingDays(de.date, 3, phDates, dayStrings);
+            const fmtDs = (ds: string | null) => {
+              if (!ds) return null;
+              const d = new Date(ds);
+              return `${d.getDate()} ${MONTH_SHORT[d.getMonth()]}`;
+            };
+            return (
+              <p key={de.date} className="text-[11px] text-white/35 flex flex-wrap gap-x-2">
+                <span className="text-violet-400/70">Deploy {fmtDs(de.date)}</span>
+                {sanity1 && <span className="text-orange-400/60">Sanity {fmtDs(sanity2)} – {fmtDs(sanity1)}</span>}
+                {uat && <span className="text-amber-400/60">UAT {fmtDs(uat)}</span>}
+              </p>
+            );
+          })}
+          {phList.length === 0 && membersWithLeave.length === 0 && events.filter((e) => e.type === "DEPLOY").length === 0 && (
             <p className="text-[11px] text-white/20">No holidays or leaves this sprint</p>
           )}
         </div>

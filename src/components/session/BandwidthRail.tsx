@@ -122,9 +122,12 @@ export function BandwidthRail({ members: initialMembers, estimatedTickets, pendi
     }
   }
 
+  const ESTIMATOR_ROLES = ["DEV", "QA"];
   const sorted = [...members].sort((a, b) => (loadMap[b.memberId] ?? 0) - (loadMap[a.memberId] ?? 0));
-  // Use the max load across the team as the bar scale (no artificial cap)
-  const maxLoad = Math.max(...sorted.map((m) => loadMap[m.memberId] ?? 0), 1);
+  const estimators = sorted.filter(m => ESTIMATOR_ROLES.includes(m.role));
+  const observers = sorted.filter(m => !ESTIMATOR_ROLES.includes(m.role));
+  // Use the max load across estimators only to avoid skew
+  const maxLoad = Math.max(...estimators.map((m) => loadMap[m.memberId] ?? 0), 1);
 
   return (
     <aside className="w-64 shrink-0 border-l border-white/10 bg-white/3 backdrop-blur-sm flex flex-col h-full overflow-hidden">
@@ -136,7 +139,7 @@ export function BandwidthRail({ members: initialMembers, estimatedTickets, pendi
           <p className="text-xs text-white/30 text-center pt-4">No members checked in</p>
         )}
         <AnimatePresence>
-        {sorted.map((m) => {
+        {estimators.map((m) => {
           const load = loadMap[m.memberId] ?? 0;
           const isPending = pendingAssigneeId === m.memberId && pendingEstimate != null;
           const projectedLoad = isPending ? load + (pendingEstimate ?? 0) : load;
@@ -168,7 +171,7 @@ export function BandwidthRail({ members: initialMembers, estimatedTickets, pendi
                   </button>
                 )}
               </div>
-              {/* Load bar — scaled to team max, no artificial cap */}
+              {/* Load bar — scaled to estimator max, no artificial cap */}
               <div className="h-1.5 rounded-full bg-white/10 overflow-hidden relative">
                 <div
                   className="h-full rounded-full transition-all duration-300"
@@ -190,6 +193,19 @@ export function BandwidthRail({ members: initialMembers, estimatedTickets, pendi
           );
         })}
         </AnimatePresence>
+        {observers.length > 0 && (
+          <div className="pt-2 border-t border-white/8 mt-2">
+            <p className="text-[10px] text-white/25 uppercase tracking-wider mb-2">Also in session</p>
+            <div className="flex flex-wrap gap-2">
+              {observers.map(m => (
+                <div key={m.memberId} className="flex items-center gap-1.5">
+                  <MemberAvatar name={m.memberName} role={m.role} size={22} />
+                  <span className="text-[10px] text-white/50">{m.memberName.split(" ")[0]}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Session log — collapsible */}

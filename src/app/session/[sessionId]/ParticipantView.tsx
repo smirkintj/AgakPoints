@@ -64,9 +64,8 @@ export function ParticipantView({ session }: { session: SessionWithDetails }) {
     designLink: string | null;
   }>({ designReadiness: null, designComplexity: null, designLink: null });
 
-  // Tags (all roles)
+  // Tags (TECH_LEAD only)
   const [ticketTags, setTicketTags] = useState<string[]>([]);
-  const [tagsOpen, setTagsOpen] = useState(false);
 
   // Session health (SM + TECH_LEAD)
   const [sessionHealth, setSessionHealth] = useState({
@@ -566,16 +565,17 @@ export function ParticipantView({ session }: { session: SessionWithDetails }) {
                           <p className="text-xs text-white/40 mb-2 uppercase tracking-wider">Design Readiness</p>
                           <div className="flex gap-2 flex-wrap">
                             {[
-                              { value: "READY", label: "✅ Ready" },
-                              { value: "IN_PROGRESS", label: "🔄 In Progress" },
-                              { value: "NOT_STARTED", label: "❌ Not Started" },
+                              { value: "READY", label: "Ready", activeClass: "bg-emerald-600/25 border-emerald-400/50 text-emerald-300" },
+                              { value: "IN_PROGRESS", label: "In Progress", activeClass: "bg-amber-600/25 border-amber-400/50 text-amber-300" },
+                              { value: "NOT_STARTED", label: "Not Started", activeClass: "bg-red-600/25 border-red-400/50 text-red-300" },
+                              { value: "N/A", label: "N/A", activeClass: "bg-white/15 border-white/30 text-white/60" },
                             ].map(opt => (
                               <button
                                 key={opt.value}
-                                onClick={() => updateDesign({ designReadiness: opt.value })}
+                                onClick={() => updateDesign({ designReadiness: opt.value === "N/A" ? null : opt.value })}
                                 className={`px-3 py-1.5 rounded-lg text-xs border transition-all ${
-                                  ticketDesign.designReadiness === opt.value
-                                    ? "bg-white/15 border-white/30 text-white"
+                                  (opt.value === "N/A" ? ticketDesign.designReadiness === null : ticketDesign.designReadiness === opt.value)
+                                    ? opt.activeClass
                                     : "bg-white/5 border-white/10 text-white/50 hover:bg-white/10"
                                 }`}
                               >
@@ -667,20 +667,42 @@ export function ParticipantView({ session }: { session: SessionWithDetails }) {
                             </div>
                           </div>
                         )}
-                        {/* TL-only tag distribution */}
-                        {member.role === "TECH_LEAD" && Object.keys(sessionHealth.tagDistribution).length > 0 && (
+                        {/* TL-only: tags panel + tag distribution */}
+                        {member.role === "TECH_LEAD" && (
                           <div>
-                            <p className="text-[10px] text-white/30 mb-2">Sprint Tag Breakdown</p>
-                            <div className="space-y-1">
-                              {Object.entries(sessionHealth.tagDistribution)
-                                .sort(([,a],[,b]) => b - a)
-                                .map(([tag, count]) => (
-                                  <div key={tag} className="flex items-center justify-between">
-                                    <span className="text-xs font-mono text-white/50">#{tag}</span>
-                                    <span className="text-xs text-violet-300 font-bold">{count}</span>
-                                  </div>
-                                ))}
+                            <div className="flex flex-wrap gap-1.5 mb-3">
+                              {PRESET_TAGS.map(tag => {
+                                const active = ticketTags.includes(tag);
+                                return (
+                                  <button
+                                    key={tag}
+                                    onClick={() => updateTags(active ? ticketTags.filter(t => t !== tag) : [...ticketTags, tag])}
+                                    className={`px-2 py-0.5 rounded text-[10px] font-mono border transition-all ${
+                                      active
+                                        ? "bg-violet-600/25 border-violet-400/40 text-violet-300"
+                                        : "bg-white/5 border-white/10 text-white/40 hover:bg-white/10"
+                                    }`}
+                                  >
+                                    #{tag}
+                                  </button>
+                                );
+                              })}
                             </div>
+                            {Object.keys(sessionHealth.tagDistribution).length > 0 && (
+                              <div>
+                                <p className="text-[10px] text-white/30 mb-2">Sprint Tag Breakdown</p>
+                                <div className="space-y-1">
+                                  {Object.entries(sessionHealth.tagDistribution)
+                                    .sort(([,a],[,b]) => b - a)
+                                    .map(([tag, count]) => (
+                                      <div key={tag} className="flex items-center justify-between">
+                                        <span className="text-xs font-mono text-white/50">#{tag}</span>
+                                        <span className="text-xs text-violet-300 font-bold">{count}</span>
+                                      </div>
+                                    ))}
+                                </div>
+                              </div>
+                            )}
                           </div>
                         )}
                       </div>
@@ -780,16 +802,17 @@ export function ParticipantView({ session }: { session: SessionWithDetails }) {
                     <p className="text-xs text-white/40 mb-2 uppercase tracking-wider">Design Readiness</p>
                     <div className="flex gap-2 flex-wrap">
                       {[
-                        { value: "READY", label: "✅ Ready" },
-                        { value: "IN_PROGRESS", label: "🔄 In Progress" },
-                        { value: "NOT_STARTED", label: "❌ Not Started" },
+                        { value: "READY", label: "Ready", activeClass: "bg-emerald-600/25 border-emerald-400/50 text-emerald-300" },
+                        { value: "IN_PROGRESS", label: "In Progress", activeClass: "bg-amber-600/25 border-amber-400/50 text-amber-300" },
+                        { value: "NOT_STARTED", label: "Not Started", activeClass: "bg-red-600/25 border-red-400/50 text-red-300" },
+                        { value: "N/A", label: "N/A", activeClass: "bg-white/15 border-white/30 text-white/60" },
                       ].map(opt => (
                         <button
                           key={opt.value}
-                          onClick={() => updateDesign({ designReadiness: opt.value })}
+                          onClick={() => updateDesign({ designReadiness: opt.value === "N/A" ? null : opt.value })}
                           className={`px-3 py-1.5 rounded-lg text-xs border transition-all ${
-                            ticketDesign.designReadiness === opt.value
-                              ? "bg-white/15 border-white/30 text-white"
+                            (opt.value === "N/A" ? ticketDesign.designReadiness === null : ticketDesign.designReadiness === opt.value)
+                              ? opt.activeClass
                               : "bg-white/5 border-white/10 text-white/50 hover:bg-white/10"
                           }`}
                         >
@@ -857,37 +880,6 @@ export function ParticipantView({ session }: { session: SessionWithDetails }) {
                   </div>
                 </div>
               )}
-
-              {/* ── Tags panel (all roles) ── */}
-              <div className="mt-3">
-                <button
-                  onClick={() => setTagsOpen(o => !o)}
-                  className="flex items-center gap-2 text-[10px] text-white/30 hover:text-white/50 uppercase tracking-widest font-semibold mb-2 transition-colors"
-                >
-                  {tagsOpen || member.role === "TECH_LEAD" || member.role === "SM" ? "▾" : "▸"} Tags
-                  {ticketTags.length > 0 && <span className="text-violet-400 font-mono">#{ticketTags.length}</span>}
-                </button>
-                {(tagsOpen || member.role === "TECH_LEAD" || member.role === "SM") && (
-                  <div className="flex flex-wrap gap-1.5">
-                    {PRESET_TAGS.map(tag => {
-                      const active = ticketTags.includes(tag);
-                      return (
-                        <button
-                          key={tag}
-                          onClick={() => updateTags(active ? ticketTags.filter(t => t !== tag) : [...ticketTags, tag])}
-                          className={`px-2 py-0.5 rounded text-[10px] font-mono border transition-all ${
-                            active
-                              ? "bg-violet-600/25 border-violet-400/40 text-violet-300"
-                              : "bg-white/5 border-white/10 text-white/40 hover:bg-white/10"
-                          }`}
-                        >
-                          #{tag}
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
 
               {lockedTickets.has(currentTicket.ticketId) && (
                 <p className="text-center text-emerald-400 text-sm font-medium flex items-center justify-center gap-1.5">

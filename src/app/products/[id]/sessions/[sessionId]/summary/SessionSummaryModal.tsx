@@ -17,11 +17,23 @@ type SessionWithDetails = PokerSession & {
   product: Product & { members: Member[] };
 };
 
-export function SessionSummaryModal({ session, productId }: { session: SessionWithDetails; productId: string }) {
+const MONTH_SHORT = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+const fmtDs = (ds: string) => { const d = new Date(ds + "T12:00:00"); return `${d.getDate()} ${MONTH_SHORT[d.getMonth()]}`; };
+
+export function SessionSummaryModal({
+  session, productId, holidays = [], leaves = []
+}: {
+  session: SessionWithDetails;
+  productId: string;
+  holidays?: { date: string; name: string; type: string; country?: string | null }[];
+  leaves?: { memberId: string; date: string }[];
+}) {
   const router = useRouter();
   const [summaryModalOpen, setSummaryModalOpen] = useState(false);
   const [summaryIssueKey, setSummaryIssueKey] = useState("");
   const [summaryState, setSummaryState] = useState<"idle" | "loading" | "success" | "error">("idle");
+  const [syncState, setSyncState] = useState<"idle" | "loading" | "done">("idle");
+  const [syncResults, setSyncResults] = useState<{ ticketId: string; jiraKey: string; ok: boolean; reason?: string | null }[]>([]);
 
   const estimatedTickets = session.tickets.filter((t) => t.status === "ESTIMATED");
   const toEstimateTickets = session.tickets.filter((t) => t.status !== "ESTIMATED");
@@ -56,6 +68,35 @@ export function SessionSummaryModal({ session, productId }: { session: SessionWi
         </div>
 
         <div className="px-8 py-6 space-y-6 max-h-[65vh] overflow-y-auto">
+          {/* Sprint info: deploy events, leaves */}
+          {(holidays.some((h) => h.type === "DEPLOY") || leaves.length > 0) && (
+            <div className="space-y-2">
+              {holidays.filter((h) => h.type === "DEPLOY").map((de) => (
+                <div key={de.date} className="flex items-center gap-2 text-xs text-violet-300">
+                  <span className="w-1.5 h-1.5 rounded-full bg-violet-400 shrink-0" />
+                  Deploy: {fmtDs(de.date)}{de.name && de.name !== "Deploy" ? ` — ${de.name}` : ""}
+                </div>
+              ))}
+              {leaves.length > 0 && (() => {
+                const leaveByMember: Record<string, string[]> = {};
+                for (const l of leaves) {
+                  if (!leaveByMember[l.memberId]) leaveByMember[l.memberId] = [];
+                  leaveByMember[l.memberId].push(l.date);
+                }
+                return Object.entries(leaveByMember).map(([mId, dates]) => {
+                  const m = session.product.members.find((x) => x.id === mId);
+                  if (!m) return null;
+                  return (
+                    <div key={mId} className="flex items-center gap-2 text-xs text-amber-300/70">
+                      <span className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" />
+                      {m.name.split(" ")[0]} on leave: {dates.sort().map(fmtDs).join(", ")}
+                    </div>
+                  );
+                });
+              })()}
+            </div>
+          )}
+
           {/* Attendance */}
           <div>
             <p className="text-[10px] text-white/30 font-semibold uppercase tracking-widest mb-3">Team · {attendees.length} attended</p>
@@ -85,6 +126,13 @@ export function SessionSummaryModal({ session, productId }: { session: SessionWi
                     <span className="text-xs text-white/60 flex-1 truncate">{t.title}</span>
                     {assignee && <MemberAvatar name={assignee.name} role={assignee.role} size={18} />}
                     <span className="font-mono text-xs text-emerald-400 shrink-0">{t.finalEstimate ?? "—"} pts</span>
+                    {syncState === "done" && (() => {
+                      const r = syncResults.find((x) => x.ticketId === t.id);
+                      if (!r) return null;
+                      return r.ok
+                        ? <Check className="w-3 h-3 text-emerald-400 shrink-0" />
+                        : <span title={r.reason ?? "Failed"} className="w-3 h-3 text-red-400 shrink-0">✕</span>;
+                    })()}
                   </div>
                 );
               })}
@@ -96,10 +144,27 @@ export function SessionSummaryModal({ session, productId }: { session: SessionWi
         </div>
 
         <div className="px-8 py-4 border-t border-white/10 flex items-center justify-between">
-          <Button variant="ghost" size="sm" onClick={() => setSummaryModalOpen(true)}>
-            <FileText className="w-3.5 h-3.5" />
-            Post to JIRA
-          </Button>
+          <div className="flex items-center gap-2">
+            {syncState === "idle" && (
+              <Button variant="ghost" size="sm" onClick={async () => {
+                setSyncState("loading");
+                const res = await fetch(`/api/sessions/${session.id}/jira-sync`, { method: "POST" });
+                const data = await res.json();
+                setSyncResults(data.results ?? []);
+                setSyncState("done");
+              }}>
+                <FileText className="w-3.5 h-3.5" />
+                Sync to JIRA
+              </Button>
+            )}
+            {syncState === "loading" && <span className="text-xs text-white/40 flex items-center gap-1"><Clock className="w-3 h-3 animate-spin" /> Syncing…</span>}
+            {syncState === "done" && (
+              <span className="text-xs text-emerald-400 flex items-center gap-1">
+                <CheckCircle2 className="w-3.5 h-3.5" />
+                {syncResults.filter((r) => r.ok).length}/{syncResults.length} synced
+              </span>
+            )}
+          </div>
           <div className="flex gap-2">
             <Button variant="ghost" size="sm" onClick={() => router.push(`/products/${productId}/sessions/${session.id}/host`)}>
               Open full session

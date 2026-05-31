@@ -16,8 +16,9 @@ export async function POST(
   const body = await req.json();
   const name = typeof body.name === "string" ? body.name.trim().slice(0, 100) : "";
   const role = typeof body.role === "string" ? body.role : "DEV";
+  const country = typeof body.country === "string" ? body.country.slice(0, 10) : null;
   if (!name) return NextResponse.json({ error: "Name required" }, { status: 400 });
 
-  const member = await prisma.member.create({ data: { productId, name, role } });
+  const member = await prisma.member.create({ data: { productId, name, role, country } });
   return NextResponse.json(member);
 }

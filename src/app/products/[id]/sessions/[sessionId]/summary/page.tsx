@@ -24,10 +24,17 @@ export default async function SessionSummaryPage({
 
   if (!pokerSession) notFound();
 
+  const [holidays, leaves] = await Promise.all([
+    prisma.sprintHoliday.findMany({ where: { sessionId } }),
+    prisma.sprintLeave.findMany({ where: { sessionId } }),
+  ]);
+
   return (
     <SessionSummaryModal
       session={JSON.parse(JSON.stringify(pokerSession))}
       productId={id}
+      holidays={JSON.parse(JSON.stringify(holidays))}
+      leaves={JSON.parse(JSON.stringify(leaves))}
     />
   );
 }

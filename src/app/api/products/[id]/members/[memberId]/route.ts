@@ -21,6 +21,7 @@ export async function PATCH(
   if (typeof body.name === "string" && body.name.trim()) data.name = body.name.trim().slice(0, 100);
   if (typeof body.role === "string") data.role = body.role;
   if (typeof body.capacity === "number" && body.capacity >= 1) data.capacity = body.capacity;
+  if ("country" in body) data.country = body.country ? String(body.country).slice(0, 10) : null;
 
   if (Object.keys(data).length === 0) return NextResponse.json({ error: "Nothing to update" }, { status: 400 });
 

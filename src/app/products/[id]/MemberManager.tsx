@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 
 const ROLES = ["DEV", "QA", "UI_UX", "SM", "TECH_LEAD"];
 
-type Member = { id: string; name: string; role: string; capacity: number };
+type Member = { id: string; name: string; role: string; capacity: number; country?: string | null };
 
 export function MemberManager({ productId, initialMembers }: { productId: string; initialMembers: Member[] }) {
   const router = useRouter();
@@ -16,16 +16,19 @@ export function MemberManager({ productId, initialMembers }: { productId: string
   const [editId, setEditId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
   const [editRole, setEditRole] = useState("DEV");
+  const [editCountry, setEditCountry] = useState("");
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
   const [newName, setNewName] = useState("");
   const [newRole, setNewRole] = useState("DEV");
+  const [newCountry, setNewCountry] = useState("");
   const [busy, setBusy] = useState(false);
 
   const startEdit = (m: Member) => {
     setEditId(m.id);
     setEditName(m.name);
     setEditRole(m.role);
+    setEditCountry(m.country ?? "");
     setAdding(false);
   };
 
@@ -35,7 +38,7 @@ export function MemberManager({ productId, initialMembers }: { productId: string
     const res = await fetch(`/api/products/${productId}/members/${editId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: editName.trim(), role: editRole }),
+      body: JSON.stringify({ name: editName.trim(), role: editRole, country: editCountry || null }),
     });
     if (res.ok) {
       const updated = await res.json();
@@ -60,13 +63,14 @@ export function MemberManager({ productId, initialMembers }: { productId: string
     const res = await fetch(`/api/products/${productId}/members`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: newName.trim(), role: newRole }),
+      body: JSON.stringify({ name: newName.trim(), role: newRole, country: newCountry || null }),
     });
     if (res.ok) {
       const created = await res.json();
       setMembers((ms) => [...ms, created]);
       setNewName("");
       setNewRole("DEV");
+      setNewCountry("");
       setAdding(false);
     }
     setBusy(false);
@@ -92,6 +96,12 @@ export function MemberManager({ productId, initialMembers }: { productId: string
               >
                 {ROLES.map((r) => <option key={r} value={r}>{r}</option>)}
               </select>
+              <input
+                value={editCountry}
+                onChange={(e) => setEditCountry(e.target.value)}
+                placeholder="Country (MY, SG…)"
+                className="w-20 bg-white/8 border border-white/15 rounded-lg px-2 py-1 text-xs text-white focus:border-violet-500 focus:outline-none"
+              />
               <button onClick={saveEdit} disabled={busy} className="p-1 rounded text-emerald-400 hover:bg-emerald-500/15"><Check className="w-4 h-4" /></button>
               <button onClick={() => setEditId(null)} className="p-1 rounded text-white/30 hover:bg-white/8"><X className="w-4 h-4" /></button>
             </div>
@@ -105,6 +115,7 @@ export function MemberManager({ productId, initialMembers }: { productId: string
             <>
               <MemberAvatar name={m.name} role={m.role} size={32} />
               <span className="text-white text-sm font-medium flex-1 truncate">{m.name}</span>
+              {m.country && <span className="text-[10px] px-1.5 py-0.5 rounded bg-white/8 text-white/40 border border-white/10">{m.country}</span>}
               <RoleBadge role={m.role} size="sm" />
               <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                 <button onClick={() => startEdit(m)} className="p-1.5 rounded-lg hover:bg-white/8 text-white/30 hover:text-white/70"><Pencil className="w-3.5 h-3.5" /></button>
@@ -132,6 +143,12 @@ export function MemberManager({ productId, initialMembers }: { productId: string
           >
             {ROLES.map((r) => <option key={r} value={r}>{r}</option>)}
           </select>
+          <input
+            value={newCountry}
+            onChange={(e) => setNewCountry(e.target.value)}
+            placeholder="Country (MY, SG…)"
+            className="w-20 bg-white/8 border border-white/15 rounded-lg px-2 py-1 text-xs text-white focus:border-violet-500 focus:outline-none"
+          />
           <button onClick={addMember} disabled={busy || !newName.trim()} className="p-1 rounded text-emerald-400 hover:bg-emerald-500/15 disabled:opacity-30"><Check className="w-4 h-4" /></button>
           <button onClick={() => setAdding(false)} className="p-1 rounded text-white/30 hover:bg-white/8"><X className="w-4 h-4" /></button>
         </div>

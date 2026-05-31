@@ -10,6 +10,7 @@ interface SprintCalendarEvent {
   date: string;
   name: string;
   type: string; // "PH" | "DEPLOY"
+  country?: string | null;
 }
 
 interface SprintCalendarProps {
@@ -49,6 +50,7 @@ export function SprintCalendar({ sessionId, startDate, endDate, members, checked
 
   const [panelPH, setPanelPH] = useState(false);
   const [panelPHName, setPanelPHName] = useState("");
+  const [panelPHCountry, setPanelPHCountry] = useState("");
   const [panelDeploy, setPanelDeploy] = useState(false);
   const [panelDeployName, setPanelDeployName] = useState("");
 
@@ -78,6 +80,7 @@ export function SprintCalendar({ sessionId, startDate, endDate, members, checked
     const deploy = events.find((e) => e.date === selectedDate && e.type === "DEPLOY");
     setPanelPH(!!ph);
     setPanelPHName(ph?.name ?? "Public Holiday");
+    setPanelPHCountry(ph?.country ?? "");
     setPanelDeploy(!!deploy);
     setPanelDeployName(deploy?.name ?? "");
   }, [selectedDate, events]);
@@ -121,18 +124,18 @@ export function SprintCalendar({ sessionId, startDate, endDate, members, checked
     });
   };
 
-  const setEvent = (date: string, type: string, name: string, remove: boolean) => {
+  const setEvent = (date: string, type: string, name: string, remove: boolean, country?: string | null) => {
     fetch(`/api/sessions/${sessionId}/holidays`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ date, type, name, remove }),
+      body: JSON.stringify({ date, type, name, remove, country }),
     }).then(() => {
       if (remove) {
         setEvents((prev) => prev.filter((e) => !(e.date === date && e.type === type)));
       } else {
         setEvents((prev) => {
           const filtered = prev.filter((e) => !(e.date === date && e.type === type));
-          return [...filtered, { date, name, type }];
+          return [...filtered, { date, name, type, country }];
         });
       }
     }).catch(() => {});
@@ -171,41 +174,51 @@ export function SprintCalendar({ sessionId, startDate, endDate, members, checked
 
       {/* Compact summary — always visible when collapsed */}
       {!expanded && (
-        <div className="mt-1.5 pl-5 space-y-0.5">
+        <div className="mt-1.5 pl-5 flex flex-wrap gap-x-4 gap-y-0.5">
           {phList.length > 0 && (
-            <p className="text-[11px] text-white/35">
-              <span className="text-red-400/60">PH:</span>{" "}
-              {phList.map((h) => `${h.date} ${h.name}`).join(" · ")}
-            </p>
-          )}
-          {membersWithLeave.length > 0 && (
-            <p className="text-[11px] text-white/35">
-              <span className="text-amber-400/60">Leave:</span>{" "}
-              {membersWithLeave.map((m) => {
-                const leaveDays = [...(leaveMap[m.id] ?? [])].filter((d) => dayStrings.includes(d)).sort();
-                return `${m.name.split(" ")[0]} (${leaveDays.map(ds => { const d = new Date(ds); return `${d.getDate()} ${MONTH_SHORT[d.getMonth()]}`; }).join(", ")})`;
-              }).join(" · ")}
-            </p>
+            <span className="text-[11px]">
+              <span className="text-red-400/70 font-medium">PH</span>
+              <span className="text-white/25 mx-1">·</span>
+              <span className="text-white/35">{phList.map((h) => {
+                const d = new Date(h.date + "T12:00:00");
+                const label = `${d.getDate()} ${MONTH_SHORT[d.getMonth()]}`;
+                return (h as { country?: string | null }).country ? `${label} (${(h as { country?: string | null }).country})` : label;
+              }).join(", ")}</span>
+            </span>
           )}
           {events.filter((e) => e.type === "DEPLOY").map((de) => {
-            const sanity1 = subWorkingDays(de.date, 1, phDates, dayStrings);
-            const sanity2 = subWorkingDays(de.date, 2, phDates, dayStrings);
-            const uat = subWorkingDays(de.date, 3, phDates, dayStrings);
             const fmtDs = (ds: string | null) => {
               if (!ds) return null;
-              const d = new Date(ds);
+              const d = new Date(ds + "T12:00:00");
               return `${d.getDate()} ${MONTH_SHORT[d.getMonth()]}`;
             };
+            const s1 = subWorkingDays(de.date, 1, phDates, dayStrings);
+            const s2 = subWorkingDays(de.date, 2, phDates, dayStrings);
+            const uat = subWorkingDays(de.date, 3, phDates, dayStrings);
             return (
-              <p key={de.date} className="text-[11px] text-white/35 flex flex-wrap gap-x-2">
-                <span className="text-violet-400/70">Deploy {fmtDs(de.date)}</span>
-                {sanity1 && <span className="text-orange-400/60">Sanity {fmtDs(sanity2)} – {fmtDs(sanity1)}</span>}
-                {uat && <span className="text-amber-400/60">UAT {fmtDs(uat)}</span>}
-              </p>
+              <span key={de.date} className="text-[11px] flex items-center gap-x-1.5 flex-wrap">
+                <span className="text-violet-400/70 font-medium">Deploy</span>
+                <span className="text-violet-300/60">{fmtDs(de.date)}</span>
+                {(s1 || s2) && <><span className="text-white/20">·</span><span className="text-orange-400/60">Sanity {[fmtDs(s2), fmtDs(s1)].filter(Boolean).join("–")}</span></>}
+                {uat && <><span className="text-white/20">·</span><span className="text-amber-400/60">UAT {fmtDs(uat)}</span></>}
+              </span>
             );
           })}
-          {phList.length === 0 && membersWithLeave.length === 0 && events.filter((e) => e.type === "DEPLOY").length === 0 && (
-            <p className="text-[11px] text-white/20">No holidays or leaves this sprint</p>
+          {membersWithLeave.length > 0 && (
+            <span className="text-[11px]">
+              <span className="text-amber-400/70 font-medium">Leave</span>
+              <span className="text-white/25 mx-1">·</span>
+              <span className="text-white/35">
+                {membersWithLeave.map((m) => {
+                  const leaveDays = [...(leaveMap[m.id] ?? [])].filter((d) => dayStrings.includes(d)).sort();
+                  const fmtDs = (ds: string) => { const d = new Date(ds + "T12:00:00"); return `${d.getDate()} ${MONTH_SHORT[d.getMonth()]}`; };
+                  return `${m.name.split(" ")[0]} (${leaveDays.map(fmtDs).join(", ")})`;
+                }).join(" · ")}
+              </span>
+            </span>
+          )}
+          {phList.length === 0 && events.filter((e) => e.type === "DEPLOY").length === 0 && membersWithLeave.length === 0 && (
+            <span className="text-[11px] text-white/20">No events this sprint</span>
           )}
         </div>
       )}
@@ -271,6 +284,7 @@ export function SprintCalendar({ sessionId, startDate, endDate, members, checked
                     >
                       <span className={`text-[10px] font-bold leading-none ${weekend ? "text-white/20" : "text-white/60"}`}>{d.getDate()}</span>
                       {phEvent && <span className="text-[7px] bg-red-500/30 text-red-300 px-0.5 rounded truncate max-w-full block leading-tight">{phEvent.name}</span>}
+                      {phEvent && phEvent.country && <span className="text-[6px] text-red-300/60 leading-tight">{phEvent.country}</span>}
                       {deployEvent && <span className="text-[7px] bg-violet-500/30 text-violet-300 px-0.5 rounded truncate max-w-full block leading-tight">Deploy</span>}
                       {isSanity && <span className="text-[6px] text-orange-400/70 leading-tight">Sanity</span>}
                       {isUAT && <span className="text-[6px] text-amber-400/70 leading-tight">UAT</span>}
@@ -304,13 +318,18 @@ export function SprintCalendar({ sessionId, startDate, endDate, members, checked
                   </div>
                   <div className="flex items-center gap-3">
                     <input type="checkbox" id="panel-ph" checked={panelPH}
-                      onChange={(e) => { const c = e.target.checked; setPanelPH(c); setEvent(selectedDate, "PH", panelPHName || "Public Holiday", !c); }}
+                      onChange={(e) => { const c = e.target.checked; setPanelPH(c); setEvent(selectedDate, "PH", panelPHName || "Public Holiday", !c, panelPHCountry || null); }}
                       className="rounded" />
                     <label htmlFor="panel-ph" className="text-xs text-white/60 w-28">Public Holiday</label>
                     <input type="text" value={panelPHName} onChange={(e) => setPanelPHName(e.target.value)}
-                      onBlur={() => { if (panelPH) setEvent(selectedDate, "PH", panelPHName || "Public Holiday", false); }}
+                      onBlur={() => { if (panelPH) setEvent(selectedDate, "PH", panelPHName || "Public Holiday", false, panelPHCountry || null); }}
                       disabled={!panelPH} placeholder="Holiday name"
                       className="flex-1 rounded border border-white/10 bg-white/5 px-2 py-1 text-xs text-white placeholder:text-white/20 focus:border-violet-500 focus:outline-none disabled:opacity-30" />
+                    <input type="text" value={panelPHCountry} onChange={(e) => setPanelPHCountry(e.target.value)}
+                      onBlur={() => { if (panelPH) setEvent(selectedDate, "PH", panelPHName || "Public Holiday", false, panelPHCountry || null); }}
+                      placeholder="Country (optional)"
+                      disabled={!panelPH}
+                      className="w-24 rounded border border-white/10 bg-white/5 px-2 py-1 text-xs text-white placeholder:text-white/20 focus:border-violet-500 focus:outline-none disabled:opacity-30" />
                   </div>
                   <div className="flex items-center gap-3">
                     <input type="checkbox" id="panel-deploy" checked={panelDeploy}

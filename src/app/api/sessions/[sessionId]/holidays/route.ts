@@ -16,7 +16,6 @@ export async function GET(
   const { sessionId } = await params;
   const holidays = await prisma.sprintHoliday.findMany({
     where: { sessionId },
-    select: { date: true, name: true, type: true },
   });
   return NextResponse.json({ holidays });
 }
@@ -46,12 +45,14 @@ export async function POST(
     name,
     type,
     remove,
+    country,
   } = body as {
-    holidays?: { date: string; name: string; type?: string }[];
+    holidays?: { date: string; name: string; type?: string; country?: string | null }[];
     date?: string;
     name?: string;
     type?: string;
     remove?: boolean;
+    country?: string | null;
   };
 
   if (holidays !== undefined) {
@@ -66,6 +67,7 @@ export async function POST(
           date: String(h.date),
           name: String(h.name).slice(0, 100),
           type: h.type ?? "PH",
+          country: h.country ? String(h.country).slice(0, 10) : null,
         })),
       });
     }
@@ -84,6 +86,7 @@ export async function POST(
           date: safeDate,
           name: name ? String(name).slice(0, 100) : "Public Holiday",
           type: type ?? "PH",
+          country: country ? String(country).slice(0, 10) : null,
         },
       });
     }

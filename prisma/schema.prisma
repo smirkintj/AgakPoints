@@ -49,6 +49,7 @@ model Member {
   avatarUrl       String?
   role            MemberRole           @default(DEV)
   capacity        Int                  @default(20)
+  country         String?
   votes           Vote[]
   participants    SessionParticipant[]
   achievements    Achievement[]
@@ -174,6 +175,7 @@ model SprintHoliday {
   date      String
   name      String
   type      String   @default("PH")
+  country   String?
   createdAt DateTime @default(now())
 
   @@unique([sessionId, date])

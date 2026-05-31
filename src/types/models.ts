@@ -13,6 +13,7 @@ export interface Member {
   avatarUrl: string | null;
   role: MemberRole;
   capacity: number;
+  country?: string | null;
   createdAt: Date;
 }
 

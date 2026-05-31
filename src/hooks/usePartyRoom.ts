@@ -7,11 +7,14 @@ const PARTYKIT_HOST = process.env.NEXT_PUBLIC_PARTYKIT_HOST ?? "localhost:1999";
 
 export function usePartyRoom(
   sessionId: string,
-  onMessage: (msg: MsgOut) => void
+  onMessage: (msg: MsgOut) => void,
+  onOpen?: () => void
 ) {
   const socketRef = useRef<PartySocket | null>(null);
   const onMessageRef = useRef(onMessage);
   onMessageRef.current = onMessage;
+  const onOpenRef = useRef(onOpen);
+  onOpenRef.current = onOpen;
 
   useEffect(() => {
     const socket = new PartySocket({
@@ -34,6 +37,7 @@ export function usePartyRoom(
     // Request full state sync on connect (handles reconnects too)
     socket.addEventListener("open", () => {
       socket.send(JSON.stringify({ type: "REQUEST_STATE" } satisfies MsgIn));
+      onOpenRef.current?.();
     });
 
     socketRef.current = socket;

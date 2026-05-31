@@ -3,6 +3,22 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { decryptProduct } from "@/lib/crypto";
 
+// Rate limit JIRA sync: max 3 per session per minute
+const syncAttempts = new Map<string, { count: number; resetAt: number }>();
+const SYNC_WINDOW = 60_000;
+const SYNC_MAX = 3;
+
+function isSyncRateLimited(sessionId: string): boolean {
+  const now = Date.now();
+  const entry = syncAttempts.get(sessionId);
+  if (!entry || now > entry.resetAt) {
+    syncAttempts.set(sessionId, { count: 1, resetAt: now + SYNC_WINDOW });
+    return false;
+  }
+  entry.count++;
+  return entry.count > SYNC_MAX;
+}
+
 export async function POST(
   _req: NextRequest,
   { params }: { params: Promise<{ sessionId: string }> }
@@ -11,6 +27,10 @@ export async function POST(
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { sessionId } = await params;
+
+  if (isSyncRateLimited(sessionId)) {
+    return NextResponse.json({ error: "Too many sync requests" }, { status: 429 });
+  }
   const pokerSession = await prisma.pokerSession.findFirst({
     where: { id: sessionId, product: { adminId: session.user.id } },
     include: {

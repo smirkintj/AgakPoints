@@ -1,6 +1,7 @@
 // Messages sent client → server
 export type MsgIn =
   | { type: "CHECKIN"; memberId: string; memberName: string; role: string }
+  | { type: "REGISTER_ADMIN"; token: string }
   | { type: "START_SESSION" }
   | { type: "OPEN_TICKET"; ticketId: string; jiraKey: string; title: string; description?: string; contextNote?: string; issueType?: string; priority?: string; deps?: string[] }
   | { type: "VOTE_CAST"; memberId: string; value: number }

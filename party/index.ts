@@ -4,6 +4,7 @@ import type * as Party from "partykit/server";
 
 type MsgIn =
   | { type: "CHECKIN"; memberId: string; memberName: string; role: string }
+  | { type: "REGISTER_ADMIN"; token: string }
   | { type: "START_SESSION" }
   | { type: "OPEN_TICKET"; ticketId: string; jiraKey: string; title: string; description?: string; contextNote?: string; issueType?: string; priority?: string; deps?: string[] }
   | { type: "VOTE_CAST"; memberId: string; value: number }
@@ -69,9 +70,27 @@ interface RoomState {
   revealedVotes: RevealedVote[] | null;
   lockedTickets: string[];
   lockedTicketAssignees: Record<string, string>;
+  adminConnectionIds: Set<string>; // connection IDs verified as admin
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
+
+async function verifyAdminToken(sessionId: string, token: string): Promise<boolean> {
+  const secret = process.env.PARTYKIT_SECRET ?? "dev-secret";
+  const enc = new TextEncoder();
+  const key = await crypto.subtle.importKey(
+    "raw",
+    enc.encode(secret),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"]
+  );
+  const sig = await crypto.subtle.sign("HMAC", key, enc.encode(sessionId));
+  const expected = Array.from(new Uint8Array(sig))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+  return token === expected;
+}
 
 function median(values: number[]): number {
   if (!values.length) return 0;
@@ -98,13 +117,22 @@ export default class ScrumPokerRoom implements Party.Server {
     revealedVotes: null,
     lockedTickets: [],
     lockedTicketAssignees: {},
+    adminConnectionIds: new Set(),
   };
 
   constructor(readonly room: Party.Room) {}
 
+  private isAdmin(sender: Party.Connection): boolean {
+    return this.state.adminConnectionIds.has(sender.id);
+  }
+
   // Send current state to a newly connected client so they sync up immediately
   onConnect(conn: Party.Connection) {
     this.send(conn, { type: "STATE_SYNC", state: this.publicState() });
+  }
+
+  onDisconnect(conn: Party.Connection) {
+    this.state.adminConnectionIds.delete(conn.id);
   }
 
   onMessage(raw: string, sender: Party.Connection) {
@@ -116,6 +144,15 @@ export default class ScrumPokerRoom implements Party.Server {
     }
 
     switch (msg.type) {
+      case "REGISTER_ADMIN": {
+        verifyAdminToken(this.room.id, msg.token).then((valid) => {
+          if (valid) {
+            this.state.adminConnectionIds.add(sender.id);
+          }
+        });
+        break;
+      }
+
       case "CHECKIN": {
         const already = this.state.checkedIn.find((m) => m.memberId === msg.memberId);
         if (!already) {
@@ -130,12 +167,14 @@ export default class ScrumPokerRoom implements Party.Server {
       }
 
       case "START_SESSION": {
+        if (!this.isAdmin(sender)) return;
         this.state.sessionStatus = "ACTIVE";
         this.broadcast({ type: "SESSION_STARTED" });
         break;
       }
 
       case "OPEN_TICKET": {
+        if (!this.isAdmin(sender)) return;
         // Reset votes for new ticket
         this.state.currentTicket = {
           ticketId: msg.ticketId,
@@ -167,6 +206,7 @@ export default class ScrumPokerRoom implements Party.Server {
 
       case "VOTE_CAST": {
         if (this.state.revealed) break; // too late
+        if (!this.state.checkedIn.some((m) => m.memberId === msg.memberId)) return;
         this.state.votes[msg.memberId] = msg.value;
 
         this.broadcast({
@@ -179,6 +219,7 @@ export default class ScrumPokerRoom implements Party.Server {
       }
 
       case "REVEAL_VOTES": {
+        if (!this.isAdmin(sender)) return;
         this.state.revealed = true;
         const memberMap = Object.fromEntries(
           this.state.checkedIn.map((m) => [m.memberId, m.memberName])
@@ -202,6 +243,7 @@ export default class ScrumPokerRoom implements Party.Server {
       }
 
       case "LOCK_ESTIMATE": {
+        if (!this.isAdmin(sender)) return;
         this.state.lockedTickets.push(msg.ticketId);
         if (msg.assigneeId) this.state.lockedTicketAssignees[msg.ticketId] = msg.assigneeId;
         this.state.currentTicket = null;
@@ -214,6 +256,7 @@ export default class ScrumPokerRoom implements Party.Server {
       }
 
       case "REACTION": {
+        if (!this.state.checkedIn.some((m) => m.memberId === msg.memberId)) return;
         this.broadcast({
           type: "REACTION_RECEIVED",
           memberId: msg.memberId,
@@ -229,11 +272,13 @@ export default class ScrumPokerRoom implements Party.Server {
       }
 
       case "UPDATE_LEAVE": {
+        if (!this.state.checkedIn.some((m) => m.memberId === msg.memberId)) return;
         this.broadcast({ type: "LEAVE_UPDATED", memberId: msg.memberId, date: msg.date, active: msg.active });
         break;
       }
 
       case "UPDATE_NOTE": {
+        if (!this.isAdmin(sender)) return;
         if (this.state.currentTicket?.ticketId === msg.ticketId) {
           this.state.currentTicket.contextNote = msg.note;
         }
@@ -242,6 +287,7 @@ export default class ScrumPokerRoom implements Party.Server {
       }
 
       case "END_SESSION": {
+        if (!this.isAdmin(sender)) return;
         this.broadcast({ type: "SESSION_ENDED" });
         break;
       }
@@ -257,6 +303,7 @@ export default class ScrumPokerRoom implements Party.Server {
       }
 
       case "KICK_MEMBER": {
+        if (!this.isAdmin(sender)) return;
         this.state.checkedIn = this.state.checkedIn.filter((m) => m.memberId !== msg.memberId);
         // Also remove their vote if pending
         delete this.state.votes[msg.memberId];

@@ -245,6 +245,18 @@ export function HostView({ session, productId }: { session: PokerSession; produc
     }
   }, []);
 
+  const adminTokenRef = useRef<string | null>(null);
+  // sendRef allows the onOpen callback (defined before send) to call send
+  const sendRef = useRef<(msg: import("@/types/partykit").MsgIn) => void>(() => {});
+
+  // Fetch admin token on mount
+  useEffect(() => {
+    fetch(`/api/sessions/${session.id}/admin-token`)
+      .then((r) => r.json())
+      .then((data: { token?: string }) => { if (data.token) adminTokenRef.current = data.token; })
+      .catch(() => {});
+  }, [session.id]);
+
   const { send } = usePartyRoom(session.id, useCallback((msg: MsgOut) => {
     switch (msg.type) {
       case "STATE_SYNC": applyState(msg.state); break;
@@ -322,7 +334,15 @@ export function HostView({ session, productId }: { session: PokerSession; produc
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [applyState]));
+  }, [applyState]), useCallback(() => {
+    if (adminTokenRef.current) {
+      sendRef.current({ type: "REGISTER_ADMIN", token: adminTokenRef.current });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []));
+
+  // Keep sendRef in sync so the onOpen callback can call send
+  sendRef.current = send;
 
   const currentTicket = tickets.find((t) => t.id === currentTicketId) ?? null;
 

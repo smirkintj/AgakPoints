@@ -580,7 +580,7 @@ export function HostView({ session, productId }: { session: PokerSession; produc
                               </div>
                               {/* Inline reassign picker */}
                               {reassignTicketId === ticket.id && (
-                                <div className="absolute right-0 top-full mt-1 z-20 bg-[#0d0b1a] border border-white/15 rounded-xl shadow-2xl p-2 min-w-[160px] max-w-[240px]">
+                                <div className="absolute right-0 top-full mt-1 z-20 bg-[#0d0b1a] border border-white/15 rounded-xl shadow-2xl p-2 min-w-[180px] max-w-[260px] max-h-60 overflow-y-auto">
                                   <p className="text-[10px] text-white/30 px-2 pb-1 uppercase tracking-widest">Reassign to</p>
                                   {session.product.members.map((m) => (
                                     <button

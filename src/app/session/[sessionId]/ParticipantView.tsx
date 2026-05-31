@@ -41,7 +41,7 @@ export function ParticipantView({ session }: { session: SessionWithDetails }) {
   const [ticketEstimates, setTicketEstimates] = useState<Record<string, number>>({});
   const [sessionEnded, setSessionEnded] = useState(false);
   const [myAssignedOpen, setMyAssignedOpen] = useState(true);
-  const [holidays, setHolidays] = useState<{ date: string; name: string; type: string }[]>([]);
+  const [holidays, setHolidays] = useState<{ date: string; name: string; type: string; country?: string | null }[]>([]);
   const [myLeaves, setMyLeaves] = useState<string[]>([]);
   const recapRef = useRef<HTMLDivElement>(null);
 
@@ -53,7 +53,7 @@ export function ParticipantView({ session }: { session: SessionWithDetails }) {
   useEffect(() => {
     fetch(`/api/sessions/${session.id}/holidays`, { cache: "no-store" })
       .then((r) => r.json())
-      .then((d: { holidays: { date: string; name: string; type: string }[] }) => setHolidays(d.holidays ?? []))
+      .then((d: { holidays: { date: string; name: string; type: string; country?: string | null }[] }) => setHolidays(d.holidays ?? []))
       .catch(() => {});
   }, [session.id]);
 
@@ -193,7 +193,13 @@ export function ParticipantView({ session }: { session: SessionWithDetails }) {
 
   const sprintStart = session.sprintStartDate ? new Date(session.sprintStartDate as unknown as string) : null;
   const sprintEnd = session.sprintEndDate ? new Date(session.sprintEndDate as unknown as string) : null;
-  const phDuringSprint = holidays.filter((h) => h.type === "PH");
+  const fmtDateStr = (ds: string) => { const d = new Date(ds + "T12:00:00"); return `${d.getDate()} ${MONTH_SHORT[d.getMonth()]}`; };
+  const phDuringSprint = holidays.filter((h) => {
+    if (h.type !== "PH") return false;
+    const hCountry = h.country;
+    if (!hCountry) return true; // applies to all
+    return member?.country === hCountry;
+  });
   const deployEvents = holidays.filter((h) => h.type === "DEPLOY");
 
   const formatDate = (d: Date) => `${d.getDate()} ${MONTH_SHORT[d.getMonth()]}`;
@@ -327,21 +333,18 @@ export function ParticipantView({ session }: { session: SessionWithDetails }) {
           <div className="flex flex-wrap gap-2">
             {phDuringSprint.map((h) => (
               <span key={h.date} className="flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-red-500/15 border border-red-500/25 text-red-300">
-                🏖️ {h.date} {h.name}
+                🏖️ PH: {fmtDateStr(h.date)} {h.name}
               </span>
             ))}
-            {deployEvents.map((de) => {
-              const fmtDs = (ds: string) => { const d = new Date(ds + "T12:00:00"); return `${d.getDate()} ${MONTH_SHORT[d.getMonth()]}`; };
-              return (
-                <span key={de.date} className="flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-violet-500/15 border border-violet-500/25 text-violet-300">
-                  🚀 Deploy {fmtDs(de.date)}
-                </span>
-              );
-            })}
+            {deployEvents.map((de) => (
+              <span key={de.date} className="flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-violet-500/15 border border-violet-500/25 text-violet-300">
+                🚀 Deploy: {fmtDateStr(de.date)}
+              </span>
+            ))}
             {myLeaves.length > 0 && (
               <span className="flex items-center gap-1.5 text-xs px-2.5 py-0.5 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-300 font-medium">
                 <CalendarX className="w-3 h-3" />
-                On leave: {myLeaves.sort().map(ds => { const d = new Date(ds + "T12:00:00"); return `${d.getDate()} ${MONTH_SHORT[d.getMonth()]}`; }).join(", ")}
+                AL: {myLeaves.sort().map(fmtDateStr).join(", ")}
               </span>
             )}
           </div>

@@ -293,13 +293,15 @@ export default class ScrumPokerRoom implements Party.Server {
       }
 
       case "UPDATE_TICKET_DESIGN": {
-        if (!this.isAdmin(sender) && !this.state.checkedIn.some((m) => m.role === "UI_UX")) return;
+        const designSender = this.state.checkedIn.find((m) => m.memberId === sender.id);
+        if (!this.isAdmin(sender) && designSender?.role !== "UI_UX") return;
         this.broadcast({ type: "TICKET_DESIGN_UPDATED", ticketId: msg.ticketId, designReadiness: msg.designReadiness, designComplexity: msg.designComplexity, designLink: msg.designLink });
         break;
       }
 
       case "UPDATE_TICKET_TAGS": {
-        if (!this.isAdmin(sender) && !this.state.checkedIn.some((m) => m.role === "TECH_LEAD")) return;
+        const tagSender = this.state.checkedIn.find((m) => m.memberId === sender.id);
+        if (!this.isAdmin(sender) && tagSender?.role !== "TECH_LEAD") return;
         this.broadcast({ type: "TICKET_TAGS_UPDATED", ticketId: msg.ticketId, tags: msg.tags });
         break;
       }

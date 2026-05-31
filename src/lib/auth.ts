@@ -3,7 +3,19 @@ import Credentials from "next-auth/providers/credentials";
 import { prisma } from "@/lib/prisma";
 import { authConfig } from "@/lib/auth.config";
 import bcrypt from "bcryptjs";
-import { kv } from "@vercel/kv";
+
+const loginAttempts = new Map<string, { count: number; resetAt: number }>();
+function isLoginRateLimited(email: string): boolean {
+  const now = Date.now();
+  const key = email.toLowerCase();
+  const entry = loginAttempts.get(key);
+  if (!entry || now > entry.resetAt) {
+    loginAttempts.set(key, { count: 1, resetAt: now + 15 * 60 * 1000 });
+    return false;
+  }
+  entry.count++;
+  return entry.count > 5;
+}
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   ...authConfig,
@@ -16,10 +28,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) return null;
 
-        const key = `login:${(credentials.email as string).toLowerCase()}`;
-        const attempts = await kv.incr(key);
-        if (attempts === 1) await kv.expire(key, 900); // 15 min TTL on first attempt
-        if (attempts > 5) throw new Error("Too many login attempts");
+        if (isLoginRateLimited(credentials.email as string)) throw new Error("Too many login attempts");
 
         const user = await prisma.user.findUnique({
           where: { email: credentials.email as string },

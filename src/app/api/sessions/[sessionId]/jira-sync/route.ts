@@ -2,7 +2,17 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { decryptProduct } from "@/lib/crypto";
-import { kv } from "@vercel/kv";
+const syncAttempts = new Map<string, { count: number; resetAt: number }>();
+function isSyncRateLimited(sessionId: string): boolean {
+  const now = Date.now();
+  const entry = syncAttempts.get(sessionId);
+  if (!entry || now > entry.resetAt) {
+    syncAttempts.set(sessionId, { count: 1, resetAt: now + 60_000 });
+    return false;
+  }
+  entry.count++;
+  return entry.count > 3;
+}
 
 export async function POST(
   _req: NextRequest,
@@ -13,10 +23,7 @@ export async function POST(
 
   const { sessionId } = await params;
 
-  const syncKey = `jira-sync:${sessionId}`;
-  const syncCount = await kv.incr(syncKey);
-  if (syncCount === 1) await kv.expire(syncKey, 60); // 1 min window
-  if (syncCount > 3) return NextResponse.json({ error: "Too many sync requests" }, { status: 429 });
+  if (isSyncRateLimited(sessionId)) return NextResponse.json({ error: "Too many sync requests" }, { status: 429 });
   const pokerSession = await prisma.pokerSession.findFirst({
     where: { id: sessionId, product: { adminId: session.user.id } },
     include: {

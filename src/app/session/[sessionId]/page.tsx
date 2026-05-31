@@ -9,7 +9,11 @@ export default async function SessionPage({ params }: { params: Promise<{ sessio
     where: { id: sessionId },
     include: {
       tickets: { orderBy: { order: "asc" } },
-      product: { include: { members: true } },
+      product: {
+        include: {
+          members: true,
+        },
+      },
     },
   });
 

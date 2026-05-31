@@ -247,7 +247,9 @@ export function ParticipantView({ session }: { session: SessionWithDetails }) {
     }
   }, [member, session.id, session.tickets]));
 
-  const PRESET_TAGS = ["backend", "frontend", "infra", "data-migration", "SAP", "third-party", "auth", "performance"];
+  const PRESET_TAGS = session.product.tagPresets?.length
+    ? session.product.tagPresets
+    : ["backend", "frontend", "infra", "data-migration", "third-party", "auth", "performance"];
 
   const updateDesign = async (patch: Partial<{ designReadiness: string | null; designComplexity: string | null; designLink: string | null }>) => {
     if (!currentTicket) return;

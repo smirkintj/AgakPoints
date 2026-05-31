@@ -2,12 +2,9 @@ import { auth } from "@/lib/auth";
 import { redirect, notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import Link from "next/link";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Plus } from "lucide-react";
-import { MemberManager } from "./MemberManager";
-import { SessionList } from "./SessionList";
+import { ProductTabs } from "./ProductTabs";
 
 export default async function ProductPage({ params }: { params: Promise<{ id: string }> }) {
   const session = await auth();
@@ -20,12 +17,39 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
       members: { orderBy: { createdAt: "asc" } },
       pokerSessions: {
         orderBy: { createdAt: "desc" },
-        include: { _count: { select: { tickets: true } } },
+        include: {
+          _count: { select: { tickets: true } },
+          participants: { where: { checkedIn: true }, select: { id: true } },
+          tickets: { select: { status: true, finalEstimate: true } },
+        },
       },
     },
   });
 
   if (!product) notFound();
+
+  const sessions = product.pokerSessions.map((s) => ({
+    id: s.id,
+    name: s.name,
+    sprintName: s.sprintName,
+    createdAt: s.createdAt,
+    status: s.status,
+    _count: s._count,
+    estimatedCount: s.tickets.filter((t) => t.status === "ESTIMATED").length,
+    totalPts: s.tickets
+      .filter((t) => t.status === "ESTIMATED")
+      .reduce((sum, t) => sum + (t.finalEstimate ?? 0), 0),
+    attendeeCount: s.participants.length,
+  }));
+
+  const members = product.members.map((m) => ({
+    id: m.id,
+    name: m.name,
+    role: m.role,
+    capacity: m.capacity,
+    country: m.country,
+    avatarUrl: m.avatarUrl,
+  }));
 
   return (
     <div className="min-h-screen">
@@ -45,58 +69,25 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
       <main className="max-w-5xl mx-auto px-6 py-10 space-y-8">
         <div>
           <h1 className="text-2xl font-bold text-white">{product.name}</h1>
-          <div className="flex items-center gap-3 mt-2">
-            {product.jiraProjectKey && <Badge variant="ghost">JIRA: {product.jiraProjectKey}</Badge>}
-            {product.confluenceSpaceKey && <Badge variant="ghost">Confluence: {product.confluenceSpaceKey}</Badge>}
-          </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* Team Members */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Team Members ({product.members.length})</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <MemberManager
-                productId={id}
-                initialMembers={product.members.map((m) => ({
-                  id: m.id,
-                  name: m.name,
-                  role: m.role,
-                  capacity: (m as typeof m & { capacity?: number }).capacity ?? 20,
-                }))}
-              />
-            </CardContent>
-          </Card>
-
-          {/* Sessions */}
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle>Sessions ({product.pokerSessions.length})</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <SessionList
-                productId={id}
-                sessions={product.pokerSessions.map((s) => ({
-                  id: s.id,
-                  name: s.name,
-                  sprintName: s.sprintName,
-                  createdAt: s.createdAt,
-                  status: s.status,
-                  _count: s._count,
-                }))}
-              />
-              {product.pokerSessions.length === 0 && (
-                <div className="text-center pt-2">
-                  <Link href={`/products/${id}/sessions/new`}>
-                    <Button size="sm">Start First Session</Button>
-                  </Link>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </div>
+        <ProductTabs
+          productId={id}
+          productName={product.name}
+          jiraBaseUrl={product.jiraBaseUrl}
+          jiraProjectKey={product.jiraProjectKey}
+          jiraEmail={product.jiraEmail}
+          jiraApiToken={product.jiraApiToken}
+          jiraBoardId={product.jiraBoardId}
+          confluenceBaseUrl={product.confluenceBaseUrl}
+          confluenceSpaceKey={product.confluenceSpaceKey}
+          confluenceEmail={product.confluenceEmail}
+          confluenceToken={product.confluenceToken}
+          tagPresets={product.tagPresets}
+          dependencyTypes={product.dependencyTypes}
+          sessions={sessions}
+          members={members}
+        />
       </main>
     </div>
   );

@@ -36,7 +36,7 @@ interface PokerSession {
   status: string;
   tickets: TicketWithVotes[];
   participants: ParticipantWithMember[];
-  product: { id: string; members: Member[]; jiraBaseUrl?: string | null };
+  product: { id: string; members: Member[]; jiraBaseUrl?: string | null; tagPresets?: string[]; dependencyTypes?: string[] };
 }
 
 // ── Ticket Node Card ─────────────────────────────────────────────────────────
@@ -739,7 +739,7 @@ export function HostView({ session, productId }: { session: PokerSession; produc
                 <div className="space-y-2">
                   <p className="text-xs text-white/40 uppercase tracking-widest font-medium">Dependencies</p>
                   <div className="flex flex-wrap gap-2">
-                    {["SAP", "Network Team", "UI/UX", "Security", "Data"].map((dep) => {
+                    {(session.product.dependencyTypes?.length ? session.product.dependencyTypes : ["SAP", "Network Team", "UI/UX", "Security", "Data"]).map((dep) => {
                       const active = getDeps(pendingTicket.id).includes(dep);
                       return (
                         <button key={dep} type="button" onClick={() => toggleDep(pendingTicket.id, dep)}
@@ -806,7 +806,7 @@ export function HostView({ session, productId }: { session: PokerSession; produc
               <div className="w-full max-w-2xl space-y-2">
                 <p className="text-xs text-white/30 uppercase tracking-widest font-medium">Dependencies</p>
                 <div className="flex flex-wrap gap-2">
-                  {["SAP", "Network Team", "UI/UX", "Security", "Data"].map((dep) => {
+                  {(session.product.dependencyTypes?.length ? session.product.dependencyTypes : ["SAP", "Network Team", "UI/UX", "Security", "Data"]).map((dep) => {
                     const active = getDeps(currentTicket.id).includes(dep);
                     return (
                       <button key={dep} type="button" onClick={() => toggleDep(currentTicket.id, dep)}

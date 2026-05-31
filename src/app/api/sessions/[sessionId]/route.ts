@@ -18,6 +18,8 @@ export async function GET(
           name: true,
           jiraProjectKey: true,
           confluenceSpaceKey: true,
+          tagPresets: true,
+          dependencyTypes: true,
           members: {
             select: {
               id: true, name: true, role: true, capacity: true, avatarUrl: true,
@@ -30,4 +32,18 @@ export async function GET(
 
   if (!session) return NextResponse.json({ error: "Not found" }, { status: 404 });
   return NextResponse.json(session);
+}
+
+export async function PATCH(
+  req: NextRequest,
+  { params }: { params: Promise<{ sessionId: string }> }
+) {
+  const { sessionId } = await params;
+  const body = await req.json();
+
+  const allowed: Record<string, unknown> = {};
+  if (typeof body.name === "string") allowed.name = body.name;
+
+  const updated = await prisma.pokerSession.update({ where: { id: sessionId }, data: allowed });
+  return NextResponse.json(updated);
 }

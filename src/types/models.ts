@@ -30,6 +30,8 @@ export interface Product {
   confluenceSpaceKey: string | null;
   confluenceToken: string | null;
   confluenceEmail: string | null;
+  tagPresets: string[];
+  dependencyTypes: string[];
   createdAt: Date;
   updatedAt: Date;
 }

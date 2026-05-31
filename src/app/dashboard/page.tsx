@@ -5,7 +5,10 @@ import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Plus, Users, Layers, LayoutGrid } from "lucide-react";
+import { Plus, LayoutGrid } from "lucide-react";
+
+const MONTH_SHORT = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+function fmtDate(d: Date) { return `${d.getDate()} ${MONTH_SHORT[d.getMonth()]}`; }
 import { SignOutButton } from "@/components/layout/SignOutButton";
 
 export default async function DashboardPage() {
@@ -86,21 +89,14 @@ export default async function DashboardPage() {
                       </div>
                     </CardHeader>
                     <CardContent>
-                      <div className="flex items-center gap-4 text-sm text-white/40">
-                        <span className="flex items-center gap-1.5">
-                          <Users className="w-3.5 h-3.5" />
-                          {product._count.members} members
-                        </span>
-                        <span className="flex items-center gap-1.5">
-                          <Layers className="w-3.5 h-3.5" />
-                          {product._count.pokerSessions} sessions
-                        </span>
+                      <div className="flex items-center gap-3 mt-1 pt-3 border-t border-white/8">
+                        <span className="text-xs text-white/40">{product._count.members} members</span>
+                        <span className="text-white/20">·</span>
+                        <span className="text-xs text-white/40">{product._count.pokerSessions} sessions</span>
+                        {lastSession && (
+                          <span className="text-xs text-white/30 ml-auto">{fmtDate(new Date(lastSession.createdAt))}</span>
+                        )}
                       </div>
-                      {lastSession && (
-                        <p className="text-xs text-white/30 mt-3">
-                          Last session: {new Date(lastSession.createdAt).toLocaleDateString()}
-                        </p>
-                      )}
                     </CardContent>
                   </Card>
                 </Link>

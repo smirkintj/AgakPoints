@@ -35,6 +35,8 @@ model Product {
   confluenceSpaceKey String?
   confluenceToken    String?
   confluenceEmail    String?
+  tagPresets         String[]
+  dependencyTypes    String[]
   members            Member[]
   pokerSessions      PokerSession[]
   createdAt          DateTime       @default(now())

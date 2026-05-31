@@ -115,8 +115,9 @@ export function MemberManager({ productId, initialMembers }: { productId: string
               <>
                 <MemberAvatar name={m.name} role={m.role} size={32} />
                 <span className="text-white text-sm font-medium flex-1 truncate">{m.name}</span>
-                {m.country && <span className="text-[10px] px-1.5 py-0.5 rounded bg-white/8 text-white/40 border border-white/10">{m.country}</span>}
                 <RoleBadge role={m.role} size="sm" />
+                {m.country && <span className="text-[10px] px-1.5 py-0.5 rounded bg-white/8 text-white/30">{m.country}</span>}
+                <span className="text-[10px] font-mono text-white/25">{m.capacity}pts</span>
                 <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                   <button onClick={() => startEdit(m)} className="p-1.5 rounded-lg hover:bg-white/8 text-white/30 hover:text-white/70"><Pencil className="w-3.5 h-3.5" /></button>
                   <button onClick={() => setDeleteId(m.id)} className="p-1.5 rounded-lg hover:bg-red-500/10 text-white/30 hover:text-red-400"><Trash2 className="w-3.5 h-3.5" /></button>

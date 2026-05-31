@@ -147,6 +147,8 @@ export function HostView({ session, productId }: { session: PokerSession; produc
   const [votedMemberIds, setVotedMemberIds] = useState<string[]>([]);
   const [votedCount, setVotedCount] = useState(0);
   const [revealedVotes, setRevealedVotes] = useState<RevealedVote[] | null>(null);
+  const revealedVotesRef = useRef<RevealedVote[] | null>(null);
+  const [memberVoteHistory, setMemberVoteHistory] = useState<Record<string, { vote: number; final: number }[]>>({});
   const [revealMeta, setRevealMeta] = useState<{ median: number; isConsensus: boolean } | null>(null);
   const [reactions, setReactions] = useState<{ memberId: string; memberName: string; emoji: string }[]>([]);
   const [lockedTickets, setLockedTickets] = useState<Set<string>>(new Set());
@@ -198,6 +200,7 @@ export function HostView({ session, productId }: { session: PokerSession; produc
   const sessionStartedAt = useRef<Date | null>(null);
   const ticketsRef = useRef(tickets);
   ticketsRef.current = tickets;
+  revealedVotesRef.current = revealedVotes;
   const checkedInRef = useRef(checkedIn);
   checkedInRef.current = checkedIn;
   const membersRef = useRef(session.product.members);
@@ -280,6 +283,19 @@ export function HostView({ session, productId }: { session: PokerSession; produc
         setLockedTickets((l) => new Set([...l, msg.ticketId]));
         if (msg.assigneeId) setTicketAssignees((a) => ({ ...a, [msg.ticketId]: msg.assigneeId! }));
         setTickets((t) => t.map((tk) => tk.id === msg.ticketId ? { ...tk, status: "ESTIMATED" as const, finalEstimate: msg.value } : tk));
+        {
+          const votes = revealedVotesRef.current;
+          if (votes) {
+            setMemberVoteHistory((prev) => {
+              const next = { ...prev };
+              for (const v of votes) {
+                const entry = { vote: v.value, final: msg.value };
+                next[v.memberId] = [...(next[v.memberId] ?? []), entry].slice(-5);
+              }
+              return next;
+            });
+          }
+        }
         setCurrentTicketId(null); setRevealedVotes(null); setRevealMeta(null);
         const lockedTicketTitle = ticketsRef.current.find((t) => t.id === msg.ticketId)?.jiraKey ?? msg.ticketId;
         const assigneeName = msg.assigneeId ? membersRef.current.find((m) => m.id === msg.assigneeId)?.name?.split(" ")[0] : null;
@@ -852,7 +868,8 @@ export function HostView({ session, productId }: { session: PokerSession; produc
                       const member = checkedIn.find((c) => c.memberId === vote.memberId);
                       return (
                         <RevealCard key={vote.memberId} memberName={vote.memberName} value={vote.value}
-                          median={revealMeta.median} delay={i * 0.08} role={member?.role} />
+                          median={revealMeta.median} delay={i * 0.08} role={member?.role}
+                          voteHistory={memberVoteHistory[vote.memberId] ?? []} />
                       );
                     })}
                   </div>

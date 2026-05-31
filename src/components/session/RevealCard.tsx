@@ -11,9 +11,10 @@ interface RevealCardProps {
   median: number;
   delay?: number;
   role?: string;
+  voteHistory?: { vote: number; final: number }[];
 }
 
-export function RevealCard({ memberName, value, median, delay = 0, role }: RevealCardProps) {
+export function RevealCard({ memberName, value, median, delay = 0, role, voteHistory }: RevealCardProps) {
   const colorClass = getVoteColor(value, median);
   const isOutlier = Math.abs(value - median) >= 5;
   const roleHex = role ? getRoleColor(role).hex : undefined;
@@ -39,6 +40,25 @@ export function RevealCard({ memberName, value, median, delay = 0, role }: Revea
       <span className="text-xs text-white/50 text-center max-w-[64px] truncate">{memberName}</span>
       {role && <RoleBadge role={role} size="sm" />}
       {isOutlier && <Flame className="w-3 h-3 text-orange-400" />}
+      {voteHistory && voteHistory.length > 0 && (
+        <div className="flex gap-1 mt-1">
+          {voteHistory.map((h, i) => {
+            const diff = Math.abs(h.vote - h.final);
+            const color = diff <= 1 ? "#10b981" : diff <= 3 ? "#f59e0b" : "#ef4444";
+            return (
+              <motion.div
+                key={i}
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                transition={{ delay: delay + 0.3 + i * 0.05 }}
+                title={`Voted ${h.vote}, final was ${h.final}`}
+                className="w-2 h-2 rounded-full"
+                style={{ backgroundColor: color }}
+              />
+            );
+          })}
+        </div>
+      )}
     </motion.div>
   );
 }

@@ -43,6 +43,8 @@ export function ParticipantView({ session }: { session: SessionWithDetails }) {
   const [myVote, setMyVote] = useState<number | null>(null);
   const [votedMemberIds, setVotedMemberIds] = useState<string[]>([]);
   const [revealedVotes, setRevealedVotes] = useState<RevealedVote[] | null>(null);
+  const revealedVotesRef = useRef<RevealedVote[] | null>(null);
+  const [memberVoteHistory, setMemberVoteHistory] = useState<Record<string, { vote: number; final: number }[]>>({});
   const [revealMeta, setRevealMeta] = useState<{ median: number; isConsensus: boolean } | null>(null);
   const [reactions, setReactions] = useState<{ memberId: string; memberName: string; emoji: string }[]>([]);
   const [lockedTickets, setLockedTickets] = useState<Set<string>>(new Set());
@@ -54,6 +56,7 @@ export function ParticipantView({ session }: { session: SessionWithDetails }) {
   const [holidays, setHolidays] = useState<{ date: string; name: string; type: string; country?: string | null }[]>([]);
   const [myLeaves, setMyLeaves] = useState<string[]>([]);
   const recapRef = useRef<HTMLDivElement>(null);
+  revealedVotesRef.current = revealedVotes;
 
   useEffect(() => {
     const stored = sessionStorage.getItem(`agakpoints_member_${session.id}`);
@@ -150,6 +153,19 @@ export function ParticipantView({ session }: { session: SessionWithDetails }) {
         setLockedTickets((l) => new Set([...l, msg.ticketId]));
         if (msg.assigneeId) setLockedAssignees((a) => ({ ...a, [msg.ticketId]: msg.assigneeId! }));
         setTicketEstimates((e) => ({ ...e, [msg.ticketId]: msg.value }));
+        {
+          const votes = revealedVotesRef.current;
+          if (votes) {
+            setMemberVoteHistory((prev) => {
+              const next = { ...prev };
+              for (const v of votes) {
+                const entry = { vote: v.value, final: msg.value };
+                next[v.memberId] = [...(next[v.memberId] ?? []), entry].slice(-5);
+              }
+              return next;
+            });
+          }
+        }
         setCurrentTicket(null);
         break;
       case "REACTION_RECEIVED":
@@ -525,7 +541,7 @@ export function ParticipantView({ session }: { session: SessionWithDetails }) {
                     {revealedVotes.map((vote, i) => {
                       const voter = checkedIn.find((c) => c.memberId === vote.memberId);
                       return (
-                        <RevealCard key={vote.memberId} memberName={vote.memberName} value={vote.value} median={revealMeta.median} delay={i * 0.08} role={voter?.role} />
+                        <RevealCard key={vote.memberId} memberName={vote.memberName} value={vote.value} median={revealMeta.median} delay={i * 0.08} role={voter?.role} voteHistory={memberVoteHistory[vote.memberId] ?? []} />
                       );
                     })}
                   </div>

@@ -17,8 +17,8 @@ import { SprintCalendar } from "@/components/session/SprintCalendar";
 import type { Ticket, Member, SessionParticipant, Vote } from "@/types/models";
 import { FIBONACCI_VALUES } from "@/lib/utils";
 import {
-  AlertTriangle, Award, Check, CheckCircle2, ChevronDown, ChevronRight, Clock, Copy, Eye, ExternalLink,
-  GitMerge, Layers, Lock, Play, RefreshCw, Sparkles, Users, FileText,
+  Award, Check, ChevronDown, ChevronRight, Clock, Copy, Eye, ExternalLink,
+  Layers, Lock, Play, RefreshCw, Sparkles, Users,
 } from "lucide-react";
 import confetti from "canvas-confetti";
 

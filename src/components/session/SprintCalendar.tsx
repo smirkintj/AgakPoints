@@ -26,7 +26,10 @@ const DAY_NAMES = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const DAY_SHORT = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const MONTH_SHORT = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 
-function isoDate(d: Date): string { return d.toISOString().split("T")[0]; }
+function isoDate(d: Date): string {
+  const y = d.getFullYear(), m = String(d.getMonth() + 1).padStart(2, "0"), day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
 function addDays(d: Date, n: number): Date { const r = new Date(d); r.setDate(r.getDate() + n); return r; }
 function isWeekend(d: Date): boolean { const day = d.getDay(); return day === 0 || day === 6; }
 function gridCol(d: Date): number { const day = d.getDay(); return day === 0 ? 6 : day - 1; }
@@ -146,7 +149,7 @@ export function SprintCalendar({ sessionId, startDate, endDate, members, checked
   };
 
   const formatDateLabel = (ds: string) => {
-    const d = new Date(ds);
+    const d = new Date(ds + "T12:00:00");
     return `${d.getDate()} ${MONTH_SHORT[d.getMonth()]} (${DAY_SHORT[d.getDay()]})`;
   };
 

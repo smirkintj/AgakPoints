@@ -331,7 +331,7 @@ export function ParticipantView({ session }: { session: SessionWithDetails }) {
               </span>
             ))}
             {deployEvents.map((de) => {
-              const fmtDs = (ds: string) => { const d = new Date(ds); return `${d.getDate()} ${MONTH_SHORT[d.getMonth()]}`; };
+              const fmtDs = (ds: string) => { const d = new Date(ds + "T12:00:00"); return `${d.getDate()} ${MONTH_SHORT[d.getMonth()]}`; };
               return (
                 <span key={de.date} className="flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-violet-500/15 border border-violet-500/25 text-violet-300">
                   🚀 Deploy {fmtDs(de.date)}
@@ -341,7 +341,7 @@ export function ParticipantView({ session }: { session: SessionWithDetails }) {
             {myLeaves.length > 0 && (
               <span className="flex items-center gap-1.5 text-xs px-2.5 py-0.5 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-300 font-medium">
                 <CalendarX className="w-3 h-3" />
-                On leave: {myLeaves.sort().map(ds => { const d = new Date(ds); return `${d.getDate()} ${MONTH_SHORT[d.getMonth()]}`; }).join(", ")}
+                On leave: {myLeaves.sort().map(ds => { const d = new Date(ds + "T12:00:00"); return `${d.getDate()} ${MONTH_SHORT[d.getMonth()]}`; }).join(", ")}
               </span>
             )}
           </div>

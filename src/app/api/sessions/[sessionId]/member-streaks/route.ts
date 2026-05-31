@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ sessionId: string }> }
 ) {
   const { sessionId } = await params;
@@ -11,6 +11,16 @@ export async function GET(
     select: { productId: true },
   });
   if (!session) return NextResponse.json({}, { status: 404 });
+
+  // Verify requester is a member of this product (participants pass memberId as query param)
+  const memberId = req.nextUrl.searchParams.get("memberId");
+  if (memberId) {
+    const isMember = await prisma.member.findFirst({
+      where: { id: memberId, productId: session.productId },
+      select: { id: true },
+    });
+    if (!isMember) return NextResponse.json({}, { status: 403 });
+  }
 
   // All sessions for product, desc order
   const allSessions = await prisma.pokerSession.findMany({

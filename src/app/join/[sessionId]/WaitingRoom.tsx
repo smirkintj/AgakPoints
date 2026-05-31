@@ -27,7 +27,10 @@ export function WaitingRoom({ session }: { session: SessionWithDetails }) {
   const [streaks, setStreaks] = useState<Record<string, number>>({});
 
   useEffect(() => {
-    fetch(`/api/sessions/${session.id}/member-streaks`)
+    const stored = sessionStorage.getItem(`agakpoints_member_${session.id}`);
+    const memberId = stored ? (() => { try { return JSON.parse(stored).id; } catch { return null; } })() : null;
+    const url = memberId ? `/api/sessions/${session.id}/member-streaks?memberId=${memberId}` : `/api/sessions/${session.id}/member-streaks`;
+    fetch(url)
       .then((r) => r.json())
       .then((d: { streaks: Record<string, number> }) => setStreaks(d.streaks ?? {}))
       .catch(() => {});

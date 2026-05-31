@@ -14,7 +14,7 @@ export async function POST(
   const { sessionId } = await params;
   const { jiraIssueKey } = await req.json();
 
-  if (!jiraIssueKey) return NextResponse.json({ error: "jiraIssueKey required" }, { status: 400 });
+  if (!jiraIssueKey || !/^[A-Z]+-\d+$/.test(jiraIssueKey)) return NextResponse.json({ error: "Invalid jiraIssueKey" }, { status: 400 });
 
   const pokerSession = await prisma.pokerSession.findFirst({
     where: { id: sessionId },

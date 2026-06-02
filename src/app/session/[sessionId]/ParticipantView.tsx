@@ -342,7 +342,7 @@ export function ParticipantView({ session }: { session: SessionWithDetails }) {
   if (sessionEnded) {
     const totalSP = myAssigned.reduce((s, x) => s + x.sp, 0);
     return (
-      <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black/90 backdrop-blur-sm px-6 py-10 overflow-y-auto">
+      <div ref={recapRef} className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black/90 backdrop-blur-sm px-6 py-10 overflow-y-auto">
         <div className="w-full max-w-lg space-y-6 text-center">
           <div>
             <div className="w-12 h-12 rounded-full bg-violet-600/30 border border-violet-500/30 flex items-center justify-center mx-auto mb-4">
@@ -351,7 +351,7 @@ export function ParticipantView({ session }: { session: SessionWithDetails }) {
             <h2 className="text-2xl font-bold text-white">Session Ended</h2>
             <p className="text-white/40 text-sm mt-1">{session.name ?? session.sprintName}</p>
           </div>
-          <div ref={recapRef} className="space-y-4">
+          <div className="space-y-4">
             {myAssigned.length > 0 ? (
               <div className="rounded-2xl border border-white/10 bg-white/5 p-5 text-left space-y-3">
                 <div className="flex items-center justify-between">
@@ -377,7 +377,11 @@ export function ParticipantView({ session }: { session: SessionWithDetails }) {
               onClick={async () => {
                 if (!recapRef.current) return;
                 const { toPng } = await import("html-to-image");
-                const url = await toPng(recapRef.current, { backgroundColor: "#0d0b1a" });
+                const url = await toPng(recapRef.current, {
+                  backgroundColor: "#0d0b1a",
+                  width: recapRef.current.offsetWidth,
+                  height: recapRef.current.offsetHeight,
+                });
                 const a = document.createElement("a");
                 a.href = url;
                 a.download = `${session.sprintName}-recap.png`;

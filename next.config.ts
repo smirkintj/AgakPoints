@@ -26,9 +26,7 @@ const securityHeaders = [
 
 const nextConfig: NextConfig = {
   images: {
-    remotePatterns: [
-      { protocol: "https", hostname: "api.dicebear.com" },
-    ],
+    remotePatterns: [],
   },
   async headers() {
     return [

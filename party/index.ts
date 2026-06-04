@@ -34,7 +34,8 @@ type MsgOut =
   | { type: "NOTE_UPDATED"; ticketId: string; note: string }
   | { type: "LEAVE_UPDATED"; memberId: string; date: string; active: boolean }
   | { type: "TICKET_DESIGN_UPDATED"; ticketId: string; designReadiness?: string | null; designComplexity?: string | null; designLink?: string | null }
-  | { type: "TICKET_TAGS_UPDATED"; ticketId: string; tags: string[] };
+  | { type: "TICKET_TAGS_UPDATED"; ticketId: string; tags: string[] }
+  | { type: "CALENDAR_UPDATED" };
 
 interface CheckedInMember {
   memberId: string;

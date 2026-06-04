@@ -30,7 +30,8 @@ export function MemberAvatar({ name, role, avatarUrl, size = 36, showRing = fals
       {avatarUrl ? (
         <Image src={avatarUrl} alt={name} fill className="object-cover" />
       ) : (
-        <Image
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
           src={`https://api.dicebear.com/9.x/thumbs/svg?seed=${encodeURIComponent(name)}&backgroundColor=transparent`}
           alt={name}
           width={size}

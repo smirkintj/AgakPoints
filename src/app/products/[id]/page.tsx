@@ -2,8 +2,7 @@ import { auth } from "@/lib/auth";
 import { redirect, notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import Link from "next/link";
-import { Button } from "@/components/ui/button";
-import { ArrowLeft, Plus } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import { ProductTabs } from "./ProductTabs";
 
 export default async function ProductPage({ params }: { params: Promise<{ id: string }> }) {
@@ -53,16 +52,10 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
 
   return (
     <div className="min-h-screen">
-      <header className="border-b border-white/10 px-6 py-4 flex items-center justify-between">
+      <header className="border-b border-white/10 px-6 py-4 flex items-center">
         <Link href="/dashboard" className="flex items-center gap-2 text-white/40 hover:text-white transition-colors">
           <ArrowLeft className="w-4 h-4" />
           Dashboard
-        </Link>
-        <Link href={`/products/${id}/sessions/new`}>
-          <Button size="sm">
-            <Plus className="w-4 h-4" />
-            New Session
-          </Button>
         </Link>
       </header>
 

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { evaluateAll } from "@/lib/achievements";
 
 export async function POST(
   _req: NextRequest,
@@ -51,7 +52,6 @@ export async function POST(
     .filter(t => t.assigneeId && t.finalEstimate)
     .map(t => ({ memberId: t.assigneeId!, storyPoints: t.finalEstimate! }));
 
-  const { evaluateAll } = await import("@/lib/achievements");
   const achievementResults = evaluateAll({
     tickets: sessionTickets,
     votes: sessionVotes,
@@ -60,10 +60,14 @@ export async function POST(
   });
 
   if (achievementResults.length > 0) {
-    await prisma.achievement.createMany({
-      data: achievementResults.map(r => ({ ...r, sessionId })),
-      skipDuplicates: true,
-    });
+    try {
+      await prisma.achievement.createMany({
+        data: achievementResults.map(r => ({ ...r, sessionId })),
+        skipDuplicates: true,
+      });
+    } catch (err) {
+      console.error("[end] achievement createMany failed:", err);
+    }
   }
 
   await prisma.pokerSession.update({

@@ -4,8 +4,8 @@ import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { MemberAvatar } from "@/components/session/MemberAvatar";
 import { RoleBadge } from "@/components/session/RoleBadge";
+import { getRoleColor } from "@/lib/roles";
 import { Pencil, Trash2, Plus, X } from "lucide-react";
-import { Button } from "@/components/ui/button";
 
 const ROLES = ["DEV", "QA", "UI_UX", "SM", "TECH_LEAD"];
 
@@ -25,6 +25,76 @@ const COUNTRIES = [
 
 type Member = { id: string; name: string; role: string; capacity: number; country?: string | null };
 
+const inputCls = "w-full bg-white/5 border border-white/12 rounded-xl px-3 py-2.5 text-sm text-white placeholder:text-white/20 focus:border-violet-500/60 focus:outline-none transition-colors";
+const selectCls = "w-full bg-white/5 border border-white/12 rounded-xl px-3 py-2.5 text-sm text-white focus:border-violet-500/60 focus:outline-none transition-colors";
+
+// Capacity bar — shows sprint load capacity as a visual bar
+function CapacityBar({ capacity }: { capacity: number }) {
+  const max = 40;
+  const pct = Math.min(100, Math.round((capacity / max) * 100));
+  return (
+    <div className="flex items-center gap-2">
+      <div style={{ width: 48, height: 3, background: "#ffffff0a", borderRadius: 2, overflow: "hidden" }}>
+        <div style={{ height: "100%", width: `${pct}%`, background: "linear-gradient(90deg,#7c3aed88,#a78bfaaa)", borderRadius: 2 }} />
+      </div>
+      <span className="text-[10px] font-mono text-white/25">{capacity} SP</span>
+    </div>
+  );
+}
+
+// Group members by role for visual separation
+function groupByRole(members: Member[]): { role: string; members: Member[] }[] {
+  const order = ["TECH_LEAD", "DEV", "QA", "UI_UX", "SM"];
+  const map = new Map<string, Member[]>();
+  for (const m of members) {
+    const r = m.role;
+    if (!map.has(r)) map.set(r, []);
+    map.get(r)!.push(m);
+  }
+  return order
+    .filter((r) => map.has(r))
+    .map((r) => ({ role: r, members: map.get(r)! }));
+}
+
+function MemberRow({ m, onEdit, onDelete }: { m: Member; onEdit: () => void; onDelete: () => void }) {
+  const [confirmDel, setConfirmDel] = useState(false);
+  const { hex } = getRoleColor(m.role);
+
+  if (confirmDel) {
+    return (
+      <div className="flex items-center gap-3 py-2.5 px-3 rounded-xl border border-red-500/20 bg-red-500/5">
+        <span className="text-sm text-white/50 flex-1">Remove <span className="text-white font-medium">{m.name}</span>?</span>
+        <button onClick={onDelete} className="text-xs px-3 py-1 rounded-lg bg-red-500/20 border border-red-500/40 text-red-300 hover:bg-red-500/30">Remove</button>
+        <button onClick={() => setConfirmDel(false)} className="text-xs px-3 py-1 rounded-lg bg-white/8 text-white/40 hover:bg-white/12">Cancel</button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="group flex items-center gap-3 py-2.5 px-3 rounded-xl hover:bg-white/[0.03] transition-colors cursor-default">
+      <MemberAvatar name={m.name} role={m.role} size={34} />
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2">
+          <p className="text-sm font-semibold text-white truncate">{m.name}</p>
+          {m.country && (
+            <span className="text-[10px] px-1.5 py-0.5 rounded bg-white/8 text-white/30 shrink-0">{m.country}</span>
+          )}
+        </div>
+        <CapacityBar capacity={m.capacity ?? 20} />
+      </div>
+      <RoleBadge role={m.role} size="sm" />
+      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+        <button onClick={onEdit} className="p-1.5 rounded-lg hover:bg-white/8 text-white/25 hover:text-white/70 transition-colors">
+          <Pencil className="w-3.5 h-3.5" />
+        </button>
+        <button onClick={() => setConfirmDel(true)} className="p-1.5 rounded-lg hover:bg-red-500/10 text-white/25 hover:text-red-400 transition-colors">
+          <Trash2 className="w-3.5 h-3.5" />
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export function MemberManager({ productId, initialMembers }: { productId: string; initialMembers: Member[] }) {
   const router = useRouter();
   const [members, setMembers] = useState<Member[]>(initialMembers);
@@ -33,7 +103,6 @@ export function MemberManager({ productId, initialMembers }: { productId: string
   const [editRole, setEditRole] = useState("DEV");
   const [editCountry, setEditCountry] = useState("");
   const [editCapacity, setEditCapacity] = useState(20);
-  const [deleteId, setDeleteId] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
   const [newName, setNewName] = useState("");
   const [newRole, setNewRole] = useState("DEV");
@@ -57,12 +126,7 @@ export function MemberManager({ productId, initialMembers }: { productId: string
     const res = await fetch(`/api/products/${productId}/members/${editMember.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        name: editName.trim(),
-        role: editRole,
-        country: editCountry || null,
-        capacity: editCapacity,
-      }),
+      body: JSON.stringify({ name: editName.trim(), role: editRole, country: editCountry || null, capacity: editCapacity }),
     });
     if (res.ok) {
       const updated = await res.json();
@@ -76,7 +140,6 @@ export function MemberManager({ productId, initialMembers }: { productId: string
     setBusy(true);
     await fetch(`/api/products/${productId}/members/${memberId}`, { method: "DELETE" });
     setMembers((ms) => ms.filter((m) => m.id !== memberId));
-    setDeleteId(null);
     setBusy(false);
     router.refresh();
   };
@@ -100,73 +163,79 @@ export function MemberManager({ productId, initialMembers }: { productId: string
     setBusy(false);
   };
 
+  const groups = groupByRole(members);
+
   return (
     <>
-      <div className="space-y-1.5">
-        {members.map((m) => (
-          <div key={m.id} className="group rounded-xl border border-white/8 bg-white/4 px-3 py-2.5 flex items-center gap-3">
-            {deleteId === m.id ? (
-              <div className="flex items-center gap-2 flex-1">
-                <span className="text-sm text-white/50 flex-1">Remove <span className="text-white font-medium">{m.name}</span>?</span>
-                <button onClick={() => confirmDelete(m.id)} disabled={busy} className="text-xs px-2.5 py-1 rounded-lg bg-red-500/20 border border-red-500/40 text-red-300 hover:bg-red-500/30">Remove</button>
-                <button onClick={() => setDeleteId(null)} className="text-xs px-2.5 py-1 rounded-lg bg-white/8 text-white/40 hover:bg-white/12">Cancel</button>
+      <div className="space-y-5">
+        {/* Member groups */}
+        {groups.map(({ role, members: roleMembers }) => {
+          const { hex } = getRoleColor(role);
+          return (
+            <div key={role}>
+              <div className="flex items-center gap-2 mb-2 px-1">
+                <div style={{ width: 6, height: 6, borderRadius: "50%", background: hex, boxShadow: `0 0 6px ${hex}88` }} />
+                <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color: hex + "99" }}>
+                  {role.replace("_", " ")}
+                </span>
+                <span className="text-[10px] text-white/15">{roleMembers.length}</span>
               </div>
-            ) : (
-              <>
-                <MemberAvatar name={m.name} role={m.role} size={32} />
-                <span className="text-white text-sm font-medium flex-1 truncate">{m.name}</span>
-                <RoleBadge role={m.role} size="sm" />
-                {m.country && <span className="text-[10px] px-1.5 py-0.5 rounded bg-white/8 text-white/30">{m.country}</span>}
-                <span className="text-[10px] font-mono text-white/25">{m.capacity}pts</span>
-                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <button onClick={() => startEdit(m)} className="p-1.5 rounded-lg hover:bg-white/8 text-white/30 hover:text-white/70"><Pencil className="w-3.5 h-3.5" /></button>
-                  <button onClick={() => setDeleteId(m.id)} className="p-1.5 rounded-lg hover:bg-red-500/10 text-white/30 hover:text-red-400"><Trash2 className="w-3.5 h-3.5" /></button>
-                </div>
-              </>
-            )}
-          </div>
-        ))}
+              <div className="rounded-2xl border border-white/8 bg-white/[0.02] overflow-hidden divide-y divide-white/5">
+                {roleMembers.map((m) => (
+                  <MemberRow key={m.id} m={m} onEdit={() => startEdit(m)} onDelete={() => confirmDelete(m.id)} />
+                ))}
+              </div>
+            </div>
+          );
+        })}
 
+        {/* Add member row */}
         {adding ? (
-          <div className="rounded-xl border border-violet-500/30 bg-violet-600/8 px-3 py-2.5 flex items-center gap-2">
-            <input
-              value={newName}
-              onChange={(e) => setNewName(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && addMember()}
-              placeholder="Member name"
-              className="flex-1 bg-white/8 border border-white/15 rounded-lg px-2.5 py-1 text-sm text-white placeholder:text-white/25 focus:border-violet-500 focus:outline-none"
-              autoFocus
-            />
-            <select
-              value={newRole}
-              onChange={(e) => setNewRole(e.target.value)}
-              className="bg-white/8 border border-white/15 rounded-lg px-2 py-1 text-xs text-white focus:border-violet-500 focus:outline-none"
-            >
-              {ROLES.map((r) => <option key={r} value={r}>{r}</option>)}
-            </select>
-            <select
-              value={newCountry}
-              onChange={(e) => setNewCountry(e.target.value)}
-              className="bg-white/8 border border-white/15 rounded-lg px-2 py-1 text-xs text-white focus:border-violet-500 focus:outline-none"
-            >
-              {COUNTRIES.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
-            </select>
-            <button onClick={addMember} disabled={busy || !newName.trim()} className="text-xs px-2.5 py-1 rounded-lg bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 hover:bg-emerald-500/30 disabled:opacity-30">Add</button>
-            <button onClick={() => setAdding(false)} className="p-1 rounded text-white/30 hover:bg-white/8"><X className="w-4 h-4" /></button>
+          <div className="rounded-2xl border border-violet-500/25 bg-violet-600/5 p-4 space-y-3">
+            <p className="text-xs font-bold uppercase tracking-widest text-violet-400/60">New member</p>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <input
+                value={newName}
+                onChange={(e) => setNewName(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && addMember()}
+                placeholder="Full name"
+                autoFocus
+                className={inputCls}
+              />
+              <select value={newRole} onChange={(e) => setNewRole(e.target.value)} className={selectCls}>
+                {ROLES.map((r) => <option key={r} value={r}>{r}</option>)}
+              </select>
+              <select value={newCountry} onChange={(e) => setNewCountry(e.target.value)} className={selectCls}>
+                {COUNTRIES.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
+              </select>
+            </div>
+            <div className="flex items-center justify-end gap-2">
+              <button onClick={() => setAdding(false)} className="px-3 py-1.5 rounded-lg text-sm text-white/40 hover:text-white/70 hover:bg-white/8 transition-colors">
+                Cancel
+              </button>
+              <button
+                onClick={addMember}
+                disabled={busy || !newName.trim()}
+                className="px-4 py-1.5 rounded-lg text-sm bg-violet-600 hover:bg-violet-500 text-white font-semibold disabled:opacity-40 transition-colors"
+              >
+                {busy ? "Adding…" : "Add member"}
+              </button>
+            </div>
           </div>
         ) : (
-          <Button variant="ghost" size="sm" onClick={() => { setAdding(true); }} className="w-full border border-dashed border-white/15 hover:border-violet-500/40">
-            <Plus className="w-3.5 h-3.5" />
-            Add member
-          </Button>
+          <button
+            onClick={() => setAdding(true)}
+            className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl border border-dashed border-white/10 text-white/30 hover:border-violet-500/40 hover:text-violet-400 transition-colors text-sm"
+          >
+            <Plus className="w-4 h-4" /> Add member
+          </button>
         )}
       </div>
 
-      {/* Edit modal */}
+      {/* Edit slide-in panel */}
       <AnimatePresence>
         {editMember && (
           <>
-            {/* Backdrop */}
             <motion.div
               key="backdrop"
               initial={{ opacity: 0 }}
@@ -175,7 +244,6 @@ export function MemberManager({ productId, initialMembers }: { productId: string
               onClick={closeModal}
               className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm"
             />
-            {/* Slide-in panel */}
             <motion.div
               key="panel"
               initial={{ x: "100%", opacity: 0 }}
@@ -184,77 +252,75 @@ export function MemberManager({ productId, initialMembers }: { productId: string
               transition={{ type: "spring", stiffness: 300, damping: 30 }}
               className="fixed right-0 top-0 bottom-0 z-50 w-full max-w-sm bg-[#0d0b1a] border-l border-white/10 flex flex-col shadow-2xl"
             >
-              {/* Header */}
               <div className="flex items-center justify-between px-5 py-4 border-b border-white/10 shrink-0">
-                <h2 className="text-white font-semibold text-base">Edit Member</h2>
+                <div className="flex items-center gap-3">
+                  <MemberAvatar name={editName || editMember.name} role={editRole} size={32} />
+                  <h2 className="text-white font-semibold text-sm">Edit Member</h2>
+                </div>
                 <button onClick={closeModal} className="p-1.5 rounded-lg hover:bg-white/8 text-white/40 hover:text-white/70">
                   <X className="w-4 h-4" />
                 </button>
               </div>
 
-              {/* Body */}
               <div className="flex-1 overflow-y-auto px-5 py-5 space-y-5">
-                {/* Name */}
                 <div>
-                  <label className="block text-xs text-white/40 uppercase tracking-widest mb-1.5">Name</label>
-                  <input
-                    value={editName}
-                    onChange={(e) => setEditName(e.target.value)}
-                    onKeyDown={(e) => e.key === "Enter" && saveEdit()}
-                    className="w-full bg-white/5 border border-white/15 rounded-lg px-3 py-2 text-sm text-white placeholder:text-white/25 focus:border-violet-500 focus:outline-none"
-                    autoFocus
-                  />
+                  <label className="block text-[10px] text-white/30 uppercase tracking-widest mb-1.5">Name</label>
+                  <input value={editName} onChange={(e) => setEditName(e.target.value)} onKeyDown={(e) => e.key === "Enter" && saveEdit()} autoFocus className={inputCls} />
                 </div>
 
-                {/* Role */}
                 <div>
-                  <label className="block text-xs text-white/40 uppercase tracking-widest mb-1.5">Role</label>
-                  <select
-                    value={editRole}
-                    onChange={(e) => setEditRole(e.target.value)}
-                    className="w-full bg-white/5 border border-white/15 rounded-lg px-3 py-2 text-sm text-white focus:border-violet-500 focus:outline-none"
-                  >
-                    {ROLES.map((r) => <option key={r} value={r}>{r}</option>)}
-                  </select>
+                  <label className="block text-[10px] text-white/30 uppercase tracking-widest mb-1.5">Role</label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {ROLES.map((r) => {
+                      const { hex } = getRoleColor(r);
+                      return (
+                        <button
+                          key={r}
+                          onClick={() => setEditRole(r)}
+                          className="py-2 rounded-xl text-xs font-semibold border transition-all"
+                          style={editRole === r
+                            ? { background: hex + "22", borderColor: hex + "88", color: hex }
+                            : { background: "transparent", borderColor: "#ffffff12", color: "#ffffff30" }
+                          }
+                        >
+                          {r.replace("_", " ")}
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
 
-                {/* Country */}
                 <div>
-                  <label className="block text-xs text-white/40 uppercase tracking-widest mb-1.5">Country</label>
-                  <select
-                    value={editCountry}
-                    onChange={(e) => setEditCountry(e.target.value)}
-                    className="w-full bg-white/5 border border-white/15 rounded-lg px-3 py-2 text-sm text-white focus:border-violet-500 focus:outline-none"
-                  >
+                  <label className="block text-[10px] text-white/30 uppercase tracking-widest mb-1.5">Country</label>
+                  <select value={editCountry} onChange={(e) => setEditCountry(e.target.value)} className={selectCls}>
                     {COUNTRIES.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
                   </select>
                 </div>
 
-                {/* Capacity */}
                 <div>
-                  <label className="block text-xs text-white/40 uppercase tracking-widest mb-1.5">Capacity (story points per sprint)</label>
+                  <label className="block text-[10px] text-white/30 uppercase tracking-widest mb-1.5">
+                    Sprint capacity — <span className="text-violet-400 font-mono">{editCapacity} SP</span>
+                  </label>
                   <input
-                    type="number"
+                    type="range"
                     min={1}
+                    max={60}
                     value={editCapacity}
-                    onChange={(e) => setEditCapacity(parseInt(e.target.value, 10) || 20)}
-                    className="w-full bg-white/5 border border-white/15 rounded-lg px-3 py-2 text-sm text-white focus:border-violet-500 focus:outline-none"
+                    onChange={(e) => setEditCapacity(parseInt(e.target.value, 10))}
+                    className="w-full accent-violet-500"
                   />
+                  <div className="flex justify-between text-[10px] text-white/20 mt-1">
+                    <span>1</span><span>20</span><span>40</span><span>60</span>
+                  </div>
                 </div>
               </div>
 
-              {/* Footer */}
               <div className="flex items-center justify-end gap-2 px-5 py-4 border-t border-white/10 shrink-0">
-                <button
-                  onClick={closeModal}
-                  className="px-4 py-2 rounded-lg text-sm text-white/50 hover:text-white/80 hover:bg-white/8 transition-colors"
-                >
-                  Cancel
-                </button>
+                <button onClick={closeModal} className="px-4 py-2 rounded-xl text-sm text-white/40 hover:text-white/70 hover:bg-white/8 transition-colors">Cancel</button>
                 <button
                   onClick={saveEdit}
                   disabled={busy || !editName.trim()}
-                  className="px-4 py-2 rounded-lg text-sm bg-violet-600 hover:bg-violet-500 text-white font-medium disabled:opacity-40 transition-colors"
+                  className="px-5 py-2 rounded-xl text-sm bg-violet-600 hover:bg-violet-500 text-white font-semibold disabled:opacity-40 transition-colors"
                 >
                   {busy ? "Saving…" : "Save"}
                 </button>

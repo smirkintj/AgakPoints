@@ -2,9 +2,7 @@
 import { useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { ExternalLink, FileText, ChevronDown, ChevronRight, Square, Pencil, Check, X } from "lucide-react";
+import { ExternalLink, FileText, Pencil, Check, X, Square } from "lucide-react";
 
 const MONTH_SHORT = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 function fmtDate(d: Date) { return `${d.getDate()} ${MONTH_SHORT[d.getMonth()]}`; }
@@ -21,13 +19,29 @@ type Session = {
   attendeeCount: number;
 };
 
-function SessionRow({ s, productId, onEnd, onRename }: { s: Session; productId: string; onEnd: (id: string) => void; onRename: (id: string, name: string) => void }) {
+function InlineRename({ value, onSave, onCancel }: { value: string; onSave: (v: string) => void; onCancel: () => void }) {
+  const [val, setVal] = useState(value);
+  const ref = useRef<HTMLInputElement>(null);
+  return (
+    <div className="flex items-center gap-1.5 flex-1 min-w-0">
+      <input
+        ref={ref}
+        value={val}
+        autoFocus
+        onChange={(e) => setVal(e.target.value)}
+        onKeyDown={(e) => { if (e.key === "Enter") onSave(val); if (e.key === "Escape") onCancel(); }}
+        className="flex-1 min-w-0 bg-white/8 border border-violet-500/50 rounded px-2 py-0.5 text-sm text-white focus:outline-none"
+      />
+      <button onClick={() => onSave(val)} className="p-1 rounded hover:bg-white/8 text-emerald-400"><Check className="w-3.5 h-3.5" /></button>
+      <button onClick={onCancel} className="p-1 rounded hover:bg-white/8 text-white/30"><X className="w-3.5 h-3.5" /></button>
+    </div>
+  );
+}
+
+function ActiveCard({ s, productId, onEnd, onRename }: { s: Session; productId: string; onEnd: (id: string) => void; onRename: (id: string, name: string) => void }) {
   const [confirmEnd, setConfirmEnd] = useState(false);
   const [ending, setEnding] = useState(false);
   const [renaming, setRenaming] = useState(false);
-  const [renameVal, setRenameVal] = useState(s.name ?? s.sprintName);
-  const [savingName, setSavingName] = useState(false);
-  const inputRef = useRef<HTMLInputElement>(null);
 
   const doEnd = async () => {
     setEnding(true);
@@ -37,141 +51,172 @@ function SessionRow({ s, productId, onEnd, onRename }: { s: Session; productId: 
     setConfirmEnd(false);
   };
 
-  const startRename = () => {
-    setRenameVal(s.name ?? s.sprintName);
-    setRenaming(true);
-    setTimeout(() => inputRef.current?.focus(), 0);
-  };
-
-  const saveRename = async () => {
-    if (!renameVal.trim()) return;
-    setSavingName(true);
-    const res = await fetch(`/api/sessions/${s.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: renameVal.trim() }),
-    });
-    if (res.ok) {
-      onRename(s.id, renameVal.trim());
-    }
-    setSavingName(false);
+  const saveRename = async (val: string) => {
+    if (!val.trim()) return;
+    const res = await fetch(`/api/sessions/${s.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: val.trim() }) });
+    if (res.ok) onRename(s.id, val.trim());
     setRenaming(false);
   };
 
-  const cancelRename = () => {
+  const isWaiting = s.status === "WAITING";
+
+  return (
+    <div style={{ background: "linear-gradient(135deg,#1a1035,#0f0c22)", border: "1px solid #7c3aed44", borderRadius: 14, padding: "18px 20px", boxShadow: "0 0 32px #7c3aed14" }}>
+      {/* Eyebrow */}
+      <div className="flex items-center gap-2 mb-3">
+        <span className={`w-2 h-2 rounded-full shrink-0 ${isWaiting ? "bg-amber-400" : "bg-emerald-400"}`}
+          style={isWaiting ? undefined : { boxShadow: "0 0 8px #10b98199", animation: "pulse 2s infinite" }} />
+        <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color: isWaiting ? "#f59e0b" : "#10b981" }}>
+          {isWaiting ? "Waiting to start" : "Live now"}
+        </span>
+      </div>
+
+      {/* Name */}
+      <div className="mb-1">
+        {renaming ? (
+          <InlineRename value={s.name ?? s.sprintName} onSave={saveRename} onCancel={() => setRenaming(false)} />
+        ) : (
+          <div className="flex items-center gap-1.5 group">
+            <h3 className="text-white font-bold text-base leading-snug">{s.name ?? s.sprintName}</h3>
+            <button onClick={() => setRenaming(true)} className="opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded hover:bg-white/8 text-white/30">
+              <Pencil className="w-3 h-3" />
+            </button>
+          </div>
+        )}
+        <p className="text-[11px] text-white/30 mt-0.5">{s.sprintName} · Started {fmtDate(new Date(s.createdAt))}</p>
+      </div>
+
+      {/* Stats row */}
+      <div className="flex gap-5 mt-4 mb-5">
+        {[
+          { val: s.totalPts, lbl: "SP locked" },
+          { val: `${s.estimatedCount}/${s._count.tickets}`, lbl: "Tickets" },
+          { val: s.attendeeCount, lbl: "Attending" },
+        ].map(({ val, lbl }) => (
+          <div key={lbl}>
+            <div className="text-xl font-black text-violet-300 font-mono leading-none">{val}</div>
+            <div className="text-[10px] text-white/30 mt-0.5">{lbl}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Actions */}
+      <div className="flex items-center gap-2">
+        <Link href={`/products/${productId}/sessions/${s.id}/host`} className="flex-1">
+          <button className="w-full py-2 rounded-xl text-sm font-bold text-white" style={{ background: "linear-gradient(135deg,#7c3aed,#6d28d9)", boxShadow: "0 4px 16px #7c3aed33" }}>
+            Open host view ↗
+          </button>
+        </Link>
+        {confirmEnd ? (
+          <div className="flex gap-1.5">
+            <button onClick={doEnd} disabled={ending} className="text-xs px-3 py-2 rounded-xl bg-red-500/20 border border-red-500/40 text-red-300 hover:bg-red-500/30">
+              {ending ? "…" : "Confirm end"}
+            </button>
+            <button onClick={() => setConfirmEnd(false)} className="text-xs px-3 py-2 rounded-xl bg-white/8 text-white/40">Cancel</button>
+          </div>
+        ) : (
+          <button onClick={() => setConfirmEnd(true)} className="p-2 rounded-xl border border-white/10 hover:border-red-500/30 hover:bg-red-500/10 text-white/25 hover:text-red-400 transition-colors">
+            <Square className="w-4 h-4" />
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// Max SP across completed sessions for bar scaling
+function SpBar({ pts, max }: { pts: number; max: number }) {
+  const pct = max > 0 ? Math.round((pts / max) * 100) : 0;
+  return (
+    <div style={{ width: 64, height: 3, background: "#ffffff0a", borderRadius: 2, overflow: "hidden" }}>
+      <div style={{ height: "100%", width: `${pct}%`, background: "linear-gradient(90deg,#7c3aed88,#a78bfaaa)", borderRadius: 2 }} />
+    </div>
+  );
+}
+
+function HistoryRow({ s, productId, onRename, maxPts }: { s: Session; productId: string; onRename: (id: string, name: string) => void; maxPts: number }) {
+  const [renaming, setRenaming] = useState(false);
+
+  const saveRename = async (val: string) => {
+    if (!val.trim()) return;
+    const res = await fetch(`/api/sessions/${s.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: val.trim() }) });
+    if (res.ok) onRename(s.id, val.trim());
     setRenaming(false);
-    setRenameVal(s.name ?? s.sprintName);
   };
 
   return (
-    <div className="group flex items-center gap-3 py-2.5 border-b border-white/5 last:border-0">
+    <Link href={`/products/${productId}/sessions/${s.id}/summary`} className="group flex items-center gap-3 py-3 border-b border-white/6 last:border-0 hover:bg-white/[0.02] rounded-lg px-2 -mx-2 transition-colors">
+      <div className="w-1.5 h-1.5 rounded-full bg-white/15 shrink-0" />
       <div className="flex-1 min-w-0">
         {renaming ? (
-          <div className="flex items-center gap-1.5">
-            <input
-              ref={inputRef}
-              value={renameVal}
-              onChange={(e) => setRenameVal(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") saveRename();
-                if (e.key === "Escape") cancelRename();
-              }}
-              className="flex-1 min-w-0 bg-white/8 border border-violet-500/50 rounded px-2 py-0.5 text-sm text-white focus:outline-none"
-            />
-            <button onClick={saveRename} disabled={savingName} className="p-1 rounded hover:bg-white/8 text-emerald-400">
-              <Check className="w-3.5 h-3.5" />
-            </button>
-            <button onClick={cancelRename} className="p-1 rounded hover:bg-white/8 text-white/30">
-              <X className="w-3.5 h-3.5" />
-            </button>
-          </div>
+          <InlineRename value={s.name ?? s.sprintName} onSave={saveRename} onCancel={() => setRenaming(false)} />
         ) : (
           <div className="flex items-center gap-1.5">
-            <p className="text-white text-sm font-medium truncate">{s.name ?? s.sprintName}</p>
+            <p className="text-sm font-medium text-white/55 group-hover:text-white/80 transition-colors truncate">{s.name ?? s.sprintName}</p>
             <button
-              onClick={startRename}
-              className="opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded hover:bg-white/8 text-white/30 hover:text-white/60"
-              title="Rename session"
+              onClick={(e) => { e.preventDefault(); setRenaming(true); }}
+              className="opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded hover:bg-white/8 text-white/20 hover:text-white/50 shrink-0"
             >
               <Pencil className="w-3 h-3" />
             </button>
           </div>
         )}
-        <p className="text-white/35 text-xs">
-          {fmtDate(new Date(s.createdAt))} · {s.estimatedCount}/{s._count.tickets} estimated · {s.totalPts} pts · {s.attendeeCount} attended
-        </p>
+        <p className="text-[10px] text-white/25 mt-0.5">{fmtDate(new Date(s.createdAt))} · {s.estimatedCount}/{s._count.tickets} estimated · {s.attendeeCount} attended</p>
       </div>
-      <div className="flex items-center gap-1.5 shrink-0">
-        <Badge variant={s.status === "COMPLETED" ? "success" : s.status === "ACTIVE" ? "warning" : "ghost"}>
-          {s.status}
-        </Badge>
-        {(s.status === "ACTIVE" || s.status === "WAITING") && (
-          confirmEnd ? (
-            <>
-              <button onClick={doEnd} disabled={ending} className="text-[11px] px-2 py-0.5 rounded bg-red-500/20 border border-red-500/40 text-red-300 hover:bg-red-500/30">
-                {ending ? "…" : "Confirm"}
-              </button>
-              <button onClick={() => setConfirmEnd(false)} className="text-[11px] px-2 py-0.5 rounded bg-white/8 text-white/40">Cancel</button>
-            </>
-          ) : (
-            <button onClick={() => setConfirmEnd(true)} title="End session" className="p-1.5 rounded hover:bg-red-500/10 text-white/25 hover:text-red-400 transition-colors">
-              <Square className="w-3.5 h-3.5" />
-            </button>
-          )
-        )}
-        <Link href={s.status === "COMPLETED" ? `/products/${productId}/sessions/${s.id}/summary` : `/products/${productId}/sessions/${s.id}/host`}>
-          <Button size="sm" variant="ghost" title={s.status === "COMPLETED" ? "View summary" : "Open session"}>
-            {s.status === "COMPLETED" ? <FileText className="w-3.5 h-3.5" /> : <ExternalLink className="w-3.5 h-3.5" />}
-          </Button>
-        </Link>
+      <div className="text-right shrink-0 flex flex-col items-end gap-1">
+        <span className="text-sm font-bold font-mono text-white/30 group-hover:text-violet-400 transition-colors">{s.totalPts} SP</span>
+        <SpBar pts={s.totalPts} max={maxPts} />
       </div>
-    </div>
+      <FileText className="w-3.5 h-3.5 text-white/15 group-hover:text-white/40 transition-colors shrink-0" />
+    </Link>
   );
 }
 
 export function SessionList({ productId, sessions }: { productId: string; sessions: Session[] }) {
   const router = useRouter();
   const [list, setList] = useState(sessions);
-  const [showAllCompleted, setShowAllCompleted] = useState(false);
+  const [showAll, setShowAll] = useState(false);
 
   const handleEnd = (id: string) => {
     setList((prev) => prev.map((s) => s.id === id ? { ...s, status: "COMPLETED" } : s));
     router.refresh();
   };
 
-  const handleRename = (id: string, name: string) => {
-    setList((prev) => prev.map((s) => s.id === id ? { ...s, name } : s));
-  };
+  const handleRename = (id: string, name: string) => setList((prev) => prev.map((s) => s.id === id ? { ...s, name } : s));
 
-  const active = list.filter((s) => s.status === "ACTIVE");
-  const waiting = list.filter((s) => s.status === "WAITING");
+  const active = list.filter((s) => s.status === "ACTIVE" || s.status === "WAITING");
   const completed = list.filter((s) => s.status === "COMPLETED");
-  const visibleCompleted = showAllCompleted ? completed : completed.slice(0, 3);
+  const maxPts = Math.max(...completed.map((s) => s.totalPts), 1);
+  const visible = showAll ? completed : completed.slice(0, 5);
 
-  if (list.length === 0) {
-    return <p className="text-white/40 text-sm text-center py-6">No sessions yet</p>;
-  }
+  if (list.length === 0) return <p className="text-white/30 text-sm text-center py-8">No sessions yet</p>;
 
   return (
-    <div className="space-y-0">
-      {[...active, ...waiting].map((s) => (
-        <SessionRow key={s.id} s={s} productId={productId} onEnd={handleEnd} onRename={handleRename} />
+    <div className="space-y-5">
+      {/* Active / waiting */}
+      {active.map((s) => (
+        <ActiveCard key={s.id} s={s} productId={productId} onEnd={handleEnd} onRename={handleRename} />
       ))}
-      {completed.length > 0 && (active.length > 0 || waiting.length > 0) && (
-        <div className="border-t border-white/8 mt-1 pt-1" />
+
+      {/* History */}
+      {completed.length > 0 && (
+        <div>
+          {active.length > 0 && <p className="text-[10px] font-bold uppercase tracking-widest text-white/20 mb-3">History</p>}
+          <div>
+            {visible.map((s) => (
+              <HistoryRow key={s.id} s={s} productId={productId} onRename={handleRename} maxPts={maxPts} />
+            ))}
+          </div>
+          {completed.length > 5 && (
+            <button
+              onClick={() => setShowAll((v) => !v)}
+              className="mt-2 text-xs text-white/25 hover:text-white/50 transition-colors w-full text-center py-1"
+            >
+              {showAll ? "Show less" : `↓ ${completed.length - 5} more sessions`}
+            </button>
+          )}
+        </div>
       )}
-      {completed.length > 3 && (
-        <button
-          onClick={() => setShowAllCompleted((v) => !v)}
-          className="flex items-center gap-1.5 text-xs text-white/30 hover:text-white/50 transition-colors pb-1 w-full"
-        >
-          {showAllCompleted ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
-          {showAllCompleted ? "Show less" : `Show ${completed.length - 3} more completed sessions`}
-        </button>
-      )}
-      {visibleCompleted.map((s) => (
-        <SessionRow key={s.id} s={s} productId={productId} onEnd={handleEnd} onRename={handleRename} />
-      ))}
     </div>
   );
 }

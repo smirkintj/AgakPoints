@@ -70,48 +70,42 @@ export function ProductTabs({
 
   return (
     <div>
-      {/* Tab bar */}
-      <div className="flex items-center gap-0 border-b border-white/10 mb-6">
-        {TABS.map((tab) => (
-          <button
-            key={tab}
-            onClick={() => setActiveTab(tab)}
-            className={`px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px ${
-              activeTab === tab
-                ? "text-violet-400 border-violet-500"
-                : "text-white/40 border-transparent hover:text-white/60"
-            }`}
-          >
-            {tab}
-            {tab === "Sessions" && (
-              <span className="ml-1.5 text-xs text-white/25">({sessions.length})</span>
-            )}
-            {tab === "Team" && (
-              <span className="ml-1.5 text-xs text-white/25">({members.length})</span>
-            )}
-          </button>
-        ))}
+      {/* Tab bar + action */}
+      <div className="flex items-center justify-between border-b border-white/10 mb-8">
+        <div className="flex items-center gap-0">
+          {TABS.map((tab) => (
+            <button
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              className={`px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px ${
+                activeTab === tab
+                  ? "text-violet-400 border-violet-500"
+                  : "text-white/35 border-transparent hover:text-white/60"
+              }`}
+            >
+              {tab}
+              {tab === "Sessions" && sessions.length > 0 && (
+                <span className="ml-1.5 text-[10px] text-white/20">({sessions.length})</span>
+              )}
+              {tab === "Team" && members.length > 0 && (
+                <span className="ml-1.5 text-[10px] text-white/20">({members.length})</span>
+              )}
+            </button>
+          ))}
+        </div>
+        {activeTab === "Sessions" && (
+          <Link href={`/products/${productId}/sessions/new`} className="mb-1">
+            <Button size="sm"><Plus className="w-4 h-4" /> New Session</Button>
+          </Link>
+        )}
       </div>
 
-      {/* Tab content */}
       {activeTab === "Sessions" && (
-        <div>
-          <SessionList productId={productId} sessions={sessions} />
-          {sessions.length === 0 && (
-            <div className="text-center pt-4">
-              <Link href={`/products/${productId}/sessions/new`}>
-                <Button size="sm">Start First Session</Button>
-              </Link>
-            </div>
-          )}
-        </div>
+        <SessionList productId={productId} sessions={sessions} />
       )}
 
       {activeTab === "Team" && (
-        <MemberManager
-          productId={productId}
-          initialMembers={members}
-        />
+        <MemberManager productId={productId} initialMembers={members} />
       )}
 
       {activeTab === "Settings" && (

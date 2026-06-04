@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Session Management — Wireframe Options</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #09070f; color: #e2d9ff; font-family: system-ui, sans-serif; padding: 40px 24px; }
+
+  h1 { font-size: 13px; letter-spacing: 0.1em; text-transform: uppercase; color: #4a4070; font-weight: 700; margin-bottom: 40px; }
+  .section-label { font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: #4a4070; font-weight: 700; margin-bottom: 20px; }
+  .option-title { font-size: 18px; font-weight: 800; color: #fff; margin-bottom: 6px; }
+  .option-desc { font-size: 12px; color: #6b5fa6; margin-bottom: 28px; }
+
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 48px; max-width: 1200px; }
+  @media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
+
+  /* ── shared chrome ── */
+  .chrome { background: #0d0b1a; border: 1px solid #ffffff12; border-radius: 16px; overflow: hidden; }
+  .chrome-header { display: flex; align-items: center; justify-content: space-between; padding: 14px 18px; border-bottom: 1px solid #ffffff0d; }
+  .chrome-title { font-size: 14px; font-weight: 700; color: #fff; }
+  .chrome-sub { font-size: 11px; color: #4a4070; margin-top: 1px; }
+  .btn-new { background: linear-gradient(135deg,#7c3aed,#6d28d9); border: none; border-radius: 8px; color: #fff; font-size: 12px; font-weight: 700; padding: 6px 14px; cursor: pointer; }
+  .btn-ghost { background: transparent; border: 1px solid #ffffff15; border-radius: 8px; color: #ffffff50; font-size: 12px; padding: 5px 12px; cursor: pointer; }
+
+  .status-dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; margin-right: 5px; }
+  .dot-active { background: #10b981; box-shadow: 0 0 6px #10b98188; }
+  .dot-waiting { background: #f59e0b; }
+  .dot-done { background: #ffffff25; }
+
+  /* ═══════════════════════════════════════════════
+     OPTION A — Card grid with active session hero
+  ═══════════════════════════════════════════════ */
+
+  .hero-card {
+    margin: 16px;
+    background: linear-gradient(135deg,#1a1035,#0f0c22);
+    border: 1px solid #7c3aed55;
+    border-radius: 12px;
+    padding: 18px;
+    box-shadow: 0 0 40px #7c3aed1a;
+  }
+  .hero-eyebrow { font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: #7c3aed; font-weight: 700; margin-bottom: 8px; display: flex; align-items: center; gap: 6px; }
+  .hero-eyebrow::before { content:""; width:6px; height:6px; border-radius:50%; background:#10b981; box-shadow:0 0 8px #10b98199; }
+  .hero-name { font-size: 17px; font-weight: 800; color: #fff; margin-bottom: 4px; }
+  .hero-meta { font-size: 11px; color: #6b5fa6; margin-bottom: 14px; }
+  .hero-stats { display: flex; gap: 16px; margin-bottom: 14px; }
+  .hero-stat-val { font-size: 20px; font-weight: 800; color: #a78bfa; font-variant-numeric: tabular-nums; }
+  .hero-stat-lbl { font-size: 10px; color: #4a4070; margin-top: 1px; }
+  .hero-actions { display: flex; gap: 8px; }
+  .btn-open { background: #7c3aed; border: none; border-radius: 8px; color: #fff; font-size: 12px; font-weight: 700; padding: 7px 16px; cursor: pointer; flex: 1; }
+  .btn-end { background: transparent; border: 1px solid #ef444440; border-radius: 8px; color: #ef4444; font-size: 12px; padding: 7px 12px; cursor: pointer; }
+
+  .session-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 0 16px 16px; }
+  .session-mini { background: #ffffff05; border: 1px solid #ffffff0d; border-radius: 10px; padding: 12px 14px; cursor: pointer; transition: border-color 0.15s; }
+  .session-mini:hover { border-color: #ffffff20; }
+  .session-mini-name { font-size: 12px; font-weight: 600; color: #e2d9ff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 3px; }
+  .session-mini-meta { font-size: 10px; color: #4a4070; }
+  .session-mini-pts { font-size: 13px; font-weight: 700; color: #a78bfa; font-variant-numeric: tabular-nums; }
+  .show-more { text-align: center; padding: 8px; font-size: 11px; color: #4a4070; cursor: pointer; }
+  .show-more:hover { color: #a78bfa; }
+
+  /* ═══════════════════════════════════════════════
+     OPTION B — Timeline / sprint history view
+  ═══════════════════════════════════════════════ */
+
+  .tl-body { padding: 12px 18px 18px; }
+  .tl-section-lbl { font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: #4a4070; font-weight: 700; margin-bottom: 8px; margin-top: 12px; }
+
+  .tl-active { background: linear-gradient(90deg,#7c3aed14,transparent); border: 1px solid #7c3aed44; border-radius: 10px; padding: 12px 14px; margin-bottom: 6px; display: flex; align-items: center; gap: 12px; cursor: pointer; }
+  .tl-active:hover { border-color: #7c3aed88; }
+  .tl-live-dot { width: 8px; height: 8px; border-radius: 50%; background: #10b981; box-shadow: 0 0 8px #10b98199; flex-shrink: 0; animation: pulse 2s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+  .tl-session-name { font-size: 13px; font-weight: 700; color: #fff; }
+  .tl-session-meta { font-size: 11px; color: #4a4070; margin-top: 1px; }
+  .tl-actions { margin-left: auto; display: flex; gap: 6px; }
+
+  .tl-row { display: flex; align-items: center; gap: 10px; padding: 9px 4px; border-bottom: 1px solid #ffffff06; cursor: pointer; }
+  .tl-row:last-child { border-bottom: none; }
+  .tl-row:hover .tl-row-name { color: #e2d9ff; }
+  .tl-row-dot { width: 6px; height: 6px; border-radius: 50%; background: #ffffff20; flex-shrink: 0; }
+  .tl-row-info { flex: 1; min-width: 0; }
+  .tl-row-name { font-size: 12px; font-weight: 600; color: #a09ab8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .tl-row-meta { font-size: 10px; color: #4a4070; }
+  .tl-row-pts { font-size: 12px; font-weight: 700; color: #a78bfa44; font-variant-numeric: tabular-nums; text-align: right; }
+  .tl-row:hover .tl-row-pts { color: #a78bfa; }
+
+  .tl-sprint-bar { height: 3px; border-radius: 2px; background: #ffffff0a; margin: 8px 0 6px; position: relative; overflow: hidden; }
+  .tl-sprint-bar-fill { height: 100%; background: linear-gradient(90deg,#7c3aed66,#a78bfa88); border-radius: 2px; width: 62%; }
+
+  .separator { height: 1px; background: #ffffff08; margin: 48px 0; }
+</style>
+</head>
+<body>
+
+<h1>Session Management — Wireframe Options</h1>
+
+<div class="grid">
+
+  <!-- ── OPTION A ── -->
+  <div>
+    <div class="option-title">Option A</div>
+    <div class="option-desc">Active session as hero card · past sessions in a 2-col mini grid · quick glance at pts + tickets</div>
+
+    <div class="chrome">
+      <div class="chrome-header">
+        <div>
+          <div class="chrome-title">AgakPoints Web</div>
+          <div class="chrome-sub">4 members · 12 sessions</div>
+        </div>
+        <button class="btn-new">+ New Session</button>
+      </div>
+
+      <!-- Active hero -->
+      <div class="hero-card">
+        <div class="hero-eyebrow">Live now</div>
+        <div class="hero-name">Sprint 24 — Backend Hardening</div>
+        <div class="hero-meta">Started today · 5 of 14 tickets estimated · 4 checked in</div>
+        <div class="hero-stats">
+          <div>
+            <div class="hero-stat-val">38</div>
+            <div class="hero-stat-lbl">SP locked</div>
+          </div>
+          <div>
+            <div class="hero-stat-val">5/14</div>
+            <div class="hero-stat-lbl">Tickets done</div>
+          </div>
+          <div>
+            <div class="hero-stat-val">4</div>
+            <div class="hero-stat-lbl">Attending</div>
+          </div>
+        </div>
+        <div class="hero-actions">
+          <button class="btn-open">Open host view ↗</button>
+          <button class="btn-end">End</button>
+        </div>
+      </div>
+
+      <!-- Past sessions grid -->
+      <div style="padding:0 16px 6px; display:flex; align-items:center; justify-content:space-between;">
+        <div class="section-label" style="margin:0">Past sessions</div>
+        <span style="font-size:10px;color:#4a4070">sorted by date</span>
+      </div>
+      <div class="session-grid">
+        <div class="session-mini">
+          <div class="session-mini-pts">84 SP</div>
+          <div class="session-mini-name">Sprint 23 — Auth</div>
+          <div class="session-mini-meta">12 Jun · 12/12 tickets · 5 attended</div>
+        </div>
+        <div class="session-mini">
+          <div class="session-mini-pts">61 SP</div>
+          <div class="session-mini-name">Sprint 22 — Checkout</div>
+          <div class="session-mini-meta">29 May · 10/11 tickets · 4 attended</div>
+        </div>
+        <div class="session-mini">
+          <div class="session-mini-pts">72 SP</div>
+          <div class="session-mini-name">Sprint 21 — Infra</div>
+          <div class="session-mini-meta">15 May · 11/11 tickets · 5 attended</div>
+        </div>
+        <div class="session-mini">
+          <div class="session-mini-pts">55 SP</div>
+          <div class="session-mini-name">Sprint 20 — Mobile</div>
+          <div class="session-mini-meta">1 May · 9/12 tickets · 3 attended</div>
+        </div>
+      </div>
+      <div class="show-more">↓ 8 more sessions</div>
+    </div>
+  </div>
+
+  <!-- ── OPTION B ── -->
+  <div>
+    <div class="option-title">Option B</div>
+    <div class="option-desc">Timeline-style list · active pinned at top with pulse · completed rows muted · sprint velocity bar</div>
+
+    <div class="chrome">
+      <div class="chrome-header">
+        <div>
+          <div class="chrome-title">AgakPoints Web</div>
+          <div class="chrome-sub">4 members · 12 sessions</div>
+        </div>
+        <button class="btn-new">+ New Session</button>
+      </div>
+
+      <div class="tl-body">
+
+        <!-- Active -->
+        <div class="tl-section-lbl">Active</div>
+        <div class="tl-active">
+          <div class="tl-live-dot"></div>
+          <div>
+            <div class="tl-session-name">Sprint 24 — Backend Hardening</div>
+            <div class="tl-session-meta">Started today · 5/14 estimated · 38 SP so far</div>
+          </div>
+          <div class="tl-actions">
+            <button class="btn-ghost">End</button>
+            <button class="btn-new" style="padding:5px 12px;font-size:11px">Open ↗</button>
+          </div>
+        </div>
+
+        <!-- Velocity bar (last 3 sprints) -->
+        <div class="tl-section-lbl" style="margin-top:16px">History</div>
+
+        <!-- Sprint 23 -->
+        <div class="tl-row">
+          <div class="tl-row-dot" style="background:#a78bfa55"></div>
+          <div class="tl-row-info">
+            <div class="tl-row-name">Sprint 23 — Auth Overhaul</div>
+            <div class="tl-row-meta">12 Jun · 12/12 estimated · 5 attended</div>
+          </div>
+          <div style="text-align:right">
+            <div class="tl-row-pts">84 SP</div>
+            <div class="tl-sprint-bar" style="width:80px"><div class="tl-sprint-bar-fill" style="width:100%"></div></div>
+          </div>
+        </div>
+
+        <!-- Sprint 22 -->
+        <div class="tl-row">
+          <div class="tl-row-dot"></div>
+          <div class="tl-row-info">
+            <div class="tl-row-name">Sprint 22 — Checkout Flow</div>
+            <div class="tl-row-meta">29 May · 10/11 estimated · 4 attended</div>
+          </div>
+          <div style="text-align:right">
+            <div class="tl-row-pts">61 SP</div>
+            <div class="tl-sprint-bar" style="width:80px"><div class="tl-sprint-bar-fill" style="width:73%"></div></div>
+          </div>
+        </div>
+
+        <!-- Sprint 21 -->
+        <div class="tl-row">
+          <div class="tl-row-dot"></div>
+          <div class="tl-row-info">
+            <div class="tl-row-name">Sprint 21 — Infra Cleanup</div>
+            <div class="tl-row-meta">15 May · 11/11 estimated · 5 attended</div>
+          </div>
+          <div style="text-align:right">
+            <div class="tl-row-pts">72 SP</div>
+            <div class="tl-sprint-bar" style="width:80px"><div class="tl-sprint-bar-fill" style="width:86%"></div></div>
+          </div>
+        </div>
+
+        <!-- Sprint 20 -->
+        <div class="tl-row">
+          <div class="tl-row-dot"></div>
+          <div class="tl-row-info">
+            <div class="tl-row-name">Sprint 20 — Mobile Views</div>
+            <div class="tl-row-meta">1 May · 9/12 estimated · 3 attended</div>
+          </div>
+          <div style="text-align:right">
+            <div class="tl-row-pts">55 SP</div>
+            <div class="tl-sprint-bar" style="width:80px"><div class="tl-sprint-bar-fill" style="width:65%"></div></div>
+          </div>
+        </div>
+
+        <div style="padding-top:12px;text-align:center;font-size:11px;color:#4a4070;cursor:pointer">↓ 8 more</div>
+
+      </div>
+    </div>
+  </div>
+
+</div>
+
+</body>
+</html>

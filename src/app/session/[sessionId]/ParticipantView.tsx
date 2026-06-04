@@ -27,32 +27,14 @@ const PRIORITY_COLORS: Record<string, string> = {
 const MONTH_SHORT = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 import type confettiType from "canvas-confetti";
 import { getAutoReaction } from "@/lib/gameReactions";
-import { BeachIcon, RocketIcon, PartyIcon, TargetIcon, SpicyIcon, ThinkIcon } from "@/components/ui/GameIcon";
-import { AchievementBadge } from "@/components/session/AchievementBadge";
+import { BeachIcon, RocketIcon, TargetIcon, SpicyIcon, ThinkIcon } from "@/components/ui/GameIcon";
+import { AchievementBadge, BADGE_CONFIG } from "@/components/session/AchievementBadge";
 import type { Achievement, AchievementType } from "@prisma/client";
 
 const AUTO_ICON_MAP: Record<string, React.ReactNode> = {
   TARGET: <TargetIcon size={20} />,
   SPICY: <SpicyIcon size={20} />,
   THINK: <ThinkIcon size={20} />,
-};
-
-const BADGE_LABELS: Record<AchievementType, string> = {
-  ORACLE: "Oracle",
-  OPTIMIST: "Optimist",
-  REALIST: "Realist",
-  CHAOS_AGENT: "Chaos Agent",
-  LOAD_BEARER: "Load Bearer",
-  PHILOSOPHER: "Philosopher",
-};
-
-const BADGE_FLAVOUR: Record<AchievementType, string> = {
-  ORACLE: "Closest vote on the most tickets",
-  OPTIMIST: "Under-estimated on 70%+ of tickets",
-  REALIST: "Over-estimated on 70%+ of tickets",
-  CHAOS_AGENT: "Widest personal vote range",
-  LOAD_BEARER: "Most SP assigned at session end",
-  PHILOSOPHER: "Last to vote most often",
 };
 
 type SessionWithDetails = PokerSession & {
@@ -83,6 +65,7 @@ export function ParticipantView({ session }: { session: SessionWithDetails }) {
   const [sessionAchievements, setSessionAchievements] = useState<Achievement[]>([]);
   const [allSessionAchievements, setAllSessionAchievements] = useState<Achievement[]>([]);
   const [showAwardsCeremony, setShowAwardsCeremony] = useState(false);
+  const [oracleToasts, setOracleToasts] = useState<{ id: number; memberId: string; memberName: string; value: number; isMe: boolean }[]>([]);
   const [myAssignedOpen, setMyAssignedOpen] = useState(true);
   const [holidays, setHolidays] = useState<{ date: string; name: string; type: string; country?: string | null }[]>([]);
   const [myLeaves, setMyLeaves] = useState<string[]>([]);
@@ -228,6 +211,22 @@ export function ParticipantView({ session }: { session: SessionWithDetails }) {
                 next[v.memberId] = [...(next[v.memberId] ?? []), entry].slice(-5);
               }
               return next;
+            });
+          }
+        }
+        {
+          const exactMatches = (revealedVotesRef.current ?? []).filter((v) => v.value === msg.value);
+          if (exactMatches.length > 0) {
+            const newToasts = exactMatches.map((v, idx) => ({
+              id: Date.now() + idx,
+              memberId: v.memberId,
+              memberName: v.memberName,
+              value: v.value,
+              isMe: v.memberId === member?.id,
+            }));
+            setOracleToasts((prev) => [...prev, ...newToasts]);
+            newToasts.forEach((t) => {
+              setTimeout(() => setOracleToasts((prev) => prev.filter((x) => x.id !== t.id)), 3000);
             });
           }
         }
@@ -385,61 +384,107 @@ export function ParticipantView({ session }: { session: SessionWithDetails }) {
       <>
       {showAwardsCeremony && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-sm">
-          <div className="w-full max-w-sm mx-4 rounded-2xl bg-[#0d0b1a] border border-white/15 p-6 space-y-5">
+          <div style={{
+            background: "linear-gradient(160deg, #0c0a1c 0%, #100e20 100%)",
+            border: "1px solid #ffffff10",
+            borderRadius: 24,
+            padding: "36px 28px",
+            width: "100%",
+            maxWidth: 420,
+            margin: "0 16px",
+            boxShadow: "0 32px 80px #00000099, 0 0 0 1px #ffffff08",
+            maxHeight: "90vh",
+            overflowY: "auto",
+          }}>
             {/* Header */}
-            <div className="text-center space-y-1">
-              <div className="w-10 h-10 rounded-full bg-violet-600/20 border border-violet-500/30 flex items-center justify-center mx-auto">
-                <PartyIcon size={18} />
+            <div style={{ textAlign: "center", marginBottom: 28 }}>
+              <div style={{
+                width: 56, height: 56,
+                background: "radial-gradient(circle, #7c3aed33, transparent)",
+                border: "1.5px solid #7c3aed66",
+                borderRadius: "50%",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                margin: "0 auto 14px",
+                boxShadow: "0 0 24px #7c3aed44",
+              }}>
+                <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#a78bfa" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                  <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+                </svg>
               </div>
-              <h2 className="text-xl font-bold text-white">Session&apos;s Over</h2>
-              <p className="text-white/40 text-sm">{session.name ?? session.sprintName}</p>
+              <h2 style={{ fontSize: 22, fontWeight: 800, color: "white", letterSpacing: "-0.01em" }}>Session&apos;s Over</h2>
+              <p style={{ fontSize: 12, color: "#6b5fa6", marginTop: 4 }}>{session.name ?? session.sprintName}</p>
             </div>
+
             {/* Your badges */}
-            <div className="space-y-2">
-              <p className="text-xs text-white/40 uppercase tracking-widest">Your badges</p>
+            <div style={{ marginBottom: 20 }}>
+              <p style={{ fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", color: "#4a4070", fontWeight: 700, marginBottom: 10 }}>Your badges</p>
               {sessionAchievements.length > 0 ? (
-                <div className="space-y-2">
-                  {sessionAchievements.map((a) => (
-                    <div key={a.type} className="flex items-center gap-3 p-2 rounded-xl bg-white/5">
-                      <AchievementBadge type={a.type} size="md" />
-                      <div>
-                        <p className="text-sm font-semibold text-white">{BADGE_LABELS[a.type]}</p>
-                        <p className="text-xs text-white/40">{BADGE_FLAVOUR[a.type]}</p>
+                <div>
+                  {sessionAchievements.map((a) => {
+                    const cfg = BADGE_CONFIG[a.type as AchievementType];
+                    return (
+                      <div key={a.type} style={{
+                        display: "flex", alignItems: "center", gap: 12,
+                        borderRadius: 14, padding: "11px 14px", marginBottom: 8,
+                        border: `1px solid ${cfg.glow}55`,
+                        background: `linear-gradient(135deg, ${cfg.glow}18, transparent)`,
+                        boxShadow: `0 0 16px ${cfg.glow}18`,
+                      }}>
+                        <AchievementBadge type={a.type as AchievementType} size="lg" />
+                        <div style={{ flex: 1 }}>
+                          <p style={{ fontSize: 13, fontWeight: 700, color: "#e2d9ff" }}>{cfg.name}</p>
+                          <p style={{ fontSize: 11, color: "#6b5fa6", marginTop: 1 }}>{cfg.flavour}</p>
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               ) : (
-                <p className="text-white/25 text-sm">No badges this session.</p>
+                <p style={{ fontSize: 13, color: "#ffffff25" }}>No badges this session.</p>
               )}
             </div>
+
             {/* Also awarded */}
             {(() => {
               const others = allSessionAchievements.filter((a) => a.memberId !== member?.id);
               if (others.length === 0) return null;
               return (
-                <div className="space-y-2">
-                  <p className="text-xs text-white/40 uppercase tracking-widest">Also awarded</p>
-                  <div className="space-y-1.5">
-                    {others.map((a, i) => {
-                      const m = session.product.members.find((mem) => mem.id === a.memberId);
-                      return (
-                        <div key={i} className="flex items-center gap-2">
-                          <AchievementBadge type={a.type} size="sm" />
-                          <span className="text-xs text-white/50">{BADGE_LABELS[a.type]}</span>
-                          {m && <span className="text-xs text-white/30 ml-auto">{m.name}</span>}
-                        </div>
-                      );
-                    })}
-                  </div>
+                <div>
+                  <p style={{ fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", color: "#4a4070", fontWeight: 700, marginBottom: 10 }}>Also awarded</p>
+                  {others.map((a, i) => {
+                    const m = session.product.members.find((mem) => mem.id === a.memberId);
+                    const cfg = BADGE_CONFIG[a.type as AchievementType];
+                    const initials = m ? m.name.trim().split(/\s+/).map((p: string) => p[0]).slice(0, 2).join("").toUpperCase() : "?";
+                    return (
+                      <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0", borderBottom: i < others.length - 1 ? "1px solid #ffffff06" : "none" }}>
+                        <AchievementBadge type={a.type as AchievementType} size="sm" showTooltip />
+                        <span style={{ fontSize: 12, fontWeight: 600, flex: 1, color: cfg.color }}>{cfg.name}</span>
+                        {m && (
+                          <div style={{ display: "flex", alignItems: "center", gap: 5, background: "#ffffff08", borderRadius: 20, padding: "3px 10px 3px 4px" }}>
+                            <div style={{ width: 20, height: 20, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 8, fontWeight: 700, background: `${cfg.glow}55`, border: `1px solid ${cfg.glow}55`, color: cfg.color }}>
+                              {initials}
+                            </div>
+                            <span style={{ fontSize: 11, color: "#ffffff60" }}>{m.name}</span>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               );
             })()}
+
             <button
               onClick={() => setShowAwardsCeremony(false)}
-              className="w-full py-2.5 rounded-xl bg-violet-600/20 hover:bg-violet-600/30 border border-violet-500/30 text-violet-300 text-sm font-medium transition-colors"
+              style={{
+                marginTop: 22, width: "100%", padding: 12,
+                background: "linear-gradient(135deg, #7c3aed, #6d28d9)",
+                border: "none", borderRadius: 12, color: "white",
+                fontSize: 14, fontWeight: 700, cursor: "pointer",
+                boxShadow: "0 4px 20px #7c3aed44",
+              }}
             >
-              View recap →
+              View your recap →
             </button>
           </div>
         </div>

@@ -23,22 +23,13 @@ import {
 import type confettiType from "canvas-confetti";
 import { getAutoReaction } from "@/lib/gameReactions";
 import { TargetIcon, SpicyIcon, ThinkIcon, PartyIcon } from "@/components/ui/GameIcon";
-import { AchievementBadge } from "@/components/session/AchievementBadge";
+import { AchievementBadge, BADGE_CONFIG } from "@/components/session/AchievementBadge";
 import type { Achievement, AchievementType } from "@prisma/client";
 
 const ICON_MAP: Record<string, React.ReactNode> = {
   TARGET: <TargetIcon size={18} />,
   SPICY: <SpicyIcon size={18} />,
   THINK: <ThinkIcon size={18} />,
-};
-
-const BADGE_LABELS: Record<AchievementType, string> = {
-  ORACLE: "Oracle",
-  OPTIMIST: "Optimist",
-  REALIST: "Realist",
-  CHAOS_AGENT: "Chaos Agent",
-  LOAD_BEARER: "Load Bearer",
-  PHILOSOPHER: "Philosopher",
 };
 
 type TicketWithVotes = Ticket & { votes: (Vote & { member: Member })[] };

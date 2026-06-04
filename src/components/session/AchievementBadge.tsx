@@ -1,147 +1,209 @@
 "use client";
 import React, { useState, useEffect } from "react";
 import type { AchievementType } from "@prisma/client";
-import { TargetIcon, SpicyIcon, ThinkIcon } from "@/components/ui/GameIcon";
 
-interface BadgeIconProps {
-  size?: number;
-  className?: string;
-}
+type BadgeStyle = {
+  name: string;
+  flavour: string;
+  color: string;
+  glow: string;
+  bg: string;
+  border: string;
+  anim: string;
+  iconStroke: string;
+  iconFilter: string;
+  description: string;
+  trigger: string;
+};
 
-function badgeSvgProps(color: string, size: number) {
+// Exported config consumed by overlay components.
+export const BADGE_CONFIG: Record<AchievementType, BadgeStyle> = {
+  ORACLE: {
+    name: "Oracle",
+    flavour: "Eerily accurate",
+    color: "#a78bfa",
+    glow: "#7c3aed",
+    bg: "radial-gradient(circle at 40% 40%, #4c1d95cc, #2e1065ee)",
+    border: "#7c3aedaa",
+    anim: "pulse-oracle 2.4s ease-in-out infinite",
+    iconStroke: "#c4b5fd",
+    iconFilter: "drop-shadow(0 0 4px #a78bfa)",
+    description: "Voted closest to the final estimate more than anyone else.",
+    trigger: "Closest vote on the most tickets",
+  },
+  OPTIMIST: {
+    name: "Optimist",
+    flavour: "How hard can it be?",
+    color: "#fcd34d",
+    glow: "#d97706",
+    bg: "radial-gradient(circle at 40% 40%, #78350fcc, #451a03ee)",
+    border: "#d97706aa",
+    anim: "pulse-optimist 2.2s ease-in-out infinite",
+    iconStroke: "#fde68a",
+    iconFilter: "drop-shadow(0 0 4px #fbbf24)",
+    description: "Consistently voted below the final estimate. Sees the bright side.",
+    trigger: "Under-estimated on 70%+ of tickets",
+  },
+  REALIST: {
+    name: "Realist",
+    flavour: "I've seen this before",
+    color: "#7dd3fc",
+    glow: "#0284c7",
+    bg: "radial-gradient(circle at 40% 40%, #0c4a6ecc, #082f49ee)",
+    border: "#0284c7aa",
+    anim: "pulse-realist 2.6s ease-in-out infinite",
+    iconStroke: "#7dd3fc",
+    iconFilter: "drop-shadow(0 0 4px #38bdf8)",
+    description: "Consistently saw the complexity coming before everyone else did.",
+    trigger: "Over-estimated on 70%+ of tickets",
+  },
+  CHAOS_AGENT: {
+    name: "Chaos Agent",
+    flavour: "No two tickets alike",
+    color: "#fca5a5",
+    glow: "#dc2626",
+    bg: "radial-gradient(circle at 40% 40%, #7f1d1dcc, #450a0aee)",
+    border: "#dc2626aa",
+    anim: "pulse-chaos 1.8s ease-in-out infinite",
+    iconStroke: "#fca5a5",
+    iconFilter: "drop-shadow(0 0 4px #f87171)",
+    description: "Biggest spread between lowest and highest vote across the session.",
+    trigger: "Widest personal vote range this session",
+  },
+  LOAD_BEARER: {
+    name: "Load Bearer",
+    flavour: "Just put it on my plate",
+    color: "#6ee7b7",
+    glow: "#059669",
+    bg: "radial-gradient(circle at 40% 40%, #064e3bcc, #022c22ee)",
+    border: "#059669aa",
+    anim: "pulse-load 2.4s ease-in-out infinite",
+    iconStroke: "#6ee7b7",
+    iconFilter: "drop-shadow(0 0 4px #34d399)",
+    description: "Carried the most story points this session.",
+    trigger: "Most SP assigned at session end",
+  },
+  PHILOSOPHER: {
+    name: "Philosopher",
+    flavour: "Let me think about this…",
+    color: "#fdba74",
+    glow: "#c2410c",
+    bg: "radial-gradient(circle at 40% 40%, #7c2d12cc, #431407ee)",
+    border: "#c2410caa",
+    anim: "pulse-phil 3s ease-in-out infinite",
+    iconStroke: "#fdba74",
+    iconFilter: "drop-shadow(0 0 4px #fb923c)",
+    description: "Always last to submit a vote. Takes time to think it through.",
+    trigger: "Last to vote most often this session",
+  },
+};
+
+const KEYFRAMES = `
+@keyframes pulse-oracle   { 0%,100%{box-shadow:0 0 12px 3px #7c3aed55,0 0 28px 6px #7c3aed22} 50%{box-shadow:0 0 20px 6px #7c3aed88,0 0 40px 12px #7c3aed44} }
+@keyframes pulse-optimist { 0%,100%{box-shadow:0 0 12px 3px #d9770655,0 0 28px 6px #d9770622} 50%{box-shadow:0 0 20px 6px #d9770688,0 0 40px 12px #d9770644} }
+@keyframes pulse-realist  { 0%,100%{box-shadow:0 0 12px 3px #0284c755,0 0 28px 6px #0284c722} 50%{box-shadow:0 0 20px 6px #0284c788,0 0 40px 12px #0284c744} }
+@keyframes pulse-chaos    { 0%,100%{box-shadow:0 0 12px 3px #dc262655,0 0 28px 6px #dc262622} 50%{box-shadow:0 0 20px 6px #dc262688,0 0 40px 12px #dc262644} }
+@keyframes pulse-load     { 0%,100%{box-shadow:0 0 12px 3px #05966955,0 0 28px 6px #05966922} 50%{box-shadow:0 0 20px 6px #05966988,0 0 40px 12px #05966944} }
+@keyframes pulse-phil     { 0%,100%{box-shadow:0 0 12px 3px #c2410c55,0 0 28px 6px #c2410c22} 50%{box-shadow:0 0 20px 6px #c2410c88,0 0 40px 12px #c2410c44} }
+@keyframes spin-slow      { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
+@keyframes chaos-shake    { 0%,100%{transform:rotate(0deg)} 20%{transform:rotate(-8deg)} 40%{transform:rotate(8deg)} 60%{transform:rotate(-5deg)} 80%{transform:rotate(5deg)} }
+@keyframes badge-float    { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-3px)} }
+@keyframes tooltip-in     { from{opacity:0;transform:translateY(6px) scale(0.96)} to{opacity:1;transform:translateY(0) scale(1)} }
+@keyframes shimmer        { 0%{background-position:200% center} 100%{background-position:-200% center} }
+`;
+
+const SIZE_MAP = { sm: 24, md: 32, lg: 44, xl: 64 } as const;
+const ICON_MAP = { sm: 12, md: 16, lg: 22, xl: 30 } as const;
+
+type Size = keyof typeof SIZE_MAP;
+
+function svgProps(cfg: BadgeStyle, size: number) {
   return {
     width: size,
     height: size,
     viewBox: "0 0 24 24",
     fill: "none",
-    stroke: color,
+    stroke: cfg.iconStroke,
     strokeWidth: 1.8,
     strokeLinecap: "round" as const,
     strokeLinejoin: "round" as const,
-    style: { filter: `drop-shadow(0 0 4px ${color})` },
+    style: { filter: cfg.iconFilter },
   };
 }
 
-function SunIcon({ size = 20 }: BadgeIconProps) {
-  const c = "#fcd34d";
-  const lines = Array.from({ length: 8 }, (_, i) => {
-    const a = (i * Math.PI) / 4;
-    const x1 = 12 + Math.cos(a) * 7;
-    const y1 = 12 + Math.sin(a) * 7;
-    const x2 = 12 + Math.cos(a) * 10;
-    const y2 = 12 + Math.sin(a) * 10;
-    return <line key={i} x1={x1} y1={y1} x2={x2} y2={y2} />;
-  });
-  return (
-    <svg {...badgeSvgProps(c, size)}>
-      <circle cx="12" cy="12" r="4" />
-      {lines}
-    </svg>
-  );
+function BadgeIcon({ type, size }: { type: AchievementType; size: number }) {
+  const cfg = BADGE_CONFIG[type];
+  const p = svgProps(cfg, size);
+  switch (type) {
+    case "ORACLE":
+      return (
+        <svg {...p}>
+          <circle cx="12" cy="12" r="9" />
+          <circle cx="12" cy="12" r="3" />
+          <line x1="12" y1="3" x2="12" y2="5" />
+          <line x1="12" y1="19" x2="12" y2="21" />
+          <line x1="3" y1="12" x2="5" y2="12" />
+          <line x1="19" y1="12" x2="21" y2="12" />
+        </svg>
+      );
+    case "OPTIMIST":
+      return (
+        <div style={{ animation: "spin-slow 8s linear infinite", display: "inline-flex" }}>
+          <svg {...p}>
+            <circle cx="12" cy="12" r="4" />
+            <line x1="12" y1="2" x2="12" y2="5" />
+            <line x1="12" y1="19" x2="12" y2="22" />
+            <line x1="4.22" y1="4.22" x2="6.34" y2="6.34" />
+            <line x1="17.66" y1="17.66" x2="19.78" y2="19.78" />
+            <line x1="2" y1="12" x2="5" y2="12" />
+            <line x1="19" y1="12" x2="22" y2="12" />
+            <line x1="4.22" y1="19.78" x2="6.34" y2="17.66" />
+            <line x1="17.66" y1="6.34" x2="19.78" y2="4.22" />
+          </svg>
+        </div>
+      );
+    case "REALIST":
+      return (
+        <svg {...p}>
+          <path d="M12 2L3 7v6c0 5 4 9 9 10 5-1 9-5 9-10V7L12 2z" />
+          <polyline points="9 12 11 14 15 10" />
+        </svg>
+      );
+    case "CHAOS_AGENT":
+      return (
+        <div style={{ animation: "chaos-shake 1.8s ease-in-out infinite", display: "inline-flex" }}>
+          <svg {...p}>
+            <polyline points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+          </svg>
+        </div>
+      );
+    case "LOAD_BEARER":
+      return (
+        <svg {...p}>
+          <line x1="6" y1="12" x2="18" y2="12" />
+          <line x1="12" y1="9" x2="12" y2="15" />
+          <rect x="2" y="10" width="4" height="4" rx="1" />
+          <rect x="18" y="10" width="4" height="4" rx="1" />
+        </svg>
+      );
+    case "PHILOSOPHER":
+      return (
+        <div style={{ animation: "badge-float 3s ease-in-out infinite", display: "inline-flex" }}>
+          <svg {...p}>
+            <path d="M12 2a7 7 0 0 1 7 7c0 3.5-2.5 5.5-3 8H8c-.5-2.5-3-4.5-3-8a7 7 0 0 1 7-7z" />
+            <line x1="9" y1="21" x2="15" y2="21" />
+            <line x1="10" y1="17" x2="14" y2="17" />
+          </svg>
+        </div>
+      );
+    default:
+      return null;
+  }
 }
-
-function ShieldIcon({ size = 20 }: BadgeIconProps) {
-  const c = "#7dd3fc";
-  return (
-    <svg {...badgeSvgProps(c, size)}>
-      <path d="M12 2 20 6 V12 C20 17 16 21 12 22 C8 21 4 17 4 12 V6 L12 2 Z" />
-      <path d="M9 12l2 2 4-4" />
-    </svg>
-  );
-}
-
-function BarbellIcon({ size = 20 }: BadgeIconProps) {
-  const c = "#34d399";
-  return (
-    <svg {...badgeSvgProps(c, size)}>
-      <line x1="4" y1="12" x2="20" y2="12" />
-      <rect x="4" y="10" width="4" height="4" />
-      <rect x="16" y="10" width="4" height="4" />
-      <line x1="7" y1="8" x2="7" y2="16" />
-      <line x1="17" y1="8" x2="17" y2="16" />
-    </svg>
-  );
-}
-
-type BadgeConfig = {
-  Icon: React.ComponentType<BadgeIconProps>;
-  color: string;
-  glow: string;
-  animation: string;
-  name: string;
-  description: string;
-  trigger: string;
-};
-
-const CONFIGS: Record<AchievementType, BadgeConfig> = {
-  ORACLE: {
-    Icon: TargetIcon,
-    color: "#a78bfa",
-    glow: "#7c3aed",
-    animation: "badgePulse 2.4s ease-in-out infinite",
-    name: "Oracle",
-    description: "Voted closest to the final estimate most often",
-    trigger: "Closest vote on the most tickets",
-  },
-  OPTIMIST: {
-    Icon: SunIcon,
-    color: "#fcd34d",
-    glow: "#d97706",
-    animation: "badgeSpin 8s linear infinite",
-    name: "Optimist",
-    description: "Consistently voted below the final estimate",
-    trigger: "Under-estimated on 70%+ of tickets",
-  },
-  REALIST: {
-    Icon: ShieldIcon,
-    color: "#7dd3fc",
-    glow: "#0284c7",
-    animation: "badgePulse 2.6s ease-in-out infinite",
-    name: "Realist",
-    description: "Consistently saw the complexity coming",
-    trigger: "Over-estimated on 70%+ of tickets",
-  },
-  CHAOS_AGENT: {
-    Icon: SpicyIcon,
-    color: "#fca5a5",
-    glow: "#dc2626",
-    animation: "badgeShake 1.8s ease-in-out infinite",
-    name: "Chaos Agent",
-    description: "Biggest spread between lowest and highest vote",
-    trigger: "Widest personal vote range this session",
-  },
-  LOAD_BEARER: {
-    Icon: BarbellIcon,
-    color: "#34d399",
-    glow: "#059669",
-    animation: "badgePulse 2.4s ease-in-out infinite",
-    name: "Load Bearer",
-    description: "Carried the most story points this session",
-    trigger: "Most SP assigned at session end",
-  },
-  PHILOSOPHER: {
-    Icon: ThinkIcon,
-    color: "#fdba74",
-    glow: "#c2410c",
-    animation: "badgeFloat 3s ease-in-out infinite",
-    name: "Philosopher",
-    description: "Always last to submit a vote",
-    trigger: "Last to vote most often this session",
-  },
-};
-
-const SIZE_MAP = { sm: 24, md: 36, lg: 48 } as const;
-
-const KEYFRAMES = `
-@keyframes badgePulse { 0%,100% { box-shadow: 0 0 12px 3px var(--g55), 0 0 28px 6px var(--g22) } 50% { box-shadow: 0 0 18px 6px var(--g88), 0 0 36px 10px var(--g44) } }
-@keyframes badgeShake { 0%,100%{transform:rotate(0)} 20%{transform:rotate(-8deg)} 40%{transform:rotate(8deg)} 60%{transform:rotate(-5deg)} 80%{transform:rotate(5deg)} }
-@keyframes badgeFloat { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-4px)} }
-@keyframes badgeSpin { from { transform: rotate(0) } to { transform: rotate(360deg) } }
-`;
 
 interface AchievementBadgeProps {
   type: AchievementType;
-  size?: "sm" | "md" | "lg";
+  size?: Size;
   showTooltip?: boolean;
 }
 
@@ -154,11 +216,10 @@ export function AchievementBadge({ type, size = "md", showTooltip = false }: Ach
     el.textContent = KEYFRAMES;
     document.head.appendChild(el);
   }, []);
-  const cfg = CONFIGS[type];
+  const cfg = BADGE_CONFIG[type];
   if (!cfg) return null;
   const px = SIZE_MAP[size];
-  const iconSize = Math.round(px * 0.55);
-  const { glow, color, Icon } = cfg;
+  const iconSize = ICON_MAP[size];
 
   return (
     <div
@@ -171,39 +232,50 @@ export function AchievementBadge({ type, size = "md", showTooltip = false }: Ach
           width: px,
           height: px,
           borderRadius: "50%",
-          background: `radial-gradient(circle at 40% 40%, ${glow}33, ${glow}11)`,
-          border: `2px solid ${glow}aa`,
-          boxShadow: `0 0 12px 3px ${glow}55, 0 0 28px 6px ${glow}22`,
+          background: cfg.bg,
+          border: `2px solid ${cfg.border}`,
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          animation: cfg.animation,
-          ["--g55" as string]: `${glow}55`,
-          ["--g22" as string]: `${glow}22`,
-          ["--g88" as string]: `${glow}88`,
-          ["--g44" as string]: `${glow}44`,
+          animation: cfg.anim,
         }}
       >
-        <Icon size={iconSize} />
+        <BadgeIcon type={type} size={iconSize} />
       </div>
       {showTooltip && hover && (
         <div
           style={{
             position: "absolute",
-            bottom: "calc(100% + 8px)",
+            bottom: "calc(100% + 10px)",
             left: "50%",
             transform: "translateX(-50%)",
-            background: "#0d0b1a",
-            border: "1px solid #7c3aed55",
+            background: "#1a1535",
+            border: "1px solid #7c3aed44",
             borderRadius: 10,
-            padding: "8px 12px",
+            padding: "9px 13px",
             minWidth: 180,
+            maxWidth: 220,
             zIndex: 50,
+            boxShadow: "0 8px 32px #00000088, 0 0 0 1px #ffffff08",
+            animation: "tooltip-in 0.18s ease-out",
           }}
         >
-          <p style={{ color, fontWeight: 700, fontSize: 13 }}>{cfg.name}</p>
-          <p className="text-white/70" style={{ fontSize: 12, marginTop: 2 }}>{cfg.description}</p>
-          <p className="text-white/40" style={{ fontSize: 11, marginTop: 4 }}>{cfg.trigger}</p>
+          <p style={{ color: cfg.color, fontWeight: 700, fontSize: 13 }}>{cfg.name}</p>
+          <p style={{ color: "#9d8ec9", fontSize: 12, marginTop: 2 }}>{cfg.description}</p>
+          <p style={{ color: "#6b5fa6", fontSize: 11, marginTop: 6, paddingTop: 6, borderTop: "1px solid #ffffff10" }}>{cfg.trigger}</p>
+          <div
+            style={{
+              position: "absolute",
+              top: "100%",
+              left: "50%",
+              transform: "translateX(-50%)",
+              width: 0,
+              height: 0,
+              borderLeft: "6px solid transparent",
+              borderRight: "6px solid transparent",
+              borderTop: "6px solid #1a1535",
+            }}
+          />
         </div>
       )}
     </div>

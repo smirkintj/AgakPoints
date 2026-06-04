@@ -57,15 +57,27 @@ export async function GET(
     streaks[m.id] = streak;
   }
 
-  const memberIds = members.map((m) => m.id);
-  const allBadges = await prisma.achievement.findMany({
-    where: { memberId: { in: memberIds } },
-    select: { memberId: true, type: true },
-    distinct: ["memberId", "type"],
+  // Find the most recently completed session before this one
+  const prevSession = await prisma.pokerSession.findFirst({
+    where: {
+      productId: session.productId,
+      status: "COMPLETED",
+      id: { not: sessionId },
+    },
+    orderBy: { completedAt: "desc" },
+    select: { id: true },
   });
+
+  const memberIds = members.map((m) => m.id);
   const badges: Record<string, string[]> = {};
-  for (const b of allBadges) {
-    badges[b.memberId] = [...(badges[b.memberId] ?? []), b.type];
+  if (prevSession) {
+    const prevBadges = await prisma.achievement.findMany({
+      where: { memberId: { in: memberIds }, sessionId: prevSession.id },
+      select: { memberId: true, type: true },
+    });
+    for (const b of prevBadges) {
+      badges[b.memberId] = [...(badges[b.memberId] ?? []), b.type];
+    }
   }
 
   return NextResponse.json({ streaks, badges });

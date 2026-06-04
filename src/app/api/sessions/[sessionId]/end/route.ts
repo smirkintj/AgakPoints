@@ -31,10 +31,45 @@ export async function POST(
     return NextResponse.json({ success: true });
   }
 
+  // Gather data for achievement evaluation
+  const [sessionTickets, sessionVotes, sessionParticipants] = await Promise.all([
+    prisma.ticket.findMany({
+      where: { sessionId, finalEstimate: { not: null } },
+      select: { id: true, finalEstimate: true, assigneeId: true },
+    }),
+    prisma.vote.findMany({
+      where: { ticket: { sessionId } },
+      select: { ticketId: true, memberId: true, value: true, createdAt: true },
+    }),
+    prisma.sessionParticipant.findMany({
+      where: { sessionId, checkedIn: true },
+      select: { memberId: true, joinedAt: true },
+    }),
+  ]);
+
+  const assignments = sessionTickets
+    .filter(t => t.assigneeId && t.finalEstimate)
+    .map(t => ({ memberId: t.assigneeId!, storyPoints: t.finalEstimate! }));
+
+  const { evaluateAll } = await import("@/lib/achievements");
+  const achievementResults = evaluateAll({
+    tickets: sessionTickets,
+    votes: sessionVotes,
+    participants: sessionParticipants,
+    assignments,
+  });
+
+  if (achievementResults.length > 0) {
+    await prisma.achievement.createMany({
+      data: achievementResults.map(r => ({ ...r, sessionId })),
+      skipDuplicates: true,
+    });
+  }
+
   await prisma.pokerSession.update({
     where: { id: sessionId },
     data: { status: "COMPLETED", completedAt: new Date() },
   });
 
-  return NextResponse.json({ success: true });
+  return NextResponse.json({ success: true, achievements: achievementResults });
 }

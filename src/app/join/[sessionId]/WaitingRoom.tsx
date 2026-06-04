@@ -8,6 +8,9 @@ import type { Member, PokerSession, Product, SessionParticipant } from "@/types/
 import { Check, Layers } from "lucide-react";
 import { MemberAvatar } from "@/components/session/MemberAvatar";
 import { RoleBadge } from "@/components/session/RoleBadge";
+import { FireBadge } from "@/components/ui/GameIcon";
+import { AchievementBadge } from "@/components/session/AchievementBadge";
+import type { AchievementType } from "@prisma/client";
 
 type SessionWithDetails = PokerSession & {
   product: Product & { members: Member[] };
@@ -25,6 +28,7 @@ export function WaitingRoom({ session }: { session: SessionWithDetails }) {
   const [busy, setBusy] = useState(false);
   const [liveActive, setLiveActive] = useState(session.status === "ACTIVE");
   const [streaks, setStreaks] = useState<Record<string, number>>({});
+  const [badges, setBadges] = useState<Record<string, string[]>>({});
 
   useEffect(() => {
     const stored = sessionStorage.getItem(`agakpoints_member_${session.id}`);
@@ -32,7 +36,10 @@ export function WaitingRoom({ session }: { session: SessionWithDetails }) {
     const url = memberId ? `/api/sessions/${session.id}/member-streaks?memberId=${memberId}` : `/api/sessions/${session.id}/member-streaks`;
     fetch(url)
       .then((r) => r.json())
-      .then((d: { streaks: Record<string, number> }) => setStreaks(d.streaks ?? {}))
+      .then((d: { streaks: Record<string, number>; badges?: Record<string, string[]> }) => {
+        setStreaks(d.streaks ?? {});
+        setBadges(d.badges ?? {});
+      })
       .catch(() => {});
   }, [session.id]);
 
@@ -155,13 +162,15 @@ export function WaitingRoom({ session }: { session: SessionWithDetails }) {
                         <div className="flex items-center gap-1.5 flex-wrap">
                           <p className={`font-medium truncate text-sm ${inRoom ? "text-emerald-300" : "text-white"}`}>{member.name}</p>
                           <RoleBadge role={member.role} size="sm" />
-                          {(streaks[member.id] ?? 0) >= 5 && (
-                            <span className="text-xs font-bold text-orange-400">🔥🔥{streaks[member.id]}</span>
-                          )}
-                          {(streaks[member.id] ?? 0) >= 2 && (streaks[member.id] ?? 0) < 5 && (
-                            <span className="text-xs font-bold text-amber-400">🔥{streaks[member.id]}</span>
-                          )}
+                          <FireBadge count={streaks[member.id] ?? 0} />
                         </div>
+                        {(badges[member.id]?.length ?? 0) > 0 && (
+                          <div className="flex items-center gap-1 mt-1">
+                            {(badges[member.id] ?? []).map((b) => (
+                              <AchievementBadge key={b} type={b as AchievementType} size="sm" showTooltip />
+                            ))}
+                          </div>
+                        )}
                         {inRoom && (() => {
                           const p = session.participants.find((x) => x.member.id === member.id);
                           return p ? <p className="text-[10px] text-emerald-400/60 mt-0.5">Checked in {new Date(p.joinedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</p> : null;

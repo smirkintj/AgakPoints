@@ -1,6 +1,9 @@
 "use client";
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import {
+  ThumbsUpIcon, TargetIcon, ThinkIcon, BoomIcon, ShockIcon, FireIcon, PartyIcon, SkullIcon,
+} from "@/components/ui/GameIcon";
 
 interface FloatingEmoji {
   id: number;
@@ -16,7 +19,22 @@ interface EmojiReactionProps {
   emojis?: string[];
 }
 
-const EMOJIS = ["👍", "🎯", "🤔", "💥", "😱", "🔥", "🎉", "💀"];
+const EMOJIS = ["THUMBS_UP", "TARGET", "THINK", "BOOM", "SHOCK", "FIRE", "PARTY", "SKULL"];
+
+const ICON_MAP: Record<string, (size: number) => React.ReactNode> = {
+  THUMBS_UP: (s) => <ThumbsUpIcon size={s} />,
+  TARGET: (s) => <TargetIcon size={s} />,
+  THINK: (s) => <ThinkIcon size={s} />,
+  BOOM: (s) => <BoomIcon size={s} />,
+  SHOCK: (s) => <ShockIcon size={s} />,
+  FIRE: (s) => <FireIcon size={s} />,
+  PARTY: (s) => <PartyIcon size={s} />,
+  SKULL: (s) => <SkullIcon size={s} />,
+};
+
+function renderIcon(key: string, size: number): React.ReactNode {
+  return ICON_MAP[key]?.(size) ?? null;
+}
 
 let emojiCounter = 0;
 
@@ -34,7 +52,7 @@ export function EmojiReaction({ reactions, onReact, disabled, readOnly, emojis =
 
   return (
     <div className="relative">
-      {/* Floating emojis */}
+      {/* Floating icons */}
       <AnimatePresence>
         {floating.map((e) => (
           <motion.div
@@ -43,10 +61,10 @@ export function EmojiReaction({ reactions, onReact, disabled, readOnly, emojis =
             animate={{ opacity: 0, y: -80, scale: 1.8 }}
             exit={{}}
             transition={{ duration: 1.5, ease: "easeOut" }}
-            className="absolute pointer-events-none text-3xl"
+            className="absolute pointer-events-none"
             style={{ left: `${e.x}%`, bottom: "100%" }}
           >
-            {e.emoji}
+            {renderIcon(e.emoji, 30)}
           </motion.div>
         ))}
       </AnimatePresence>
@@ -59,9 +77,9 @@ export function EmojiReaction({ reactions, onReact, disabled, readOnly, emojis =
               key={emoji}
               onClick={() => !disabled && onReact(emoji)}
               disabled={disabled}
-              className="text-xl p-1.5 rounded-lg hover:bg-white/10 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+              className="p-1.5 rounded-lg hover:bg-white/10 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
             >
-              {emoji}
+              {renderIcon(emoji, 20)}
             </button>
           ))}
         </div>

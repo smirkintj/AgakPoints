@@ -22,6 +22,24 @@ import {
 } from "lucide-react";
 import type confettiType from "canvas-confetti";
 import { getAutoReaction } from "@/lib/gameReactions";
+import { TargetIcon, SpicyIcon, ThinkIcon, PartyIcon } from "@/components/ui/GameIcon";
+import { AchievementBadge } from "@/components/session/AchievementBadge";
+import type { Achievement, AchievementType } from "@prisma/client";
+
+const ICON_MAP: Record<string, React.ReactNode> = {
+  TARGET: <TargetIcon size={18} />,
+  SPICY: <SpicyIcon size={18} />,
+  THINK: <ThinkIcon size={18} />,
+};
+
+const BADGE_LABELS: Record<AchievementType, string> = {
+  ORACLE: "Oracle",
+  OPTIMIST: "Optimist",
+  REALIST: "Realist",
+  CHAOS_AGENT: "Chaos Agent",
+  LOAD_BEARER: "Load Bearer",
+  PHILOSOPHER: "Philosopher",
+};
 
 type TicketWithVotes = Ticket & { votes: (Vote & { member: Member })[] };
 type ParticipantWithMember = SessionParticipant & { member: Member };
@@ -187,7 +205,9 @@ export function HostView({ session, productId }: { session: PokerSession; produc
   const addLog = (text: string) => addLogRef.current(text);
   const [sessionTimer, setSessionTimer] = useState<string>("");
 
-  const [autoReaction, setAutoReaction] = useState<{ emoji: string; label: string } | null>(null);
+  const [autoReaction, setAutoReaction] = useState<{ iconKey: string; label: string } | null>(null);
+  const [sessionAchievements, setSessionAchievements] = useState<Achievement[]>([]);
+  const [showAwardsCeremony, setShowAwardsCeremony] = useState(false);
 
   const [recapOpen, setRecapOpen] = useState(session.status === "COMPLETED");
   const [confirmEnd, setConfirmEnd] = useState(false);
@@ -465,7 +485,14 @@ export function HostView({ session, productId }: { session: PokerSession; produc
                 <Button variant="danger" size="sm" onClick={async () => {
                   setConfirmEnd(false);
                   send({ type: "END_SESSION" });
-                  await fetch(`/api/sessions/${session.id}/end`, { method: "POST" });
+                  const res = await fetch(`/api/sessions/${session.id}/end`, { method: "POST" });
+                  if (res.ok) {
+                    const data = await res.json();
+                    if (data.achievements?.length > 0) {
+                      setSessionAchievements(data.achievements);
+                      setShowAwardsCeremony(true);
+                    }
+                  }
                   setSessionStatus("COMPLETED");
                   setRecapOpen(true);
                 }}>Confirm</Button>
@@ -899,7 +926,7 @@ export function HostView({ session, productId }: { session: PokerSession; produc
                         transition={{ type: "spring", stiffness: 400, damping: 20 }}
                         className="flex items-center gap-2 px-4 py-2 rounded-full bg-white/10 border border-white/20 text-white font-semibold text-sm mx-auto w-fit"
                       >
-                        <span className="text-xl">{autoReaction.emoji}</span>
+                        {ICON_MAP[autoReaction.iconKey] ?? autoReaction.iconKey}
                         {autoReaction.label}
                       </motion.div>
                     )}
@@ -1085,6 +1112,45 @@ export function HostView({ session, productId }: { session: PokerSession; produc
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Team Awards ceremony overlay */}
+      {showAwardsCeremony && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-sm">
+          <div className="w-full max-w-sm mx-4 rounded-2xl bg-[#0d0b1a] border border-white/15 p-6 space-y-5">
+            <div className="text-center space-y-1">
+              <div className="w-10 h-10 rounded-full bg-violet-600/20 border border-violet-500/30 flex items-center justify-center mx-auto">
+                <PartyIcon size={18} />
+              </div>
+              <h2 className="text-xl font-bold text-white">Team Awards</h2>
+              <p className="text-white/40 text-sm">{session.sprintName}</p>
+            </div>
+            {sessionAchievements.length > 0 ? (
+              <div className="space-y-2 max-h-80 overflow-y-auto">
+                {sessionAchievements.map((a, i) => {
+                  const m = session.product.members.find((mem) => mem.id === a.memberId);
+                  return (
+                    <div key={i} className="flex items-center gap-3 p-2 rounded-xl bg-white/5">
+                      <AchievementBadge type={a.type} size="md" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-white">{BADGE_LABELS[a.type]}</p>
+                        <p className="text-xs text-white/40 truncate">{m?.name ?? "Unknown"}</p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <p className="text-white/25 text-sm text-center">No badges awarded this session.</p>
+            )}
+            <button
+              onClick={() => setShowAwardsCeremony(false)}
+              className="w-full py-2.5 rounded-xl bg-violet-600/20 hover:bg-violet-600/30 border border-violet-500/30 text-violet-300 text-sm font-medium transition-colors"
+            >
+              Done
+            </button>
+          </div>
+        </div>
+      )}
 
     </div>
   );

@@ -57,5 +57,16 @@ export async function GET(
     streaks[m.id] = streak;
   }
 
-  return NextResponse.json({ streaks });
+  const memberIds = members.map((m) => m.id);
+  const allBadges = await prisma.achievement.findMany({
+    where: { memberId: { in: memberIds } },
+    select: { memberId: true, type: true },
+    distinct: ["memberId", "type"],
+  });
+  const badges: Record<string, string[]> = {};
+  for (const b of allBadges) {
+    badges[b.memberId] = [...(badges[b.memberId] ?? []), b.type];
+  }
+
+  return NextResponse.json({ streaks, badges });
 }

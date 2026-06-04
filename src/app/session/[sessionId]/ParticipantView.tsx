@@ -27,6 +27,33 @@ const PRIORITY_COLORS: Record<string, string> = {
 const MONTH_SHORT = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 import type confettiType from "canvas-confetti";
 import { getAutoReaction } from "@/lib/gameReactions";
+import { BeachIcon, RocketIcon, PartyIcon, TargetIcon, SpicyIcon, ThinkIcon } from "@/components/ui/GameIcon";
+import { AchievementBadge } from "@/components/session/AchievementBadge";
+import type { Achievement, AchievementType } from "@prisma/client";
+
+const AUTO_ICON_MAP: Record<string, React.ReactNode> = {
+  TARGET: <TargetIcon size={20} />,
+  SPICY: <SpicyIcon size={20} />,
+  THINK: <ThinkIcon size={20} />,
+};
+
+const BADGE_LABELS: Record<AchievementType, string> = {
+  ORACLE: "Oracle",
+  OPTIMIST: "Optimist",
+  REALIST: "Realist",
+  CHAOS_AGENT: "Chaos Agent",
+  LOAD_BEARER: "Load Bearer",
+  PHILOSOPHER: "Philosopher",
+};
+
+const BADGE_FLAVOUR: Record<AchievementType, string> = {
+  ORACLE: "Closest vote on the most tickets",
+  OPTIMIST: "Under-estimated on 70%+ of tickets",
+  REALIST: "Over-estimated on 70%+ of tickets",
+  CHAOS_AGENT: "Widest personal vote range",
+  LOAD_BEARER: "Most SP assigned at session end",
+  PHILOSOPHER: "Last to vote most often",
+};
 
 type SessionWithDetails = PokerSession & {
   tickets: Ticket[];
@@ -52,7 +79,10 @@ export function ParticipantView({ session }: { session: SessionWithDetails }) {
   const [lockedAssignees, setLockedAssignees] = useState<Record<string, string>>({});
   const [ticketEstimates, setTicketEstimates] = useState<Record<string, number>>({});
   const [sessionEnded, setSessionEnded] = useState(false);
-  const [autoReaction, setAutoReaction] = useState<{ emoji: string; label: string } | null>(null);
+  const [autoReaction, setAutoReaction] = useState<{ iconKey: string; label: string } | null>(null);
+  const [sessionAchievements, setSessionAchievements] = useState<Achievement[]>([]);
+  const [allSessionAchievements, setAllSessionAchievements] = useState<Achievement[]>([]);
+  const [showAwardsCeremony, setShowAwardsCeremony] = useState(false);
   const [myAssignedOpen, setMyAssignedOpen] = useState(true);
   const [holidays, setHolidays] = useState<{ date: string; name: string; type: string; country?: string | null }[]>([]);
   const [myLeaves, setMyLeaves] = useState<string[]>([]);
@@ -238,6 +268,16 @@ export function ParticipantView({ session }: { session: SessionWithDetails }) {
       }
       case "SESSION_ENDED":
         setSessionEnded(true);
+        if (member?.id) {
+          Promise.all([
+            fetch(`/api/sessions/${session.id}/achievements?memberId=${member.id}`).then((r) => r.json()),
+            fetch(`/api/sessions/${session.id}/achievements`).then((r) => r.json()),
+          ]).then(([myRes, allRes]) => {
+            setSessionAchievements(myRes.achievements ?? []);
+            setAllSessionAchievements(allRes.achievements ?? []);
+            setShowAwardsCeremony(true);
+          }).catch(() => {});
+        }
         break;
       case "MEMBER_KICKED":
         if (member && msg.memberId === member.id) {
@@ -342,6 +382,68 @@ export function ParticipantView({ session }: { session: SessionWithDetails }) {
   if (sessionEnded) {
     const totalSP = myAssigned.reduce((s, x) => s + x.sp, 0);
     return (
+      <>
+      {showAwardsCeremony && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-sm">
+          <div className="w-full max-w-sm mx-4 rounded-2xl bg-[#0d0b1a] border border-white/15 p-6 space-y-5">
+            {/* Header */}
+            <div className="text-center space-y-1">
+              <div className="w-10 h-10 rounded-full bg-violet-600/20 border border-violet-500/30 flex items-center justify-center mx-auto">
+                <PartyIcon size={18} />
+              </div>
+              <h2 className="text-xl font-bold text-white">Session&apos;s Over</h2>
+              <p className="text-white/40 text-sm">{session.name ?? session.sprintName}</p>
+            </div>
+            {/* Your badges */}
+            <div className="space-y-2">
+              <p className="text-xs text-white/40 uppercase tracking-widest">Your badges</p>
+              {sessionAchievements.length > 0 ? (
+                <div className="space-y-2">
+                  {sessionAchievements.map((a) => (
+                    <div key={a.type} className="flex items-center gap-3 p-2 rounded-xl bg-white/5">
+                      <AchievementBadge type={a.type} size="md" />
+                      <div>
+                        <p className="text-sm font-semibold text-white">{BADGE_LABELS[a.type]}</p>
+                        <p className="text-xs text-white/40">{BADGE_FLAVOUR[a.type]}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-white/25 text-sm">No badges this session.</p>
+              )}
+            </div>
+            {/* Also awarded */}
+            {(() => {
+              const others = allSessionAchievements.filter((a) => a.memberId !== member?.id);
+              if (others.length === 0) return null;
+              return (
+                <div className="space-y-2">
+                  <p className="text-xs text-white/40 uppercase tracking-widest">Also awarded</p>
+                  <div className="space-y-1.5">
+                    {others.map((a, i) => {
+                      const m = session.product.members.find((mem) => mem.id === a.memberId);
+                      return (
+                        <div key={i} className="flex items-center gap-2">
+                          <AchievementBadge type={a.type} size="sm" />
+                          <span className="text-xs text-white/50">{BADGE_LABELS[a.type]}</span>
+                          {m && <span className="text-xs text-white/30 ml-auto">{m.name}</span>}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })()}
+            <button
+              onClick={() => setShowAwardsCeremony(false)}
+              className="w-full py-2.5 rounded-xl bg-violet-600/20 hover:bg-violet-600/30 border border-violet-500/30 text-violet-300 text-sm font-medium transition-colors"
+            >
+              View recap →
+            </button>
+          </div>
+        </div>
+      )}
       <div ref={recapRef} className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black/90 backdrop-blur-sm px-6 py-10 overflow-y-auto">
         <div className="w-full max-w-lg space-y-6 text-center">
           <div>
@@ -394,6 +496,7 @@ export function ParticipantView({ session }: { session: SessionWithDetails }) {
           </div>
         </div>
       </div>
+      </>
     );
   }
 
@@ -445,12 +548,12 @@ export function ParticipantView({ session }: { session: SessionWithDetails }) {
           <div className="flex flex-wrap gap-2">
             {phDuringSprint.map((h) => (
               <span key={h.date} className="flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-red-500/15 border border-red-500/25 text-red-300">
-                🏖️ PH: {fmtDateStr(h.date)} {h.name}
+                <BeachIcon size={14} className="inline" /> PH: {fmtDateStr(h.date)} {h.name}
               </span>
             ))}
             {deployEvents.map((de) => (
               <span key={de.date} className="flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-violet-500/15 border border-violet-500/25 text-violet-300">
-                🚀 Deploy: {fmtDateStr(de.date)}
+<RocketIcon size={14} className="inline" /> Deploy: {fmtDateStr(de.date)}
               </span>
             ))}
             {myLeaves.length > 0 && (
@@ -767,7 +870,7 @@ export function ParticipantView({ session }: { session: SessionWithDetails }) {
                         transition={{ type: "spring", stiffness: 400, damping: 20 }}
                         className="flex items-center gap-2 px-4 py-2 rounded-full bg-white/10 border border-white/20 text-white font-semibold text-sm mx-auto w-fit"
                       >
-                        <span className="text-xl">{autoReaction.emoji}</span>
+                        {AUTO_ICON_MAP[autoReaction.iconKey] ?? autoReaction.iconKey}
                         {autoReaction.label}
                       </motion.div>
                     )}
@@ -789,7 +892,7 @@ export function ParticipantView({ session }: { session: SessionWithDetails }) {
                     )}
                   </div>
                   <div className="border-t border-white/10 pt-3 flex justify-center">
-                    <EmojiReaction reactions={reactions} onReact={sendReaction} emojis={["👍", "🤔", "🔥", "💀"]} />
+                    <EmojiReaction reactions={reactions} onReact={sendReaction} emojis={["THUMBS_UP", "THINK", "FIRE", "SKULL"]} />
                   </div>
                 </div>
               )}

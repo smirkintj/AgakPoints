@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { MemberAvatar } from "@/components/session/MemberAvatar";
 import { RoleBadge } from "@/components/session/RoleBadge";
 import { TicketTypeIcon } from "@/components/session/TicketTypeIcon";
+import { PersonIcon } from "@/components/ui/GameIcon";
 import type { Ticket, Member, SessionParticipant, Vote, PokerSession, Product } from "@/types/models";
 
 type TicketWithVotes = Ticket & { votes: (Vote & { member: Member })[] };
@@ -23,10 +24,10 @@ const fmtDs = (ds: string) => { const d = new Date(ds + "T12:00:00"); return `${
 type JiraActionStatus = { ok: boolean; error?: string; skipped?: boolean };
 type JiraTicketResult = { ticketId: string; jiraKey: string; title: string; sp: JiraActionStatus; assignee: JiraActionStatus; comment: JiraActionStatus };
 
-function StatusDot({ label, status }: { label: string; status: { ok: boolean; skipped?: boolean } }) {
+function StatusDot({ label, status }: { label: React.ReactNode; status: { ok: boolean; skipped?: boolean } }) {
   if (status.skipped) return null;
   return (
-    <span title={label} className={`text-[9px] font-bold px-1 py-0.5 rounded ${status.ok ? "text-emerald-400 bg-emerald-400/10" : "text-red-400 bg-red-400/10"}`}>
+    <span className={`inline-flex items-center gap-0.5 text-[9px] font-bold px-1 py-0.5 rounded ${status.ok ? "text-emerald-400 bg-emerald-400/10" : "text-red-400 bg-red-400/10"}`}>
       {label}{status.ok ? " ✓" : " ✗"}
     </span>
   );
@@ -202,7 +203,7 @@ export function SessionSummaryModal({
                         <div className="flex items-center gap-1 shrink-0">
                           <StatusDot label="SP" status={r.sp} />
                           <StatusDot label="✉" status={r.comment} />
-                          {!r.assignee.skipped && <StatusDot label="👤" status={r.assignee} />}
+                          {!r.assignee.skipped && <StatusDot label={<PersonIcon size={12} className="inline" />} status={r.assignee} />}
                         </div>
                       );
                     })()}

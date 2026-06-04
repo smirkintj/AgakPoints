@@ -1074,6 +1074,57 @@ export function ParticipantView({ session }: { session: SessionWithDetails }) {
           </div>
         )}
       </main>
+
+      {/* Oracle flash toasts */}
+      <div style={{ position: "fixed", bottom: 24, right: 24, zIndex: 55, display: "flex", flexDirection: "column", gap: 8, alignItems: "flex-end" }}>
+        <AnimatePresence>
+          {oracleToasts.map((toast) => (
+            <motion.div
+              key={toast.id}
+              initial={{ opacity: 0, y: 12, scale: 0.95 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -8, scale: 0.95 }}
+              transition={{ duration: 0.3, ease: "easeOut" }}
+              style={{
+                display: "flex", alignItems: "center", gap: 12,
+                background: toast.isMe ? "linear-gradient(135deg, #1a1035, #0f0d1e)" : "#0f0d1e",
+                border: toast.isMe ? "1px solid #7c3aed99" : "1px solid #7c3aed33",
+                borderRadius: 14, padding: "10px 16px 10px 10px",
+                boxShadow: toast.isMe ? "0 4px 32px #7c3aed30, inset 0 0 0 1px #7c3aed22" : "0 4px 24px #00000060",
+              }}
+            >
+              <AchievementBadge type="ORACLE" size="sm" />
+              <div>
+                {toast.isMe ? (
+                  <div style={{
+                    fontSize: 13, fontWeight: 600,
+                    background: "linear-gradient(90deg,#c4b5fd,#e0d9ff,#c4b5fd)",
+                    backgroundSize: "200%",
+                    WebkitBackgroundClip: "text",
+                    WebkitTextFillColor: "transparent",
+                    animation: "shimmer 2.5s linear infinite",
+                  }}>
+                    You called it{" "}
+                    <span style={{ WebkitTextFillColor: "#c4b5fd", background: "none", fontSize: 10, backgroundColor: "#7c3aed33", borderRadius: 6, padding: "2px 7px", fontWeight: 700, marginLeft: 4 }}>
+                      Oracle
+                    </span>
+                  </div>
+                ) : (
+                  <div style={{ fontSize: 13, fontWeight: 600, color: "#e2d9ff" }}>
+                    {toast.memberName} called it{" "}
+                    <span style={{ fontSize: 10, backgroundColor: "#7c3aed33", color: "#c4b5fd", borderRadius: 6, padding: "2px 7px", fontWeight: 700, marginLeft: 4 }}>
+                      Oracle
+                    </span>
+                  </div>
+                )}
+                <div style={{ fontSize: 11, color: "#6b5fa6", marginTop: 2 }}>
+                  Voted {toast.value} · Final was {toast.value}
+                </div>
+              </div>
+            </motion.div>
+          ))}
+        </AnimatePresence>
+      </div>
     </div>
   );
 }

@@ -1124,41 +1124,98 @@ export function HostView({ session, productId }: { session: PokerSession; produc
       {/* Team Awards ceremony overlay */}
       {showAwardsCeremony && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-sm">
-          <div className="w-full max-w-sm mx-4 rounded-2xl bg-[#0d0b1a] border border-white/15 p-6 space-y-5">
-            <div className="text-center space-y-1">
-              <div className="w-10 h-10 rounded-full bg-violet-600/20 border border-violet-500/30 flex items-center justify-center mx-auto">
-                <PartyIcon size={18} />
+          <div style={{
+            background: "linear-gradient(160deg, #0c0a1c 0%, #100e20 100%)",
+            border: "1px solid #ffffff10",
+            borderRadius: 24,
+            padding: "36px 28px",
+            width: "100%",
+            maxWidth: 420,
+            margin: "0 16px",
+            boxShadow: "0 32px 80px #00000099",
+            maxHeight: "85vh",
+            overflowY: "auto",
+          }}>
+            <div style={{ textAlign: "center", marginBottom: 28 }}>
+              <div style={{ width: 56, height: 56, background: "radial-gradient(circle, #7c3aed33, transparent)", border: "1.5px solid #7c3aed66", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 14px", boxShadow: "0 0 24px #7c3aed44" }}>
+                <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#a78bfa" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                  <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+                </svg>
               </div>
-              <h2 className="text-xl font-bold text-white">Team Awards</h2>
-              <p className="text-white/40 text-sm">{session.sprintName}</p>
+              <h2 style={{ fontSize: 22, fontWeight: 800, color: "white", letterSpacing: "-0.01em" }}>Team Awards</h2>
+              <p style={{ fontSize: 12, color: "#6b5fa6", marginTop: 4 }}>{session.sprintName}</p>
             </div>
+
             {sessionAchievements.length > 0 ? (
-              <div className="space-y-2 max-h-80 overflow-y-auto">
+              <div>
                 {sessionAchievements.map((a, i) => {
                   const m = session.product.members.find((mem) => mem.id === a.memberId);
+                  const cfg = BADGE_CONFIG[a.type as AchievementType];
+                  const initials = m ? m.name.trim().split(/\s+/).map((p: string) => p[0]).slice(0, 2).join("").toUpperCase() : "?";
                   return (
-                    <div key={i} className="flex items-center gap-3 p-2 rounded-xl bg-white/5">
-                      <AchievementBadge type={a.type} size="md" />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold text-white">{BADGE_CONFIG[a.type]?.name ?? a.type}</p>
-                        <p className="text-xs text-white/40 truncate">{m?.name ?? "Unknown"}</p>
-                      </div>
+                    <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0", borderBottom: i < sessionAchievements.length - 1 ? "1px solid #ffffff06" : "none" }}>
+                      <AchievementBadge type={a.type as AchievementType} size="sm" showTooltip />
+                      <span style={{ fontSize: 12, fontWeight: 600, flex: 1, color: cfg.color }}>{cfg.name}</span>
+                      {m && (
+                        <div style={{ display: "flex", alignItems: "center", gap: 5, background: "#ffffff08", borderRadius: 20, padding: "3px 10px 3px 4px" }}>
+                          <div style={{ width: 20, height: 20, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 8, fontWeight: 700, background: `${cfg.glow}55`, border: `1px solid ${cfg.glow}55`, color: cfg.color }}>
+                            {initials}
+                          </div>
+                          <span style={{ fontSize: 11, color: "#ffffff60" }}>{m.name}</span>
+                        </div>
+                      )}
                     </div>
                   );
                 })}
               </div>
             ) : (
-              <p className="text-white/25 text-sm text-center">No badges awarded this session.</p>
+              <p style={{ fontSize: 13, color: "#ffffff25", textAlign: "center" }}>No badges awarded this session.</p>
             )}
+
             <button
               onClick={() => setShowAwardsCeremony(false)}
-              className="w-full py-2.5 rounded-xl bg-violet-600/20 hover:bg-violet-600/30 border border-violet-500/30 text-violet-300 text-sm font-medium transition-colors"
+              style={{ marginTop: 22, width: "100%", padding: 12, background: "linear-gradient(135deg, #7c3aed, #6d28d9)", border: "none", borderRadius: 12, color: "white", fontSize: 14, fontWeight: 700, cursor: "pointer", boxShadow: "0 4px 20px #7c3aed44" }}
             >
               Done
             </button>
           </div>
         </div>
       )}
+
+      {/* Oracle flash toasts */}
+      <div style={{ position: "fixed", bottom: 24, right: 24, zIndex: 55, display: "flex", flexDirection: "column", gap: 8, alignItems: "flex-end" }}>
+        <AnimatePresence>
+          {oracleToasts.map((toast) => (
+            <motion.div
+              key={toast.id}
+              initial={{ opacity: 0, y: 12, scale: 0.95 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -8, scale: 0.95 }}
+              transition={{ duration: 0.3, ease: "easeOut" }}
+              style={{
+                display: "flex", alignItems: "center", gap: 12,
+                background: "#0f0d1e",
+                border: "1px solid #7c3aed33",
+                borderRadius: 14, padding: "10px 16px 10px 10px",
+                boxShadow: "0 4px 24px #00000060",
+              }}
+            >
+              <AchievementBadge type="ORACLE" size="sm" />
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 600, color: "#e2d9ff" }}>
+                  {toast.memberName} called it{" "}
+                  <span style={{ fontSize: 10, backgroundColor: "#7c3aed33", color: "#c4b5fd", borderRadius: 6, padding: "2px 7px", fontWeight: 700, marginLeft: 4 }}>
+                    Oracle
+                  </span>
+                </div>
+                <div style={{ fontSize: 11, color: "#6b5fa6", marginTop: 2 }}>
+                  Voted {toast.value} · Final was {toast.value}
+                </div>
+              </div>
+            </motion.div>
+          ))}
+        </AnimatePresence>
+      </div>
 
     </div>
   );

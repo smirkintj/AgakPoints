@@ -17,7 +17,8 @@ type MsgIn =
   | { type: "UPDATE_NOTE"; ticketId: string; note: string }
   | { type: "UPDATE_LEAVE"; memberId: string; date: string; active: boolean }
   | { type: "UPDATE_TICKET_DESIGN"; ticketId: string; designReadiness?: string | null; designComplexity?: string | null; designLink?: string | null }
-  | { type: "UPDATE_TICKET_TAGS"; ticketId: string; tags: string[] };
+  | { type: "UPDATE_TICKET_TAGS"; ticketId: string; tags: string[] }
+  | { type: "PUSH_CALENDAR" };
 
 type MsgOut =
   | { type: "PRESENCE_UPDATE"; checkedIn: CheckedInMember[] }
@@ -296,6 +297,12 @@ export default class ScrumPokerRoom implements Party.Server {
       case "UPDATE_LEAVE": {
         if (!this.state.checkedIn.some((m) => m.memberId === msg.memberId)) return;
         this.broadcast({ type: "LEAVE_UPDATED", memberId: msg.memberId, date: msg.date, active: msg.active });
+        break;
+      }
+
+      case "PUSH_CALENDAR": {
+        if (!this.isAdmin(sender)) return;
+        this.broadcast({ type: "CALENDAR_UPDATED" });
         break;
       }
 

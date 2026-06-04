@@ -20,6 +20,7 @@ interface SprintCalendarProps {
   members: Member[];
   checkedIn: CheckedInMember[];
   onLeaveToggle?: (memberId: string, date: string, active: boolean) => void;
+  onCalendarSaved?: () => void;
 }
 
 const DAY_NAMES = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
@@ -46,7 +47,7 @@ function subWorkingDays(date: string, n: number, phDates: Set<string>, allDays: 
   return isoDate(cur);
 }
 
-export function SprintCalendar({ sessionId, startDate, endDate, members, checkedIn, onLeaveToggle }: SprintCalendarProps) {
+export function SprintCalendar({ sessionId, startDate, endDate, members, checkedIn, onLeaveToggle, onCalendarSaved }: SprintCalendarProps) {
   const [events, setEvents] = useState<SprintCalendarEvent[]>([]);
   const [leaveMap, setLeaveMap] = useState<Record<string, Set<string>>>({});
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
@@ -145,6 +146,7 @@ export function SprintCalendar({ sessionId, startDate, endDate, members, checked
           return [...filtered, { date, name, type, country }];
         });
       }
+      onCalendarSaved?.();
     }).catch(() => {});
   };
 

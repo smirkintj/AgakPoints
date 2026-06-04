@@ -258,6 +258,12 @@ export function ParticipantView({ session }: { session: SessionWithDetails }) {
       case "NOTE_UPDATED":
         setCurrentTicket((prev) => prev && prev.ticketId === msg.ticketId ? { ...prev, contextNote: msg.note } : prev);
         break;
+      case "CALENDAR_UPDATED":
+        fetch(`/api/sessions/${session.id}/holidays`, { cache: "no-store" })
+          .then((r) => r.json())
+          .then((d: { holidays: { date: string; name: string; type: string; country?: string | null }[] }) => setHolidays(d.holidays ?? []))
+          .catch(() => {});
+        break;
       case "LEAVE_UPDATED": {
         const stored = sessionStorage.getItem(`agakpoints_member_${session.id}`);
         if (!stored) break;

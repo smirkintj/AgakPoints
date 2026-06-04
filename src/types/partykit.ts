@@ -14,7 +14,8 @@ export type MsgIn =
   | { type: "UPDATE_NOTE"; ticketId: string; note: string }
   | { type: "UPDATE_LEAVE"; memberId: string; date: string; active: boolean }
   | { type: "UPDATE_TICKET_DESIGN"; ticketId: string; designReadiness?: string | null; designComplexity?: string | null; designLink?: string | null }
-  | { type: "UPDATE_TICKET_TAGS"; ticketId: string; tags: string[] };
+  | { type: "UPDATE_TICKET_TAGS"; ticketId: string; tags: string[] }
+  | { type: "PUSH_CALENDAR" };
 
 // Messages sent server → client
 export type MsgOut =
@@ -31,7 +32,8 @@ export type MsgOut =
   | { type: "NOTE_UPDATED"; ticketId: string; note: string }
   | { type: "LEAVE_UPDATED"; memberId: string; date: string; active: boolean }
   | { type: "TICKET_DESIGN_UPDATED"; ticketId: string; designReadiness?: string | null; designComplexity?: string | null; designLink?: string | null }
-  | { type: "TICKET_TAGS_UPDATED"; ticketId: string; tags: string[] };
+  | { type: "TICKET_TAGS_UPDATED"; ticketId: string; tags: string[] }
+  | { type: "CALENDAR_UPDATED" };
 
 export interface CheckedInMember {
   memberId: string;

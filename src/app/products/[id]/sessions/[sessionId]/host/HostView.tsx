@@ -734,6 +734,7 @@ export function HostView({ session, productId }: { session: PokerSession; produc
                 members={session.product.members}
                 checkedIn={checkedIn}
                 onLeaveToggle={(memberId, date, active) => send({ type: "UPDATE_LEAVE", memberId, date, active })}
+                onCalendarSaved={() => send({ type: "PUSH_CALENDAR" })}
               />
             </div>
           </div>

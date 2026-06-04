@@ -179,12 +179,12 @@ model Achievement {
 }
 
 enum AchievementType {
-  SNIPER
-  WILDCARD
-  SPEEDSTER
-  FIRST_BLOOD
-  ON_FIRE
-  TEAM_PLAYER
+  ORACLE
+  OPTIMIST
+  REALIST
+  CHAOS_AGENT
+  LOAD_BEARER
+  PHILOSOPHER
 }
 
 model SprintLeave {

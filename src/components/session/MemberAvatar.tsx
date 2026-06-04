@@ -11,15 +11,8 @@ interface MemberAvatarProps {
   title?: string;
 }
 
-function getInitials(name: string): string {
-  const parts = name.trim().split(/\s+/);
-  if (parts.length === 1) return parts[0][0]?.toUpperCase() ?? "?";
-  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
-}
-
 export function MemberAvatar({ name, role, avatarUrl, size = 36, showRing = false, dimmed = false, title }: MemberAvatarProps) {
   const { hex } = getRoleColor(role);
-  const fontSize = Math.max(9, Math.round(size * 0.38));
 
   return (
     <div
@@ -32,14 +25,19 @@ export function MemberAvatar({ name, role, avatarUrl, size = 36, showRing = fals
         border: `2px solid ${showRing ? hex : hex + "55"}`,
         boxShadow: showRing ? `0 0 0 2px ${hex}44` : undefined,
         position: "relative",
-        fontSize,
-        letterSpacing: "-0.02em",
       }}
     >
       {avatarUrl ? (
         <Image src={avatarUrl} alt={name} fill className="object-cover" />
       ) : (
-        <span style={{ color: hex, lineHeight: 1 }}>{getInitials(name)}</span>
+        <Image
+          src={`https://api.dicebear.com/9.x/thumbs/svg?seed=${encodeURIComponent(name)}&backgroundColor=transparent`}
+          alt={name}
+          width={size}
+          height={size}
+          unoptimized
+          style={{ borderRadius: "50%" }}
+        />
       )}
     </div>
   );

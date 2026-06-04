@@ -199,6 +199,7 @@ export function HostView({ session, productId }: { session: PokerSession; produc
   const [autoReaction, setAutoReaction] = useState<{ iconKey: string; label: string } | null>(null);
   const [sessionAchievements, setSessionAchievements] = useState<Achievement[]>([]);
   const [showAwardsCeremony, setShowAwardsCeremony] = useState(false);
+  const [oracleToasts, setOracleToasts] = useState<{ id: number; memberId: string; memberName: string; value: number; isMe: boolean }[]>([]);
 
   const [recapOpen, setRecapOpen] = useState(session.status === "COMPLETED");
   const [confirmEnd, setConfirmEnd] = useState(false);
@@ -317,6 +318,22 @@ export function HostView({ session, productId }: { session: PokerSession; produc
                 next[v.memberId] = [...(next[v.memberId] ?? []), entry].slice(-5);
               }
               return next;
+            });
+          }
+        }
+        {
+          const exactMatches = (revealedVotesRef.current ?? []).filter((v) => v.value === msg.value);
+          if (exactMatches.length > 0) {
+            const newToasts = exactMatches.map((v, idx) => ({
+              id: Date.now() + idx,
+              memberId: v.memberId,
+              memberName: v.memberName,
+              value: v.value,
+              isMe: false,
+            }));
+            setOracleToasts((prev) => [...prev, ...newToasts]);
+            newToasts.forEach((t) => {
+              setTimeout(() => setOracleToasts((prev) => prev.filter((x) => x.id !== t.id)), 3000);
             });
           }
         }
@@ -1123,7 +1140,7 @@ export function HostView({ session, productId }: { session: PokerSession; produc
                     <div key={i} className="flex items-center gap-3 p-2 rounded-xl bg-white/5">
                       <AchievementBadge type={a.type} size="md" />
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold text-white">{BADGE_LABELS[a.type]}</p>
+                        <p className="text-sm font-semibold text-white">{BADGE_CONFIG[a.type]?.name ?? a.type}</p>
                         <p className="text-xs text-white/40 truncate">{m?.name ?? "Unknown"}</p>
                       </div>
                     </div>

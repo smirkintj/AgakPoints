@@ -5,11 +5,11 @@ import { motion, AnimatePresence } from "framer-motion";
 import { usePartyRoom } from "@/hooks/usePartyRoom";
 import type { MsgOut, CheckedInMember } from "@/types/partykit";
 import type { Member, PokerSession, Product, SessionParticipant } from "@/types/models";
-import { Check, Layers } from "lucide-react";
+import { Check, Layers, ChevronDown, ChevronRight } from "lucide-react";
 import { MemberAvatar } from "@/components/session/MemberAvatar";
 import { RoleBadge } from "@/components/session/RoleBadge";
 import { FireBadge } from "@/components/ui/GameIcon";
-import { AchievementBadge } from "@/components/session/AchievementBadge";
+import { AchievementBadge, BADGE_CONFIG } from "@/components/session/AchievementBadge";
 import type { AchievementType } from "@prisma/client";
 
 type SessionWithDetails = PokerSession & {
@@ -29,6 +29,7 @@ export function WaitingRoom({ session }: { session: SessionWithDetails }) {
   const [liveActive, setLiveActive] = useState(session.status === "ACTIVE");
   const [streaks, setStreaks] = useState<Record<string, number>>({});
   const [badges, setBadges] = useState<Record<string, string[]>>({});
+  const [legendOpen, setLegendOpen] = useState(false);
 
   useEffect(() => {
     const stored = sessionStorage.getItem(`agakpoints_member_${session.id}`);
@@ -188,6 +189,33 @@ export function WaitingRoom({ session }: { session: SessionWithDetails }) {
         <p className="text-center text-white/20 text-xs mt-6">
           {checkedIn.length}/{session.product.members.length} checked in
         </p>
+
+        {/* Badge legend */}
+        <div className="mt-6 rounded-2xl border border-white/10 bg-white/3 overflow-hidden">
+          <button
+            onClick={() => setLegendOpen((o) => !o)}
+            className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-white/5 transition-colors"
+          >
+            <span className="text-xs text-white/40 uppercase tracking-widest font-semibold">Badge guide</span>
+            {legendOpen ? <ChevronDown className="w-3.5 h-3.5 text-white/30" /> : <ChevronRight className="w-3.5 h-3.5 text-white/30" />}
+          </button>
+          {legendOpen && (
+            <div className="px-4 pb-4 space-y-2 border-t border-white/8">
+              {(Object.keys(BADGE_CONFIG) as AchievementType[]).map((type) => {
+                const cfg = BADGE_CONFIG[type];
+                return (
+                  <div key={type} className="flex items-center gap-3 py-2 border-b border-white/6 last:border-0">
+                    <AchievementBadge type={type} size="md" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-semibold" style={{ color: cfg.color }}>{cfg.name}</p>
+                      <p className="text-[11px] text-white/35 leading-snug mt-0.5">{cfg.trigger}</p>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

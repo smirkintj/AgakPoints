@@ -64,7 +64,6 @@ export function ParticipantView({ session }: { session: SessionWithDetails }) {
   const [autoReaction, setAutoReaction] = useState<{ iconKey: string; label: string } | null>(null);
   const [sessionAchievements, setSessionAchievements] = useState<Achievement[]>([]);
   const [allSessionAchievements, setAllSessionAchievements] = useState<Achievement[]>([]);
-  const [showAwardsCeremony, setShowAwardsCeremony] = useState(false);
   const [oracleToasts, setOracleToasts] = useState<{ id: number; memberId: string; memberName: string; value: number; isMe: boolean }[]>([]);
   const [myAssignedOpen, setMyAssignedOpen] = useState(true);
   const [holidays, setHolidays] = useState<{ date: string; name: string; type: string; country?: string | null }[]>([]);
@@ -173,6 +172,11 @@ export function ParticipantView({ session }: { session: SessionWithDetails }) {
           ticketStartTime: Date.now(),
           reEstimateCount: wasEstimated ? prev.reEstimateCount + 1 : prev.reEstimateCount,
         }));
+        // Re-fetch holidays so any PH/deploy changes made during the session are reflected
+        fetch(`/api/sessions/${session.id}/holidays`, { cache: "no-store" })
+          .then((r) => r.json())
+          .then((d: { holidays: { date: string; name: string; type: string; country?: string | null }[] }) => setHolidays(d.holidays ?? []))
+          .catch(() => {});
         break;
       }
       case "VOTE_PROGRESS":
@@ -274,7 +278,6 @@ export function ParticipantView({ session }: { session: SessionWithDetails }) {
           ]).then(([myRes, allRes]) => {
             setSessionAchievements(myRes.achievements ?? []);
             setAllSessionAchievements(allRes.achievements ?? []);
-            setShowAwardsCeremony(true);
           }).catch(() => {});
         }
         break;
@@ -380,116 +383,9 @@ export function ParticipantView({ session }: { session: SessionWithDetails }) {
 
   if (sessionEnded) {
     const totalSP = myAssigned.reduce((s, x) => s + x.sp, 0);
+    const othersAchievements = allSessionAchievements.filter((a) => a.memberId !== member?.id);
     return (
-      <>
-      {showAwardsCeremony && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-sm">
-          <div style={{
-            background: "linear-gradient(160deg, #0c0a1c 0%, #100e20 100%)",
-            border: "1px solid #ffffff10",
-            borderRadius: 24,
-            padding: "36px 28px",
-            width: "100%",
-            maxWidth: 420,
-            margin: "0 16px",
-            boxShadow: "0 32px 80px #00000099, 0 0 0 1px #ffffff08",
-            maxHeight: "90vh",
-            overflowY: "auto",
-          }}>
-            {/* Header */}
-            <div style={{ textAlign: "center", marginBottom: 28 }}>
-              <div style={{
-                width: 56, height: 56,
-                background: "radial-gradient(circle, #7c3aed33, transparent)",
-                border: "1.5px solid #7c3aed66",
-                borderRadius: "50%",
-                display: "flex", alignItems: "center", justifyContent: "center",
-                margin: "0 auto 14px",
-                boxShadow: "0 0 24px #7c3aed44",
-              }}>
-                <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#a78bfa" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                  <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
-                </svg>
-              </div>
-              <h2 style={{ fontSize: 22, fontWeight: 800, color: "white", letterSpacing: "-0.01em" }}>Session&apos;s Over</h2>
-              <p style={{ fontSize: 12, color: "#6b5fa6", marginTop: 4 }}>{session.name ?? session.sprintName}</p>
-            </div>
-
-            {/* Your badges */}
-            <div style={{ marginBottom: 20 }}>
-              <p style={{ fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", color: "#4a4070", fontWeight: 700, marginBottom: 10 }}>Your badges</p>
-              {sessionAchievements.length > 0 ? (
-                <div>
-                  {sessionAchievements.map((a) => {
-                    const cfg = BADGE_CONFIG[a.type as AchievementType];
-                    return (
-                      <div key={a.type} style={{
-                        display: "flex", alignItems: "center", gap: 12,
-                        borderRadius: 14, padding: "11px 14px", marginBottom: 8,
-                        border: `1px solid ${cfg.glow}55`,
-                        background: `linear-gradient(135deg, ${cfg.glow}18, transparent)`,
-                        boxShadow: `0 0 16px ${cfg.glow}18`,
-                      }}>
-                        <AchievementBadge type={a.type as AchievementType} size="lg" />
-                        <div style={{ flex: 1 }}>
-                          <p style={{ fontSize: 13, fontWeight: 700, color: "#e2d9ff" }}>{cfg.name}</p>
-                          <p style={{ fontSize: 11, color: "#6b5fa6", marginTop: 1 }}>{cfg.flavour}</p>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              ) : (
-                <p style={{ fontSize: 13, color: "#ffffff25" }}>No badges this session.</p>
-              )}
-            </div>
-
-            {/* Also awarded */}
-            {(() => {
-              const others = allSessionAchievements.filter((a) => a.memberId !== member?.id);
-              if (others.length === 0) return null;
-              return (
-                <div>
-                  <p style={{ fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", color: "#4a4070", fontWeight: 700, marginBottom: 10 }}>Also awarded</p>
-                  {others.map((a, i) => {
-                    const m = session.product.members.find((mem) => mem.id === a.memberId);
-                    const cfg = BADGE_CONFIG[a.type as AchievementType];
-                    const initials = m ? m.name.trim().split(/\s+/).map((p: string) => p[0]).slice(0, 2).join("").toUpperCase() : "?";
-                    return (
-                      <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0", borderBottom: i < others.length - 1 ? "1px solid #ffffff06" : "none" }}>
-                        <AchievementBadge type={a.type as AchievementType} size="sm" showTooltip />
-                        <span style={{ fontSize: 12, fontWeight: 600, flex: 1, color: cfg.color }}>{cfg.name}</span>
-                        {m && (
-                          <div style={{ display: "flex", alignItems: "center", gap: 5, background: "#ffffff08", borderRadius: 20, padding: "3px 10px 3px 4px" }}>
-                            <div style={{ width: 20, height: 20, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 8, fontWeight: 700, background: `${cfg.glow}55`, border: `1px solid ${cfg.glow}55`, color: cfg.color }}>
-                              {initials}
-                            </div>
-                            <span style={{ fontSize: 11, color: "#ffffff60" }}>{m.name}</span>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              );
-            })()}
-
-            <button
-              onClick={() => setShowAwardsCeremony(false)}
-              style={{
-                marginTop: 22, width: "100%", padding: 12,
-                background: "linear-gradient(135deg, #7c3aed, #6d28d9)",
-                border: "none", borderRadius: 12, color: "white",
-                fontSize: 14, fontWeight: 700, cursor: "pointer",
-                boxShadow: "0 4px 20px #7c3aed44",
-              }}
-            >
-              View your recap →
-            </button>
-          </div>
-        </div>
-      )}
-      <div ref={recapRef} className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black/90 backdrop-blur-sm px-6 py-10 overflow-y-auto">
+      <div ref={recapRef} className="fixed inset-0 z-50 flex flex-col items-center justify-start bg-black/90 backdrop-blur-sm px-6 py-10 overflow-y-auto">
         <div className="w-full max-w-lg space-y-6 text-center">
           <div>
             <div className="w-12 h-12 rounded-full bg-violet-600/30 border border-violet-500/30 flex items-center justify-center mx-auto mb-4">
@@ -498,6 +394,60 @@ export function ParticipantView({ session }: { session: SessionWithDetails }) {
             <h2 className="text-2xl font-bold text-white">Session Ended</h2>
             <p className="text-white/40 text-sm mt-1">{session.name ?? session.sprintName}</p>
           </div>
+
+          {/* Badges earned this session */}
+          {sessionAchievements.length > 0 && (
+            <div className="rounded-2xl border border-white/10 bg-white/5 p-5 text-left space-y-3">
+              <p className="text-xs text-white/40 uppercase tracking-widest font-medium">Your badges</p>
+              <div className="space-y-2">
+                {sessionAchievements.map((a) => {
+                  const cfg = BADGE_CONFIG[a.type as AchievementType];
+                  return (
+                    <div key={a.type} style={{
+                      display: "flex", alignItems: "center", gap: 12,
+                      borderRadius: 12, padding: "10px 12px",
+                      border: `1px solid ${cfg.glow}44`,
+                      background: `linear-gradient(135deg, ${cfg.glow}14, transparent)`,
+                    }}>
+                      <AchievementBadge type={a.type as AchievementType} size="lg" />
+                      <div style={{ flex: 1 }}>
+                        <p style={{ fontSize: 13, fontWeight: 700, color: "#e2d9ff" }}>{cfg.name}</p>
+                        <p style={{ fontSize: 11, color: "#6b5fa6", marginTop: 1 }}>{cfg.flavour}</p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Teammates' badges */}
+          {othersAchievements.length > 0 && (
+            <div className="rounded-2xl border border-white/10 bg-white/5 p-5 text-left space-y-2">
+              <p className="text-xs text-white/40 uppercase tracking-widest font-medium">Also awarded</p>
+              {othersAchievements.map((a, i) => {
+                const m = session.product.members.find((mem) => mem.id === a.memberId);
+                const cfg = BADGE_CONFIG[a.type as AchievementType];
+                const initials = m ? m.name.trim().split(/\s+/).map((p: string) => p[0]).slice(0, 2).join("").toUpperCase() : "?";
+                return (
+                  <div key={i} className="flex items-center gap-3 py-1.5 border-b border-white/6 last:border-0">
+                    <AchievementBadge type={a.type as AchievementType} size="sm" showTooltip />
+                    <span style={{ fontSize: 12, fontWeight: 600, flex: 1, color: cfg.color }}>{cfg.name}</span>
+                    {m && (
+                      <div style={{ display: "flex", alignItems: "center", gap: 5, background: "#ffffff08", borderRadius: 20, padding: "3px 10px 3px 4px" }}>
+                        <div style={{ width: 20, height: 20, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 8, fontWeight: 700, background: `${cfg.glow}55`, border: `1px solid ${cfg.glow}55`, color: cfg.color }}>
+                          {initials}
+                        </div>
+                        <span style={{ fontSize: 11, color: "#ffffff60" }}>{m.name}</span>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Assignments */}
           <div className="space-y-4">
             {myAssigned.length > 0 ? (
               <div className="rounded-2xl border border-white/10 bg-white/5 p-5 text-left space-y-3">
@@ -541,7 +491,6 @@ export function ParticipantView({ session }: { session: SessionWithDetails }) {
           </div>
         </div>
       </div>
-      </>
     );
   }
 

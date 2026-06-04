@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Sessions Tab — Wireframe v2</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #09070f; color: #e2d9ff; font-family: system-ui, sans-serif; padding: 40px 24px; }
+
+  h1 { font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: #4a4070; font-weight: 700; margin-bottom: 40px; }
+  .label { font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: #4a4070; font-weight: 700; margin-bottom: 16px; }
+
+  .grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 40px; max-width: 1400px; }
+  @media (max-width: 1100px) { .grid { grid-template-columns: 1fr 1fr; } }
+
+  .opt-title { font-size: 15px; font-weight: 800; color: #fff; margin-bottom: 4px; }
+  .opt-desc { font-size: 11px; color: #6b5fa6; margin-bottom: 20px; line-height: 1.5; }
+
+  /* Tab chrome wrapper */
+  .chrome { background: #0d0b1a; border: 1px solid #ffffff12; border-radius: 16px; overflow: hidden; }
+  .tab-bar { display: flex; align-items: center; justify-content: space-between; padding: 0 16px; border-bottom: 1px solid #ffffff0d; }
+  .tab-bar-left { display: flex; }
+  .tab { padding: 12px 14px; font-size: 12px; color: #ffffff35; border-bottom: 2px solid transparent; cursor: pointer; }
+  .tab.active { color: #a78bfa; border-bottom-color: #7c3aed; }
+  .btn-new { background: linear-gradient(135deg,#7c3aed,#6d28d9); border: none; border-radius: 8px; color: #fff; font-size: 11px; font-weight: 700; padding: 5px 12px; cursor: pointer; }
+
+  .body { padding: 16px; }
+
+  /* ── OPTION 1: Compact table-style ── */
+  .tbl-header { display: grid; grid-template-columns: 1fr 60px 60px 50px 80px; gap: 8px; padding: 0 10px 8px; border-bottom: 1px solid #ffffff08; }
+  .tbl-col { font-size: 9px; text-transform: uppercase; letter-spacing: 0.1em; color: #4a4070; font-weight: 700; }
+  .tbl-col.right { text-align: right; }
+
+  .tbl-row { display: grid; grid-template-columns: 1fr 60px 60px 50px 80px; gap: 8px; align-items: center; padding: 9px 10px; border-bottom: 1px solid #ffffff05; cursor: pointer; }
+  .tbl-row:hover { background: #ffffff04; border-radius: 8px; }
+  .tbl-row.active-row { background: linear-gradient(90deg,#7c3aed0d,transparent); border-left: 2px solid #7c3aed66; border-radius: 0 8px 8px 0; }
+
+  .row-name { font-size: 12px; font-weight: 600; color: #e2d9ff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .row-sub { font-size: 10px; color: #4a4070; margin-top: 1px; }
+  .row-val { font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums; color: #a78bfa; text-align: right; }
+  .row-val.muted { color: #4a4070; }
+  .pill { display: inline-flex; align-items: center; gap: 4px; font-size: 9px; font-weight: 700; padding: 2px 8px; border-radius: 20px; }
+  .pill.live { background: #10b98118; border: 1px solid #10b98140; color: #10b981; }
+  .pill.done { background: #ffffff08; border: 1px solid #ffffff12; color: #ffffff30; }
+  .pill.wait { background: #f59e0b18; border: 1px solid #f59e0b40; color: #f59e0b; }
+  .live-dot { width: 5px; height: 5px; border-radius: 50%; background: #10b981; box-shadow: 0 0 6px #10b98199; animation: pulse 2s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+
+  .sp-bar-wrap { display: flex; align-items: center; gap: 6px; justify-content: flex-end; }
+  .sp-bar { height: 3px; border-radius: 2px; background: #ffffff08; overflow: hidden; width: 40px; }
+  .sp-bar-fill { height: 100%; background: linear-gradient(90deg,#7c3aed88,#a78bfaaa); border-radius: 2px; }
+
+  /* ── OPTION 2: Cards with month grouping ── */
+  .month-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.1em; color: #4a4070; font-weight: 700; margin: 14px 0 6px; }
+  .month-label:first-child { margin-top: 0; }
+
+  .card { background: #ffffff04; border: 1px solid #ffffff08; border-radius: 10px; padding: 10px 12px; margin-bottom: 5px; display: flex; align-items: center; gap: 10px; cursor: pointer; }
+  .card:hover { border-color: #ffffff14; background: #ffffff07; }
+  .card.card-active { background: linear-gradient(135deg,#1a1035,#0f0c22); border-color: #7c3aed44; box-shadow: 0 0 20px #7c3aed0d; }
+
+  .card-left { flex: 1; min-width: 0; }
+  .card-name { font-size: 12px; font-weight: 700; color: #e2d9ff; truncate: true; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .card-name.muted { color: #a09ab8; font-weight: 600; }
+  .card-meta { font-size: 10px; color: #4a4070; margin-top: 2px; }
+  .card-pts { font-size: 14px; font-weight: 800; font-variant-numeric: tabular-nums; color: #a78bfa; }
+  .card-pts.muted { color: #4a4070; font-size: 12px; font-weight: 700; }
+
+  /* ── OPTION 3: Split active + history ── */
+  .active-section { margin-bottom: 16px; }
+  .active-banner { background: linear-gradient(135deg,#1a1035,#0f0c22); border: 1px solid #7c3aed44; border-radius: 12px; padding: 14px 16px; }
+  .banner-top { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 10px; }
+  .banner-name { font-size: 14px; font-weight: 800; color: #fff; }
+  .banner-meta { font-size: 10px; color: #6b5fa6; margin-top: 2px; }
+  .banner-stats { display: flex; gap: 16px; margin-bottom: 12px; }
+  .bstat-val { font-size: 18px; font-weight: 900; color: #a78bfa; font-variant-numeric: tabular-nums; line-height: 1; }
+  .bstat-lbl { font-size: 9px; color: #4a4070; margin-top: 2px; }
+  .btn-open { flex: 1; padding: 7px; border-radius: 9px; background: linear-gradient(135deg,#7c3aed,#6d28d9); border: none; color: #fff; font-size: 12px; font-weight: 700; cursor: pointer; }
+  .btn-end { padding: 7px 10px; border-radius: 9px; border: 1px solid #ef444430; background: transparent; color: #ef444499; font-size: 11px; cursor: pointer; }
+
+  .history-label { font-size: 9px; text-transform: uppercase; letter-spacing: 0.1em; color: #4a4070; font-weight: 700; margin-bottom: 8px; display: flex; align-items: center; justify-content: space-between; }
+  .hist-row { display: flex; align-items: center; gap: 8px; padding: 7px 8px; border-radius: 8px; cursor: pointer; }
+  .hist-row:hover { background: #ffffff05; }
+  .hist-dot { width: 5px; height: 5px; border-radius: 50%; background: #ffffff15; flex-shrink: 0; }
+  .hist-name { font-size: 12px; font-weight: 500; color: #8a84a3; flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .hist-row:hover .hist-name { color: #c4b5fd; }
+  .hist-date { font-size: 10px; color: #4a4070; flex-shrink: 0; }
+  .hist-pts { font-size: 11px; font-weight: 700; color: #4a4070; font-variant-numeric: tabular-nums; flex-shrink: 0; }
+  .hist-row:hover .hist-pts { color: #a78bfa; }
+  .show-more { text-align: center; font-size: 10px; color: #4a4070; padding: 8px 0; cursor: pointer; }
+  .show-more:hover { color: #7c3aed; }
+</style>
+</head>
+<body>
+
+<h1>Sessions Tab — Wireframe Options v2</h1>
+
+<div class="grid">
+
+  <!-- ── OPTION 1: Compact table ── -->
+  <div>
+    <div class="opt-title">Option 1 — Table</div>
+    <div class="opt-desc">Dense, data-forward. Active row highlighted left-border. SP column with mini bar. Best for teams with many sessions.</div>
+    <div class="chrome">
+      <div class="tab-bar">
+        <div class="tab-bar-left">
+          <div class="tab active">Sessions <span style="color:#ffffff20;font-size:10px">(9)</span></div>
+          <div class="tab">Team</div>
+          <div class="tab">Settings</div>
+        </div>
+        <button class="btn-new">+ New Session</button>
+      </div>
+      <div class="body">
+        <div class="tbl-header">
+          <div class="tbl-col">Session</div>
+          <div class="tbl-col right">Tickets</div>
+          <div class="tbl-col right">SP</div>
+          <div class="tbl-col right">Team</div>
+          <div class="tbl-col right">Status</div>
+        </div>
+
+        <!-- Active row -->
+        <div class="tbl-row active-row">
+          <div>
+            <div class="row-name">Sprint 24 — Backend Hardening</div>
+            <div class="row-sub">Started today</div>
+          </div>
+          <div class="row-val">5/14</div>
+          <div class="row-val">38</div>
+          <div class="row-val">4</div>
+          <div style="text-align:right"><span class="pill live"><span class="live-dot"></span>Live</span></div>
+        </div>
+
+        <!-- Completed rows -->
+        <div class="tbl-row">
+          <div>
+            <div class="row-name">Sprint 23 — Auth Overhaul</div>
+            <div class="row-sub">12 Jun</div>
+          </div>
+          <div class="sp-bar-wrap" style="flex-direction:column;gap:3px;align-items:flex-end"><div class="row-val muted" style="font-size:11px">12/12</div></div>
+          <div><div class="sp-bar-wrap"><span class="row-val" style="font-size:13px">84</span><div class="sp-bar"><div class="sp-bar-fill" style="width:100%"></div></div></div></div>
+          <div class="row-val muted" style="font-size:11px">5</div>
+          <div style="text-align:right"><span class="pill done">Done</span></div>
+        </div>
+        <div class="tbl-row">
+          <div>
+            <div class="row-name">Sprint 22 — Checkout Flow</div>
+            <div class="row-sub">29 May</div>
+          </div>
+          <div class="row-val muted" style="font-size:11px">10/11</div>
+          <div><div class="sp-bar-wrap"><span class="row-val" style="font-size:13px">61</span><div class="sp-bar"><div class="sp-bar-fill" style="width:73%"></div></div></div></div>
+          <div class="row-val muted" style="font-size:11px">4</div>
+          <div style="text-align:right"><span class="pill done">Done</span></div>
+        </div>
+        <div class="tbl-row">
+          <div>
+            <div class="row-name">Sprint 21 — Infra Cleanup</div>
+            <div class="row-sub">15 May</div>
+          </div>
+          <div class="row-val muted" style="font-size:11px">11/11</div>
+          <div><div class="sp-bar-wrap"><span class="row-val" style="font-size:13px">72</span><div class="sp-bar"><div class="sp-bar-fill" style="width:86%"></div></div></div></div>
+          <div class="row-val muted" style="font-size:11px">5</div>
+          <div style="text-align:right"><span class="pill done">Done</span></div>
+        </div>
+        <div class="show-more">↓ 5 more</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── OPTION 2: Cards grouped by month ── -->
+  <div>
+    <div class="opt-title">Option 2 — Month groups</div>
+    <div class="opt-desc">Sessions grouped by month header. Active card elevated with gradient. Completed cards flat and muted. Good visual rhythm.</div>
+    <div class="chrome">
+      <div class="tab-bar">
+        <div class="tab-bar-left">
+          <div class="tab active">Sessions <span style="color:#ffffff20;font-size:10px">(9)</span></div>
+          <div class="tab">Team</div>
+          <div class="tab">Settings</div>
+        </div>
+        <button class="btn-new">+ New Session</button>
+      </div>
+      <div class="body">
+        <div class="month-label">Active</div>
+        <div class="card card-active">
+          <div class="card-left">
+            <div class="card-name">Sprint 24 — Backend Hardening</div>
+            <div class="card-meta">Started today · 5/14 tickets · 4 attending</div>
+          </div>
+          <div style="text-align:right">
+            <div class="card-pts">38 SP</div>
+            <div style="display:flex;gap:5px;margin-top:4px;justify-content:flex-end">
+              <span class="pill live"><span class="live-dot"></span>Live</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="month-label" style="margin-top:16px">June 2025</div>
+        <div class="card">
+          <div class="card-left">
+            <div class="card-name muted">Sprint 23 — Auth Overhaul</div>
+            <div class="card-meta">12 Jun · 12/12 tickets · 5 attended</div>
+          </div>
+          <div class="card-pts muted">84 SP</div>
+        </div>
+
+        <div class="month-label">May 2025</div>
+        <div class="card">
+          <div class="card-left">
+            <div class="card-name muted">Sprint 22 — Checkout Flow</div>
+            <div class="card-meta">29 May · 10/11 tickets · 4 attended</div>
+          </div>
+          <div class="card-pts muted">61 SP</div>
+        </div>
+        <div class="card">
+          <div class="card-left">
+            <div class="card-name muted">Sprint 21 — Infra Cleanup</div>
+            <div class="card-meta">15 May · 11/11 tickets · 5 attended</div>
+          </div>
+          <div class="card-pts muted">72 SP</div>
+        </div>
+        <div class="show-more">↓ 5 more sessions</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── OPTION 3: Split active banner + lean history ── -->
+  <div>
+    <div class="opt-title">Option 3 — Active banner + lean list</div>
+    <div class="opt-desc">Active session gets full-width banner with stats and actions. History is an ultra-compact hover list — date on right, no status pills.</div>
+    <div class="chrome">
+      <div class="tab-bar">
+        <div class="tab-bar-left">
+          <div class="tab active">Sessions <span style="color:#ffffff20;font-size:10px">(9)</span></div>
+          <div class="tab">Team</div>
+          <div class="tab">Settings</div>
+        </div>
+        <button class="btn-new">+ New Session</button>
+      </div>
+      <div class="body">
+
+        <!-- Active banner -->
+        <div class="active-section">
+          <div class="active-banner">
+            <div class="banner-top">
+              <div>
+                <div style="display:flex;align-items:center;gap:7px;margin-bottom:4px">
+                  <span class="live-dot"></span>
+                  <span style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:#10b981">Live</span>
+                </div>
+                <div class="banner-name">Sprint 24 — Backend Hardening</div>
+                <div class="banner-meta">Started today</div>
+              </div>
+            </div>
+            <div class="banner-stats">
+              <div><div class="bstat-val">38</div><div class="bstat-lbl">SP locked</div></div>
+              <div><div class="bstat-val">5/14</div><div class="bstat-lbl">Tickets</div></div>
+              <div><div class="bstat-val">4</div><div class="bstat-lbl">Attending</div></div>
+            </div>
+            <div style="display:flex;gap:7px">
+              <button class="btn-open">Open host view ↗</button>
+              <button class="btn-end">End</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- History list -->
+        <div class="history-label">
+          <span>History</span>
+          <span style="font-weight:400;color:#4a4070">8 sessions</span>
+        </div>
+        <div class="hist-row">
+          <div class="hist-dot"></div>
+          <div class="hist-name">Sprint 23 — Auth Overhaul</div>
+          <div class="hist-date">12 Jun</div>
+          <div class="hist-pts">84 SP</div>
+        </div>
+        <div class="hist-row">
+          <div class="hist-dot"></div>
+          <div class="hist-name">Sprint 22 — Checkout Flow</div>
+          <div class="hist-date">29 May</div>
+          <div class="hist-pts">61 SP</div>
+        </div>
+        <div class="hist-row">
+          <div class="hist-dot"></div>
+          <div class="hist-name">Sprint 21 — Infra Cleanup</div>
+          <div class="hist-date">15 May</div>
+          <div class="hist-pts">72 SP</div>
+        </div>
+        <div class="hist-row">
+          <div class="hist-dot"></div>
+          <div class="hist-name">Sprint 20 — Mobile Views</div>
+          <div class="hist-date">1 May</div>
+          <div class="hist-pts">55 SP</div>
+        </div>
+        <div class="show-more">↓ 4 more</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>

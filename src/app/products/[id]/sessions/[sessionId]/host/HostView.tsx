@@ -280,11 +280,17 @@ export function HostView({ session, productId }: { session: PokerSession; produc
   // sendRef allows the onOpen callback (defined before send) to call send
   const sendRef = useRef<(msg: import("@/types/partykit").MsgIn) => void>(() => {});
 
-  // Fetch admin token on mount
+  // Fetch admin token on mount — also send REGISTER_ADMIN immediately so it
+  // works even if the socket connected before the token fetch returned.
   useEffect(() => {
     fetch(`/api/sessions/${session.id}/admin-token`)
       .then((r) => r.json())
-      .then((data: { token?: string }) => { if (data.token) adminTokenRef.current = data.token; })
+      .then((data: { token?: string }) => {
+        if (data.token) {
+          adminTokenRef.current = data.token;
+          sendRef.current({ type: "REGISTER_ADMIN", token: data.token });
+        }
+      })
       .catch(() => {});
   }, [session.id]);
 

@@ -29,6 +29,7 @@ import type confettiType from "canvas-confetti";
 import { getAutoReaction } from "@/lib/gameReactions";
 import { BeachIcon, RocketIcon, TargetIcon, SpicyIcon, ThinkIcon } from "@/components/ui/GameIcon";
 import { AchievementBadge, BADGE_CONFIG } from "@/components/session/AchievementBadge";
+import { CountdownRing } from "@/components/session/CountdownRing";
 import type { Achievement, AchievementType } from "@prisma/client";
 
 const AUTO_ICON_MAP: Record<string, React.ReactNode> = {
@@ -67,6 +68,11 @@ export function ParticipantView({ session }: { session: SessionWithDetails }) {
   const [oracleToasts, setOracleToasts] = useState<{ id: number; memberId: string; memberName: string; value: number; isMe: boolean }[]>([]);
   const [myAssignedOpen, setMyAssignedOpen] = useState(true);
   const [holidays, setHolidays] = useState<{ date: string; name: string; type: string; country?: string | null }[]>([]);
+  const [timerDuration, setTimerDuration] = useState<number | null>(null);
+  const [timerStartedAt, setTimerStartedAt] = useState<string | null>(null);
+  const [timerExpired, setTimerExpired] = useState(false);
+  const [ticketFlags, setTicketFlags] = useState<string[]>([]);
+  const [roleNotes, setRoleNotes] = useState<{ general?: string; DEV?: string; QA?: string; UI_UX?: string }>({});
   const [myLeaves, setMyLeaves] = useState<string[]>([]);
   const recapRef = useRef<HTMLDivElement>(null);
 
@@ -139,6 +145,9 @@ export function ParticipantView({ session }: { session: SessionWithDetails }) {
         setRevealedVotes(s.revealedVotes);
         setLockedTickets(new Set(s.lockedTickets));
         setLockedAssignees(s.lockedTicketAssignees ?? {});
+        setTimerDuration(s.timerDuration ?? null);
+        setTimerStartedAt(s.timerStartedAt ?? null);
+        setTicketFlags(s.currentTicket ? [] : []);
         const estMap: Record<string, number> = {};
         for (const t of session.tickets) {
           if (t.status === "ESTIMATED" && t.finalEstimate != null) estMap[t.id] = t.finalEstimate;
@@ -167,12 +176,22 @@ export function ParticipantView({ session }: { session: SessionWithDetails }) {
         setRevealMeta(null);
         setTicketDesign({ designReadiness: null, designComplexity: null, designLink: null });
         setTicketTags([]);
+        setTicketFlags([]);
+        setTimerExpired(false);
+        setRoleNotes({
+          general: msg.contextNote,
+          DEV: msg.noteForDev,
+          QA: msg.noteForQA,
+          UI_UX: msg.noteForUIUX,
+        });
+        if (msg.timerDuration !== undefined) setTimerDuration(msg.timerDuration ?? null);
+        if (msg.timerStartedAt) setTimerStartedAt(msg.timerStartedAt);
+        else setTimerStartedAt(null);
         setSessionHealth((prev) => ({
           ...prev,
           ticketStartTime: Date.now(),
           reEstimateCount: wasEstimated ? prev.reEstimateCount + 1 : prev.reEstimateCount,
         }));
-        // Re-fetch holidays so any PH/deploy changes made during the session are reflected
         fetch(`/api/sessions/${session.id}/holidays`, { cache: "no-store" })
           .then((r) => r.json())
           .then((d: { holidays: { date: string; name: string; type: string; country?: string | null }[] }) => setHolidays(d.holidays ?? []))
@@ -256,7 +275,23 @@ export function ParticipantView({ session }: { session: SessionWithDetails }) {
         setReactions((r) => [...r.slice(-20), msg]);
         break;
       case "NOTE_UPDATED":
-        setCurrentTicket((prev) => prev && prev.ticketId === msg.ticketId ? { ...prev, contextNote: msg.note } : prev);
+        if (!msg.noteRole) {
+          setCurrentTicket((prev) => prev && prev.ticketId === msg.ticketId ? { ...prev, contextNote: msg.note } : prev);
+          setRoleNotes((p) => ({ ...p, general: msg.note }));
+        } else if (msg.noteRole === "DEV") {
+          setRoleNotes((p) => ({ ...p, DEV: msg.note }));
+        } else if (msg.noteRole === "QA") {
+          setRoleNotes((p) => ({ ...p, QA: msg.note }));
+        } else if (msg.noteRole === "UI_UX") {
+          setRoleNotes((p) => ({ ...p, UI_UX: msg.note }));
+        }
+        break;
+      case "TIMER_UPDATED":
+        setTimerDuration(msg.duration);
+        setTimerStartedAt(msg.startedAt);
+        break;
+      case "TICKET_FLAGS_UPDATED":
+        setTicketFlags(msg.flags);
         break;
       case "CALENDAR_UPDATED":
         fetch(`/api/sessions/${session.id}/holidays`, { cache: "no-store" })
@@ -632,11 +667,55 @@ export function ParticipantView({ session }: { session: SessionWithDetails }) {
                   </p>
                 )}
 
-                {/* Host note */}
-                {currentTicket.contextNote && (
-                  <div className="rounded-lg bg-amber-500/8 border border-amber-500/20 px-3 py-2.5">
-                    <p className="text-[10px] text-amber-400/80 font-semibold uppercase tracking-widest mb-1">Host note</p>
-                    <p className="text-sm text-white/60 leading-relaxed">{currentTicket.contextNote}</p>
+                {/* Role-filtered notes */}
+                {(roleNotes.general || (member.role === "DEV" && roleNotes.DEV) || (member.role === "QA" && roleNotes.QA) || ((member.role === "UI_UX" || member.role === "SM" || member.role === "TECH_LEAD") && roleNotes.UI_UX)) && (
+                  <div className="space-y-2">
+                    {roleNotes.general && (
+                      <div className="rounded-lg bg-amber-500/8 border border-amber-500/20 px-3 py-2.5">
+                        <p className="text-[10px] text-amber-400/80 font-semibold uppercase tracking-widest mb-1">Host note</p>
+                        <p className="text-sm text-white/60 leading-relaxed">{roleNotes.general}</p>
+                      </div>
+                    )}
+                    {member.role === "DEV" && roleNotes.DEV && (
+                      <div className="rounded-lg bg-blue-500/8 border border-blue-500/20 px-3 py-2.5">
+                        <p className="text-[10px] text-blue-400/80 font-semibold uppercase tracking-widest mb-1">Dev note</p>
+                        <p className="text-sm text-white/60 leading-relaxed">{roleNotes.DEV}</p>
+                      </div>
+                    )}
+                    {member.role === "QA" && roleNotes.QA && (
+                      <div className="rounded-lg bg-pink-500/8 border border-pink-500/20 px-3 py-2.5">
+                        <p className="text-[10px] text-pink-400/80 font-semibold uppercase tracking-widest mb-1">QA note</p>
+                        <p className="text-sm text-white/60 leading-relaxed">{roleNotes.QA}</p>
+                      </div>
+                    )}
+                    {(member.role === "UI_UX" || member.role === "SM" || member.role === "TECH_LEAD") && roleNotes.UI_UX && (
+                      <div className="rounded-lg bg-amber-500/8 border border-amber-500/20 px-3 py-2.5">
+                        <p className="text-[10px] text-amber-400/80 font-semibold uppercase tracking-widest mb-1">UI/UX note</p>
+                        <p className="text-sm text-white/60 leading-relaxed">{roleNotes.UI_UX}</p>
+                      </div>
+                    )}
+                    {(member.role === "SM" || member.role === "TECH_LEAD") && roleNotes.DEV && (
+                      <div className="rounded-lg bg-blue-500/8 border border-blue-500/20 px-3 py-2.5">
+                        <p className="text-[10px] text-blue-400/80 font-semibold uppercase tracking-widest mb-1">Dev note</p>
+                        <p className="text-sm text-white/60 leading-relaxed">{roleNotes.DEV}</p>
+                      </div>
+                    )}
+                    {(member.role === "SM" || member.role === "TECH_LEAD") && roleNotes.QA && (
+                      <div className="rounded-lg bg-pink-500/8 border border-pink-500/20 px-3 py-2.5">
+                        <p className="text-[10px] text-pink-400/80 font-semibold uppercase tracking-widest mb-1">QA note</p>
+                        <p className="text-sm text-white/60 leading-relaxed">{roleNotes.QA}</p>
+                      </div>
+                    )}
+                  </div>
+                )}
+                {/* Risk flags */}
+                {ticketFlags.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 pt-1">
+                    {ticketFlags.map((flag) => (
+                      <span key={flag} className="px-2 py-0.5 rounded-full text-xs border border-rose-500/40 bg-rose-500/12 text-rose-300">
+                        ⚑ {flag}
+                      </span>
+                    ))}
                   </div>
                 )}
 
@@ -654,6 +733,27 @@ export function ParticipantView({ session }: { session: SessionWithDetails }) {
                   </div>
                 )}
               </div>
+
+              {/* Countdown ring */}
+              {timerDuration && timerStartedAt && !revealedVotes && !isObserver && (
+                <div className="flex flex-col items-center gap-2">
+                  <CountdownRing
+                    duration={timerDuration}
+                    startedAt={timerStartedAt}
+                    size={64}
+                    onExpire={() => setTimerExpired(true)}
+                  />
+                  {timerExpired && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 4 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="text-xs text-red-400 font-semibold bg-red-500/10 border border-red-500/25 rounded-full px-3 py-1"
+                    >
+                      Time&apos;s up — lock in your vote!
+                    </motion.div>
+                  )}
+                </div>
+              )}
 
               {/* ── Voting ── */}
               {!revealedVotes && (() => {
@@ -732,6 +832,8 @@ export function ParticipantView({ session }: { session: SessionWithDetails }) {
                   }
                   // SM + TECH_LEAD get health panel
                   if (member.role === "SM" || member.role === "TECH_LEAD") {
+                    const ticketElapsed = (Date.now() - sessionHealth.ticketStartTime) / 1000;
+                    const timerPct = timerDuration ? ticketElapsed / timerDuration : null;
                     return (
                       <div className="space-y-4 py-2 w-full">
                         <p className="text-[10px] text-white/30 font-semibold uppercase tracking-widest">Session Health</p>
@@ -757,20 +859,61 @@ export function ParticipantView({ session }: { session: SessionWithDetails }) {
                             <p className="text-lg font-bold text-amber-400">{sessionHealth.reEstimateCount}</p>
                           </div>
                         </div>
-                        {/* Waiting on */}
+
+                        {/* Waiting on — with slow voter amber highlight */}
                         {votedMemberIds.length < checkedIn.length && (
                           <div>
                             <p className="text-[10px] text-white/30 mb-2">Waiting on</p>
                             <div className="flex flex-wrap gap-2">
-                              {checkedIn.filter(c => !votedMemberIds.includes(c.memberId)).map(c => (
-                                <span key={c.memberId} className="text-xs text-white/50 px-2 py-0.5 bg-white/5 rounded-full border border-white/10">
-                                  {c.memberName.split(" ")[0]}
-                                </span>
-                              ))}
+                              {checkedIn.filter(c => !votedMemberIds.includes(c.memberId)).map(c => {
+                                const isSlow = timerPct !== null && timerPct > 0.5;
+                                return (
+                                  <span key={c.memberId} className={`text-xs px-2 py-0.5 rounded-full border transition-colors ${
+                                    isSlow
+                                      ? "bg-amber-500/15 border-amber-500/35 text-amber-300"
+                                      : "bg-white/5 border-white/10 text-white/50"
+                                  }`}>
+                                    {isSlow ? "⏳ " : ""}{c.memberName.split(" ")[0]}
+                                  </span>
+                                );
+                              })}
                             </div>
                           </div>
                         )}
-                        {/* TL-only: tags panel + tag distribution */}
+
+                        {/* SM-specific: member vote history spark dots */}
+                        {member.role === "SM" && Object.keys(memberVoteHistory).length > 0 && (
+                          <div>
+                            <p className="text-[10px] text-white/30 mb-2">Recent accuracy (last 5 tickets)</p>
+                            <div className="space-y-1.5">
+                              {checkedIn.map(c => {
+                                const hist = memberVoteHistory[c.memberId] ?? [];
+                                if (hist.length === 0) return null;
+                                return (
+                                  <div key={c.memberId} className="flex items-center gap-2">
+                                    <span className="text-xs text-white/40 w-20 truncate">{c.memberName.split(" ")[0]}</span>
+                                    <div className="flex gap-1">
+                                      {hist.map((h, i) => {
+                                        const exact = h.vote === h.final;
+                                        const close = Math.abs(h.vote - h.final) <= 2;
+                                        return (
+                                          <span key={i} title={`voted ${h.vote}, final ${h.final}`}
+                                            style={{
+                                              display: "inline-block", width: 10, height: 10, borderRadius: "50%",
+                                              backgroundColor: exact ? "#10b981" : close ? "#f59e0b" : "#ef4444",
+                                            }}
+                                          />
+                                        );
+                                      })}
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* TL-only: tag picker + tag distribution */}
                         {member.role === "TECH_LEAD" && (
                           <div>
                             <div className="flex flex-wrap gap-1.5 mb-3">
@@ -790,6 +933,31 @@ export function ParticipantView({ session }: { session: SessionWithDetails }) {
                                   </button>
                                 );
                               })}
+                            </div>
+                            {/* Risk flag toggles for TL */}
+                            <div className="mb-3">
+                              <p className="text-[10px] text-white/30 mb-2 uppercase tracking-widest">Risk flags</p>
+                              <div className="flex flex-wrap gap-1.5">
+                                {["Needs spike", "Has dependency", "Missing AC", "Blocked"].map(flag => {
+                                  const active = ticketFlags.includes(flag);
+                                  return (
+                                    <button
+                                      key={flag}
+                                      onClick={() => {
+                                        if (!currentTicket) return;
+                                        send({ type: "TICKET_FLAGGED", ticketId: currentTicket.ticketId, flag, active: !active });
+                                      }}
+                                      className={`px-2.5 py-0.5 rounded-full border text-xs font-medium transition-all ${
+                                        active
+                                          ? "border-rose-500/60 bg-rose-500/15 text-rose-300"
+                                          : "border-white/10 bg-white/3 text-white/30 hover:border-white/25 hover:text-white/60"
+                                      }`}
+                                    >
+                                      {active ? "⚑" : "⚐"} {flag}
+                                    </button>
+                                  );
+                                })}
+                              </div>
                             </div>
                             {Object.keys(sessionHealth.tagDistribution).length > 0 && (
                               <div>

@@ -3,7 +3,7 @@ export type MsgIn =
   | { type: "CHECKIN"; memberId: string; memberName: string; role: string }
   | { type: "REGISTER_ADMIN"; token: string }
   | { type: "START_SESSION" }
-  | { type: "OPEN_TICKET"; ticketId: string; jiraKey: string; title: string; description?: string; contextNote?: string; issueType?: string; priority?: string; deps?: string[] }
+  | { type: "OPEN_TICKET"; ticketId: string; jiraKey: string; title: string; description?: string; contextNote?: string; noteForDev?: string; noteForQA?: string; noteForUIUX?: string; issueType?: string; priority?: string; deps?: string[] }
   | { type: "VOTE_CAST"; memberId: string; value: number }
   | { type: "REACTION"; memberId: string; memberName: string; emoji: string }
   | { type: "REVEAL_VOTES" }
@@ -11,17 +11,19 @@ export type MsgIn =
   | { type: "REQUEST_STATE" }
   | { type: "END_SESSION" }
   | { type: "KICK_MEMBER"; memberId: string }
-  | { type: "UPDATE_NOTE"; ticketId: string; note: string }
+  | { type: "UPDATE_NOTE"; ticketId: string; note: string; noteRole?: "DEV" | "QA" | "UI_UX" }
   | { type: "UPDATE_LEAVE"; memberId: string; date: string; active: boolean }
   | { type: "UPDATE_TICKET_DESIGN"; ticketId: string; designReadiness?: string | null; designComplexity?: string | null; designLink?: string | null }
   | { type: "UPDATE_TICKET_TAGS"; ticketId: string; tags: string[] }
-  | { type: "PUSH_CALENDAR" };
+  | { type: "PUSH_CALENDAR" }
+  | { type: "SET_TIMER"; duration: number | null }
+  | { type: "TICKET_FLAGGED"; ticketId: string; flag: string; active: boolean };
 
 // Messages sent server → client
 export type MsgOut =
   | { type: "PRESENCE_UPDATE"; checkedIn: CheckedInMember[] }
   | { type: "SESSION_STARTED" }
-  | { type: "TICKET_OPENED"; ticketId: string; jiraKey: string; title: string; description?: string; contextNote?: string; issueType?: string; priority?: string; deps?: string[] }
+  | { type: "TICKET_OPENED"; ticketId: string; jiraKey: string; title: string; description?: string; contextNote?: string; noteForDev?: string; noteForQA?: string; noteForUIUX?: string; issueType?: string; priority?: string; deps?: string[]; timerDuration?: number | null; timerStartedAt?: string }
   | { type: "VOTE_PROGRESS"; votedCount: number; totalCount: number; votedMemberIds: string[] }
   | { type: "VOTES_REVEALED"; votes: RevealedVote[]; median: number; isConsensus: boolean }
   | { type: "ESTIMATE_LOCKED"; ticketId: string; value: number; assigneeId?: string }
@@ -29,11 +31,13 @@ export type MsgOut =
   | { type: "STATE_SYNC"; state: PublicState }
   | { type: "SESSION_ENDED" }
   | { type: "MEMBER_KICKED"; memberId: string }
-  | { type: "NOTE_UPDATED"; ticketId: string; note: string }
+  | { type: "NOTE_UPDATED"; ticketId: string; note: string; noteRole?: "DEV" | "QA" | "UI_UX" }
   | { type: "LEAVE_UPDATED"; memberId: string; date: string; active: boolean }
   | { type: "TICKET_DESIGN_UPDATED"; ticketId: string; designReadiness?: string | null; designComplexity?: string | null; designLink?: string | null }
   | { type: "TICKET_TAGS_UPDATED"; ticketId: string; tags: string[] }
-  | { type: "CALENDAR_UPDATED" };
+  | { type: "CALENDAR_UPDATED" }
+  | { type: "TIMER_UPDATED"; duration: number | null; startedAt: string | null }
+  | { type: "TICKET_FLAGS_UPDATED"; ticketId: string; flags: string[] };
 
 export interface CheckedInMember {
   memberId: string;
@@ -51,10 +55,13 @@ export interface PublicState {
   serverVersion?: string;
   sessionStatus: "WAITING" | "ACTIVE" | "COMPLETED";
   checkedIn: CheckedInMember[];
-  currentTicket: { ticketId: string; jiraKey: string; title: string; description?: string; contextNote?: string; issueType?: string; priority?: string; deps?: string[] } | null;
+  currentTicket: { ticketId: string; jiraKey: string; title: string; description?: string; contextNote?: string; noteForDev?: string; noteForQA?: string; noteForUIUX?: string; issueType?: string; priority?: string; deps?: string[] } | null;
   votedMemberIds: string[];
   revealed: boolean;
   revealedVotes: RevealedVote[] | null;
   lockedTickets: string[];
   lockedTicketAssignees: Record<string, string>;
+  timerDuration: number | null;
+  timerStartedAt: string | null;
+  ticketFlags: Record<string, string[]>;
 }

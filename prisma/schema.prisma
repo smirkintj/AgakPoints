@@ -130,6 +130,9 @@ model Ticket {
   designComplexity DesignComplexity?
   designLink       String?
   tags             String[]
+  noteForDev       String?
+  noteForQA        String?
+  noteForUIUX      String?
   votes                 Vote[]
   createdAt             DateTime     @default(now())
 

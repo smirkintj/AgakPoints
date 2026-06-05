@@ -24,6 +24,7 @@ import type confettiType from "canvas-confetti";
 import { getAutoReaction } from "@/lib/gameReactions";
 import { TargetIcon, SpicyIcon, ThinkIcon, PartyIcon } from "@/components/ui/GameIcon";
 import { AchievementBadge, BADGE_CONFIG } from "@/components/session/AchievementBadge";
+import { CountdownRing } from "@/components/session/CountdownRing";
 import type { Achievement, AchievementType } from "@prisma/client";
 
 const ICON_MAP: Record<string, React.ReactNode> = {
@@ -201,6 +202,20 @@ export function HostView({ session, productId }: { session: PokerSession; produc
   const [showAwardsCeremony, setShowAwardsCeremony] = useState(false);
   const [oracleToasts, setOracleToasts] = useState<{ id: number; memberId: string; memberName: string; value: number; isMe: boolean }[]>([]);
 
+  // Timer state
+  const [timerDuration, setTimerDuration] = useState<number | null>(20);
+  const [timerStartedAt, setTimerStartedAt] = useState<string | null>(null);
+  const [timerExpired, setTimerExpired] = useState(false);
+  // Ticket flags (TL feature)
+  const [ticketFlags, setTicketFlags] = useState<Record<string, string[]>>({});
+  // Role notes per ticket
+  const [ticketRoleNotes, setTicketRoleNotes] = useState<Record<string, { general: string; DEV: string; QA: string; UI_UX: string }>>({});
+  const [noteTab, setNoteTab] = useState<"general" | "DEV" | "QA" | "UI_UX">("general");
+  const getRoleNote = (ticketId: string, role: "general" | "DEV" | "QA" | "UI_UX") =>
+    ticketRoleNotes[ticketId]?.[role] ?? "";
+  const setRoleNote = (ticketId: string, role: "general" | "DEV" | "QA" | "UI_UX", val: string) =>
+    setTicketRoleNotes((p) => ({ ...p, [ticketId]: { ...(p[ticketId] ?? { general: "", DEV: "", QA: "", UI_UX: "" }), [role]: val } }));
+
   const [recapOpen, setRecapOpen] = useState(session.status === "COMPLETED");
   const [confirmEnd, setConfirmEnd] = useState(false);
   const [confirmKickId, setConfirmKickId] = useState<string | null>(null);
@@ -244,6 +259,9 @@ export function HostView({ session, productId }: { session: PokerSession; produc
     setRevealedVotes(state.revealedVotes);
     setLockedTickets(new Set(state.lockedTickets));
     setTicketAssignees(state.lockedTicketAssignees ?? {});
+    setTimerDuration(state.timerDuration ?? 20);
+    setTimerStartedAt(state.timerStartedAt ?? null);
+    setTicketFlags(state.ticketFlags ?? {});
     if (state.currentTicket?.contextNote) {
       setTicketNotes((p) => ({ ...p, [state.currentTicket!.ticketId]: state.currentTicket!.contextNote! }));
     }
@@ -286,9 +304,23 @@ export function HostView({ session, productId }: { session: PokerSession; produc
       case "TICKET_OPENED":
         setCurrentTicketId(msg.ticketId);
         if (msg.contextNote) setTicketNotes((p) => ({ ...p, [msg.ticketId]: msg.contextNote! }));
+        if (msg.noteForDev || msg.noteForQA || msg.noteForUIUX) {
+          setTicketRoleNotes((p) => ({
+            ...p,
+            [msg.ticketId]: {
+              general: msg.contextNote ?? p[msg.ticketId]?.general ?? "",
+              DEV: msg.noteForDev ?? p[msg.ticketId]?.DEV ?? "",
+              QA: msg.noteForQA ?? p[msg.ticketId]?.QA ?? "",
+              UI_UX: msg.noteForUIUX ?? p[msg.ticketId]?.UI_UX ?? "",
+            }
+          }));
+        }
         setVotedMemberIds([]); setVotedCount(0);
         setRevealedVotes(null); setRevealMeta(null);
         setSelectedEstimate(null); setSelectedAssigneeId(null);
+        setTimerExpired(false);
+        if (msg.timerStartedAt) setTimerStartedAt(msg.timerStartedAt);
+        if (msg.timerDuration !== undefined) setTimerDuration(msg.timerDuration ?? null);
         addLogRef.current(`Opened ${msg.jiraKey}: ${msg.title.slice(0, 40)}${msg.title.length > 40 ? "…" : ""}`);
         break;
       case "VOTE_PROGRESS":
@@ -354,6 +386,13 @@ export function HostView({ session, productId }: { session: PokerSession; produc
       case "TICKET_TAGS_UPDATED":
         setTickets(prev => prev.map(t => t.id === msg.ticketId ? { ...t, tags: msg.tags } : t));
         break;
+      case "TIMER_UPDATED":
+        setTimerDuration(msg.duration);
+        setTimerStartedAt(msg.startedAt);
+        break;
+      case "TICKET_FLAGS_UPDATED":
+        setTicketFlags((p) => ({ ...p, [msg.ticketId]: msg.flags }));
+        break;
       case "REACTION_RECEIVED": setReactions((r) => [...r.slice(-20), msg]); break;
       case "MEMBER_KICKED": {
         const kickedName = checkedInRef.current.find((c) => c.memberId === msg.memberId)?.memberName;
@@ -400,8 +439,23 @@ export function HostView({ session, productId }: { session: PokerSession; produc
 
   const openTicket = (t: TicketWithVotes) => {
     const note = getNote(t.id);
+    const rNotes = ticketRoleNotes[t.id];
     setPendingTicket(null);
-    send({ type: "OPEN_TICKET", ticketId: t.id, jiraKey: t.jiraKey, title: t.title, description: t.description ?? undefined, contextNote: note || undefined, issueType: t.issueType ?? undefined, priority: t.priority ?? undefined, deps: getDeps(t.id).length > 0 ? getDeps(t.id) : undefined });
+    setTimerExpired(false);
+    send({
+      type: "OPEN_TICKET",
+      ticketId: t.id,
+      jiraKey: t.jiraKey,
+      title: t.title,
+      description: t.description ?? undefined,
+      contextNote: note || undefined,
+      noteForDev: rNotes?.DEV || undefined,
+      noteForQA: rNotes?.QA || undefined,
+      noteForUIUX: rNotes?.UI_UX || undefined,
+      issueType: t.issueType ?? undefined,
+      priority: t.priority ?? undefined,
+      deps: getDeps(t.id).length > 0 ? getDeps(t.id) : undefined,
+    });
   };
 
   const reveal = () => send({ type: "REVEAL_VOTES" });
@@ -410,11 +464,20 @@ export function HostView({ session, productId }: { session: PokerSession; produc
     if (!currentTicket || selectedEstimate === null) return;
     setSavingLock(true);
     const lockNote = getNote(currentTicket.id);
+    const rNotes = ticketRoleNotes[currentTicket.id];
     try {
       const res = await fetch(`/api/sessions/${session.id}/tickets/${currentTicket.id}/lock`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ value: selectedEstimate, note: lockNote, votes: revealedVotes ?? [], assigneeId: selectedAssigneeId }),
+        body: JSON.stringify({
+          value: selectedEstimate,
+          note: lockNote,
+          votes: revealedVotes ?? [],
+          assigneeId: selectedAssigneeId,
+          noteForDev: rNotes?.DEV || null,
+          noteForQA: rNotes?.QA || null,
+          noteForUIUX: rNotes?.UI_UX || null,
+        }),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       send({ type: "LOCK_ESTIMATE", ticketId: currentTicket.id, value: selectedEstimate, note: lockNote || undefined, assigneeId: selectedAssigneeId ?? undefined });
@@ -511,6 +574,25 @@ export function HostView({ session, productId }: { session: PokerSession; produc
                 End Session
               </Button>
             )
+          )}
+          {/* Timer picker */}
+          {sessionStatus === "ACTIVE" && (
+            <select
+              value={timerDuration === null ? "0" : String(timerDuration)}
+              onChange={(e) => {
+                const val = e.target.value === "0" ? null : Number(e.target.value);
+                setTimerDuration(val);
+                send({ type: "SET_TIMER", duration: val });
+              }}
+              className="text-xs bg-white/5 border border-white/10 text-white/60 rounded-lg px-2 py-1.5 focus:outline-none hover:border-white/25 cursor-pointer"
+              title="Voting timer"
+            >
+              <option value="0">Timer off</option>
+              <option value="10">10s</option>
+              <option value="20">20s</option>
+              <option value="30">30s</option>
+              <option value="60">60s</option>
+            </select>
           )}
           <button
             onClick={copyLink}
@@ -845,19 +927,39 @@ export function HostView({ session, productId }: { session: PokerSession; produc
                 priority={currentTicket.priority}
               />
 
-              {/* Context note — always editable (note was sent to members on ticket open) */}
+              {/* Tabbed role notes */}
               <div className="w-full max-w-2xl space-y-1">
-                <div className="flex items-center gap-2">
-                  <p className="text-xs text-white/40 uppercase tracking-widest font-medium">Host note</p>
-                  <span className="text-[10px] text-white/20 ml-2">Auto-synced when you type · Sent on ticket open</span>
+                <div className="flex items-center gap-1 mb-1">
+                  {(["general", "DEV", "QA", "UI_UX"] as const).map((tab) => (
+                    <button
+                      key={tab}
+                      onClick={() => setNoteTab(tab)}
+                      className={`px-2.5 py-1 rounded-md text-[10px] font-semibold uppercase tracking-wider transition-all ${
+                        noteTab === tab
+                          ? "bg-violet-600/30 border border-violet-400/40 text-violet-300"
+                          : "text-white/30 hover:text-white/60 border border-transparent hover:border-white/15"
+                      }`}
+                    >
+                      {tab === "general" ? "General" : tab === "UI_UX" ? "UI/UX" : tab}
+                    </button>
+                  ))}
+                  <span className="text-[10px] text-white/20 ml-2">Auto-synced · role-filtered on client</span>
                 </div>
                 <textarea
-                  value={getNote(currentTicket.id)}
+                  value={noteTab === "general" ? getNote(currentTicket.id) : getRoleNote(currentTicket.id, noteTab)}
                   onChange={(e) => {
-                    setNote2(currentTicket.id, e.target.value);
-                    pushNoteToMembers(currentTicket.id, e.target.value);
+                    if (noteTab === "general") {
+                      setNote2(currentTicket.id, e.target.value);
+                      pushNoteToMembers(currentTicket.id, e.target.value);
+                    } else {
+                      setRoleNote(currentTicket.id, noteTab, e.target.value);
+                      if (noteUpdateTimer.current) clearTimeout(noteUpdateTimer.current);
+                      noteUpdateTimer.current = setTimeout(() => {
+                        send({ type: "UPDATE_NOTE", ticketId: currentTicket.id, note: e.target.value, noteRole: noteTab });
+                      }, 800);
+                    }
                   }}
-                  placeholder="Host note — auto-synced to members"
+                  placeholder={`${noteTab === "general" ? "General" : noteTab === "UI_UX" ? "UI/UX" : noteTab} note — auto-synced to ${noteTab === "general" ? "all members" : noteTab + " members"}`}
                   rows={2}
                   className="w-full rounded-lg border border-white/10 bg-white/3 px-3 py-2 text-sm text-white placeholder:text-white/15 focus:border-violet-500/50 focus:outline-none resize-none"
                 />
@@ -878,6 +980,58 @@ export function HostView({ session, productId }: { session: PokerSession; produc
                   })}
                 </div>
               </div>
+
+              {/* Risk flags (shown to all, editable by host) */}
+              {(() => {
+                const flags = ticketFlags[currentTicket.id] ?? [];
+                const FLAG_OPTIONS = ["Needs spike", "Has dependency", "Missing AC", "Blocked"];
+                return (
+                  <div className="w-full max-w-2xl space-y-1.5">
+                    <p className="text-[10px] text-white/30 uppercase tracking-widest font-semibold">Risk flags</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {FLAG_OPTIONS.map((flag) => {
+                        const active = flags.includes(flag);
+                        return (
+                          <button
+                            key={flag}
+                            onClick={() => {
+                              send({ type: "TICKET_FLAGGED", ticketId: currentTicket.id, flag, active: !active });
+                            }}
+                            className={`px-2.5 py-0.5 rounded-full border text-xs font-medium transition-all ${
+                              active
+                                ? "border-rose-500/60 bg-rose-500/15 text-rose-300"
+                                : "border-white/10 bg-white/3 text-white/30 hover:border-white/25 hover:text-white/60"
+                            }`}
+                          >
+                            {active ? "⚑" : "⚐"} {flag}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* Countdown ring + timer expired banner */}
+              {timerDuration && timerStartedAt && !revealedVotes && (
+                <div className="w-full max-w-2xl flex items-center gap-4">
+                  <CountdownRing
+                    duration={timerDuration}
+                    startedAt={timerStartedAt}
+                    size={56}
+                    onExpire={() => setTimerExpired(true)}
+                  />
+                  {timerExpired && (
+                    <motion.div
+                      initial={{ opacity: 0, x: -8 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-red-500/15 border border-red-500/40 text-red-300 text-xs font-semibold"
+                    >
+                      Time&apos;s up — reveal when ready
+                    </motion.div>
+                  )}
+                </div>
+              )}
 
               {/* Vote progress */}
               <div className="w-full max-w-2xl space-y-4">
@@ -914,7 +1068,12 @@ export function HostView({ session, productId }: { session: PokerSession; produc
 
                 {/* Reveal button */}
                 {!revealedVotes && (
-                  <Button onClick={reveal} variant="success" disabled={votedCount === 0} className="self-start">
+                  <Button
+                    onClick={reveal}
+                    variant={timerExpired ? "danger" : "success"}
+                    disabled={votedCount === 0}
+                    className={`self-start${timerExpired ? " animate-pulse" : ""}`}
+                  >
                     <Eye className="w-4 h-4" />
                     Reveal votes
                     {votedCount > 0 && <span className="opacity-50 font-mono text-xs ml-1">({votedCount})</span>}

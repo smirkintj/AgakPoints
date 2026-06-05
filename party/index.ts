@@ -6,7 +6,7 @@ type MsgIn =
   | { type: "CHECKIN"; memberId: string; memberName: string; role: string }
   | { type: "REGISTER_ADMIN"; token: string }
   | { type: "START_SESSION" }
-  | { type: "OPEN_TICKET"; ticketId: string; jiraKey: string; title: string; description?: string; contextNote?: string; issueType?: string; priority?: string; deps?: string[] }
+  | { type: "OPEN_TICKET"; ticketId: string; jiraKey: string; title: string; description?: string; contextNote?: string; noteForDev?: string; noteForQA?: string; noteForUIUX?: string; issueType?: string; priority?: string; deps?: string[] }
   | { type: "VOTE_CAST"; memberId: string; value: number }
   | { type: "REACTION"; memberId: string; memberName: string; emoji: string }
   | { type: "REVEAL_VOTES" }
@@ -14,16 +14,18 @@ type MsgIn =
   | { type: "REQUEST_STATE" }
   | { type: "END_SESSION" }
   | { type: "KICK_MEMBER"; memberId: string }
-  | { type: "UPDATE_NOTE"; ticketId: string; note: string }
+  | { type: "UPDATE_NOTE"; ticketId: string; note: string; noteRole?: "DEV" | "QA" | "UI_UX" }
   | { type: "UPDATE_LEAVE"; memberId: string; date: string; active: boolean }
   | { type: "UPDATE_TICKET_DESIGN"; ticketId: string; designReadiness?: string | null; designComplexity?: string | null; designLink?: string | null }
   | { type: "UPDATE_TICKET_TAGS"; ticketId: string; tags: string[] }
-  | { type: "PUSH_CALENDAR" };
+  | { type: "PUSH_CALENDAR" }
+  | { type: "SET_TIMER"; duration: number | null }
+  | { type: "TICKET_FLAGGED"; ticketId: string; flag: string; active: boolean };
 
 type MsgOut =
   | { type: "PRESENCE_UPDATE"; checkedIn: CheckedInMember[] }
   | { type: "SESSION_STARTED" }
-  | { type: "TICKET_OPENED"; ticketId: string; jiraKey: string; title: string; description?: string; contextNote?: string; issueType?: string; priority?: string; deps?: string[] }
+  | { type: "TICKET_OPENED"; ticketId: string; jiraKey: string; title: string; description?: string; contextNote?: string; noteForDev?: string; noteForQA?: string; noteForUIUX?: string; issueType?: string; priority?: string; deps?: string[]; timerDuration?: number | null; timerStartedAt?: string }
   | { type: "VOTE_PROGRESS"; votedCount: number; totalCount: number; votedMemberIds: string[] }
   | { type: "VOTES_REVEALED"; votes: RevealedVote[]; median: number; isConsensus: boolean }
   | { type: "ESTIMATE_LOCKED"; ticketId: string; value: number; assigneeId?: string }
@@ -31,11 +33,13 @@ type MsgOut =
   | { type: "STATE_SYNC"; state: PublicState }
   | { type: "SESSION_ENDED" }
   | { type: "MEMBER_KICKED"; memberId: string }
-  | { type: "NOTE_UPDATED"; ticketId: string; note: string }
+  | { type: "NOTE_UPDATED"; ticketId: string; note: string; noteRole?: "DEV" | "QA" | "UI_UX" }
   | { type: "LEAVE_UPDATED"; memberId: string; date: string; active: boolean }
   | { type: "TICKET_DESIGN_UPDATED"; ticketId: string; designReadiness?: string | null; designComplexity?: string | null; designLink?: string | null }
   | { type: "TICKET_TAGS_UPDATED"; ticketId: string; tags: string[] }
-  | { type: "CALENDAR_UPDATED" };
+  | { type: "CALENDAR_UPDATED" }
+  | { type: "TIMER_UPDATED"; duration: number | null; startedAt: string | null }
+  | { type: "TICKET_FLAGS_UPDATED"; ticketId: string; flags: string[] };
 
 interface CheckedInMember {
   memberId: string;
@@ -53,12 +57,15 @@ interface PublicState {
   serverVersion: string;
   sessionStatus: "WAITING" | "ACTIVE" | "COMPLETED";
   checkedIn: CheckedInMember[];
-  currentTicket: { ticketId: string; jiraKey: string; title: string; description?: string; contextNote?: string; issueType?: string; priority?: string; deps?: string[] } | null;
+  currentTicket: { ticketId: string; jiraKey: string; title: string; description?: string; contextNote?: string; noteForDev?: string; noteForQA?: string; noteForUIUX?: string; issueType?: string; priority?: string; deps?: string[] } | null;
   votedMemberIds: string[];
   revealed: boolean;
   revealedVotes: RevealedVote[] | null;
   lockedTickets: string[];
   lockedTicketAssignees: Record<string, string>;
+  timerDuration: number | null;
+  timerStartedAt: string | null;
+  ticketFlags: Record<string, string[]>;
 }
 
 // ── Room state (held in memory per session) ──────────────────────────────────
@@ -66,13 +73,16 @@ interface PublicState {
 interface RoomState {
   sessionStatus: "WAITING" | "ACTIVE" | "COMPLETED";
   checkedIn: CheckedInMember[];
-  currentTicket: { ticketId: string; jiraKey: string; title: string; description?: string; contextNote?: string; issueType?: string; priority?: string; deps?: string[] } | null;
-  votes: Record<string, number>; // memberId → value (hidden until reveal)
+  currentTicket: { ticketId: string; jiraKey: string; title: string; description?: string; contextNote?: string; noteForDev?: string; noteForQA?: string; noteForUIUX?: string; issueType?: string; priority?: string; deps?: string[] } | null;
+  votes: Record<string, number>;
   revealed: boolean;
   revealedVotes: RevealedVote[] | null;
   lockedTickets: string[];
   lockedTicketAssignees: Record<string, string>;
-  adminConnectionIds: Set<string>; // connection IDs verified as admin
+  timerDuration: number | null;
+  timerStartedAt: string | null;
+  ticketFlags: Record<string, string[]>;
+  adminConnectionIds: Set<string>;
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -119,6 +129,9 @@ export default class ScrumPokerRoom implements Party.Server {
     revealedVotes: null,
     lockedTickets: [],
     lockedTicketAssignees: {},
+    timerDuration: 20,
+    timerStartedAt: null,
+    ticketFlags: {},
     adminConnectionIds: new Set(),
   };
 
@@ -127,7 +140,13 @@ export default class ScrumPokerRoom implements Party.Server {
   async onStart() {
     const stored = await this.room.storage.get<Partial<RoomState>>("state");
     if (stored) {
-      this.state = { ...this.state, ...stored, adminConnectionIds: new Set() };
+      this.state = {
+        ...this.state,
+        ...stored,
+        timerDuration: stored.timerDuration !== undefined ? stored.timerDuration : 20,
+        ticketFlags: stored.ticketFlags ?? {},
+        adminConnectionIds: new Set(),
+      };
     }
   }
 
@@ -193,15 +212,28 @@ export default class ScrumPokerRoom implements Party.Server {
         break;
       }
 
+      case "SET_TIMER": {
+        if (!this.isAdmin(sender)) return;
+        if (msg.duration !== null && (msg.duration < 0 || msg.duration > 300)) return;
+        this.state.timerDuration = msg.duration;
+        this.state.timerStartedAt = null;
+        this.broadcast({ type: "TIMER_UPDATED", duration: this.state.timerDuration, startedAt: null });
+        await this.persist();
+        break;
+      }
+
       case "OPEN_TICKET": {
         if (!this.isAdmin(sender)) return;
-        // Reset votes for new ticket
+        const timerStartedAt = this.state.timerDuration ? new Date().toISOString() : null;
         this.state.currentTicket = {
           ticketId: msg.ticketId,
           jiraKey: msg.jiraKey,
           title: msg.title,
           description: msg.description,
           contextNote: msg.contextNote,
+          noteForDev: msg.noteForDev,
+          noteForQA: msg.noteForQA,
+          noteForUIUX: msg.noteForUIUX,
           issueType: msg.issueType,
           priority: msg.priority,
           deps: msg.deps,
@@ -209,6 +241,7 @@ export default class ScrumPokerRoom implements Party.Server {
         this.state.votes = {};
         this.state.revealed = false;
         this.state.revealedVotes = null;
+        this.state.timerStartedAt = timerStartedAt;
 
         this.broadcast({
           type: "TICKET_OPENED",
@@ -217,9 +250,14 @@ export default class ScrumPokerRoom implements Party.Server {
           title: msg.title,
           description: msg.description,
           contextNote: msg.contextNote,
+          noteForDev: msg.noteForDev,
+          noteForQA: msg.noteForQA,
+          noteForUIUX: msg.noteForUIUX,
           issueType: msg.issueType,
           priority: msg.priority,
           deps: msg.deps,
+          timerDuration: this.state.timerDuration,
+          timerStartedAt: timerStartedAt ?? undefined,
         });
         await this.persist();
         break;
@@ -273,6 +311,7 @@ export default class ScrumPokerRoom implements Party.Server {
         this.state.votes = {};
         this.state.revealed = false;
         this.state.revealedVotes = null;
+        this.state.timerStartedAt = null;
 
         this.broadcast({ type: "ESTIMATE_LOCKED", ticketId: msg.ticketId, value: msg.value, assigneeId: msg.assigneeId });
         await this.persist();
@@ -310,9 +349,17 @@ export default class ScrumPokerRoom implements Party.Server {
       case "UPDATE_NOTE": {
         if (!this.isAdmin(sender)) return;
         if (this.state.currentTicket?.ticketId === msg.ticketId) {
-          this.state.currentTicket.contextNote = msg.note;
+          if (!msg.noteRole) {
+            this.state.currentTicket.contextNote = msg.note;
+          } else if (msg.noteRole === "DEV") {
+            this.state.currentTicket.noteForDev = msg.note;
+          } else if (msg.noteRole === "QA") {
+            this.state.currentTicket.noteForQA = msg.note;
+          } else if (msg.noteRole === "UI_UX") {
+            this.state.currentTicket.noteForUIUX = msg.note;
+          }
         }
-        this.broadcast({ type: "NOTE_UPDATED", ticketId: msg.ticketId, note: msg.note });
+        this.broadcast({ type: "NOTE_UPDATED", ticketId: msg.ticketId, note: msg.note, noteRole: msg.noteRole });
         await this.persist();
         break;
       }
@@ -338,6 +385,19 @@ export default class ScrumPokerRoom implements Party.Server {
         break;
       }
 
+      case "TICKET_FLAGGED": {
+        const flagSender = this.state.checkedIn.find((m) => m.memberId === sender.id);
+        if (!this.isAdmin(sender) && flagSender?.role !== "TECH_LEAD") return;
+        const current = this.state.ticketFlags[msg.ticketId] ?? [];
+        const updated = msg.active
+          ? [...new Set([...current, msg.flag])]
+          : current.filter((f) => f !== msg.flag);
+        this.state.ticketFlags[msg.ticketId] = updated;
+        this.broadcast({ type: "TICKET_FLAGS_UPDATED", ticketId: msg.ticketId, flags: updated });
+        await this.persist();
+        break;
+      }
+
       case "KICK_MEMBER": {
         if (!this.isAdmin(sender)) return;
         this.state.checkedIn = this.state.checkedIn.filter((m) => m.memberId !== msg.memberId);
@@ -354,7 +414,7 @@ export default class ScrumPokerRoom implements Party.Server {
   // Reconnecting clients get current state automatically on connect
   private publicState(): PublicState {
     return {
-      serverVersion: "2026-05-31.2",
+      serverVersion: "2026-06-05.1",
       sessionStatus: this.state.sessionStatus,
       checkedIn: this.state.checkedIn,
       currentTicket: this.state.currentTicket,
@@ -363,6 +423,9 @@ export default class ScrumPokerRoom implements Party.Server {
       revealedVotes: this.state.revealedVotes,
       lockedTickets: this.state.lockedTickets,
       lockedTicketAssignees: this.state.lockedTicketAssignees,
+      timerDuration: this.state.timerDuration,
+      timerStartedAt: this.state.timerStartedAt,
+      ticketFlags: this.state.ticketFlags,
     };
   }
 

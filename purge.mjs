@@ -9,8 +9,6 @@ try {
   console.log('votes deleted');
   await sql`DELETE FROM "SprintHoliday"`;
   console.log('holidays deleted');
-  await sql`DELETE FROM "SessionLeave"`;
-  console.log('leaves deleted');
   await sql`DELETE FROM "SessionParticipant"`;
   console.log('participants deleted');
   await sql`DELETE FROM "Ticket"`;

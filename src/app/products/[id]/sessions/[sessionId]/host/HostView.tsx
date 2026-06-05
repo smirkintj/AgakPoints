@@ -845,10 +845,13 @@ export function HostView({ session, productId }: { session: PokerSession; produc
                   );
                 })}
               </div>
-              <Button onClick={startSession} size="lg" disabled={checkedIn.length === 0}>
+              <Button onClick={startSession} size="lg">
                 <Play className="w-4 h-4" />
-                Start session ({checkedIn.length} checked in)
+                Start session{checkedIn.length > 0 ? ` (${checkedIn.length} checked in)` : ""}
               </Button>
+              {checkedIn.length === 0 && (
+                <p className="text-xs text-white/30">No participants yet — you can start and they can join while voting.</p>
+              )}
 
             </div>
           )}

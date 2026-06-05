@@ -428,8 +428,17 @@ export function HostView({ session, productId }: { session: PokerSession; produc
 
   const startSession = async () => {
     // Persist to DB first — this is the source of truth.
-    const res = await fetch(`/api/sessions/${session.id}/start`, { method: "POST" }).catch(() => null);
-    if (!res?.ok) return;
+    const res = await fetch(`/api/sessions/${session.id}/start`, { method: "POST" }).catch((err) => {
+      console.error("[startSession] network error:", err);
+      return null;
+    });
+    if (!res) { addLog("Failed to start: network error"); return; }
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      console.error("[startSession] API error:", res.status, body);
+      addLog(`Failed to start: ${body.error ?? res.status}`);
+      return;
+    }
     // Broadcast to participants via PartyKit.
     send({ type: "START_SESSION" });
     // Update host's own UI directly — don't wait for the SESSION_STARTED

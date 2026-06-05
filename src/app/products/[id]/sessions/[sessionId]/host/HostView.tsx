@@ -280,16 +280,22 @@ export function HostView({ session, productId }: { session: PokerSession; produc
   // sendRef allows the onOpen callback (defined before send) to call send
   const sendRef = useRef<(msg: import("@/types/partykit").MsgIn) => void>(() => {});
 
-  // Fetch admin token on mount — also send REGISTER_ADMIN immediately so it
-  // works even if the socket connected before the token fetch returned.
+  // Fetch admin token once on mount. We also re-send REGISTER_ADMIN from the
+  // onOpen callback (already wired below), so whichever arrives first wins.
   useEffect(() => {
     fetch(`/api/sessions/${session.id}/admin-token`)
       .then((r) => r.json())
       .then((data: { token?: string }) => {
-        if (data.token) {
-          adminTokenRef.current = data.token;
-          sendRef.current({ type: "REGISTER_ADMIN", token: data.token });
-        }
+        if (!data.token) return;
+        adminTokenRef.current = data.token;
+        // Send immediately — if socket isn't open yet, PartySocket queues it.
+        sendRef.current({ type: "REGISTER_ADMIN", token: data.token });
+        // Also send 800 ms later as a safety net for slow socket handshakes.
+        setTimeout(() => {
+          if (adminTokenRef.current) {
+            sendRef.current({ type: "REGISTER_ADMIN", token: adminTokenRef.current });
+          }
+        }, 800);
       })
       .catch(() => {});
   }, [session.id]);
@@ -420,9 +426,17 @@ export function HostView({ session, productId }: { session: PokerSession; produc
 
   const currentTicket = tickets.find((t) => t.id === currentTicketId) ?? null;
 
-  const startSession = () => {
+  const startSession = async () => {
+    // Persist to DB first — this is the source of truth.
+    const res = await fetch(`/api/sessions/${session.id}/start`, { method: "POST" }).catch(() => null);
+    if (!res?.ok) return;
+    // Broadcast to participants via PartyKit.
     send({ type: "START_SESSION" });
-    fetch(`/api/sessions/${session.id}/start`, { method: "POST" }).catch(() => {});
+    // Update host's own UI directly — don't wait for the SESSION_STARTED
+    // echo, which requires admin registration to be in place.
+    setSessionStatus("ACTIVE");
+    sessionStartedAt.current = new Date();
+    addLog("Session started");
   };
 
   const kickMember = (memberId: string) => {

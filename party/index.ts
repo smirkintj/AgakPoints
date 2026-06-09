@@ -83,6 +83,8 @@ interface RoomState {
   timerStartedAt: string | null;
   ticketFlags: Record<string, string[]>;
   adminConnectionIds: Set<string>;
+  // transient — maps connectionId → memberId for presence removal on disconnect
+  connectionMemberMap: Record<string, string>;
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -133,6 +135,7 @@ export default class ScrumPokerRoom implements Party.Server {
     timerStartedAt: null,
     ticketFlags: {},
     adminConnectionIds: new Set(),
+    connectionMemberMap: {},
   };
 
   constructor(readonly room: Party.Room) {}
@@ -146,13 +149,14 @@ export default class ScrumPokerRoom implements Party.Server {
         timerDuration: stored.timerDuration !== undefined ? stored.timerDuration : 20,
         ticketFlags: stored.ticketFlags ?? {},
         adminConnectionIds: new Set(),
+        connectionMemberMap: {},
       };
     }
   }
 
   private async persist() {
     try {
-      const { adminConnectionIds, ...persistable } = this.state;
+      const { adminConnectionIds, connectionMemberMap, ...persistable } = this.state;
       await this.room.storage.put("state", persistable);
     } catch (err) {
       console.error("[PartyKit] persist failed:", err);
@@ -168,8 +172,19 @@ export default class ScrumPokerRoom implements Party.Server {
     this.send(conn, { type: "STATE_SYNC", state: this.publicState() });
   }
 
-  onDisconnect(conn: Party.Connection) {
+  async onDisconnect(conn: Party.Connection) {
     this.state.adminConnectionIds.delete(conn.id);
+    const memberId = this.state.connectionMemberMap[conn.id];
+    if (!memberId) return;
+    delete this.state.connectionMemberMap[conn.id];
+    // Only remove from checkedIn if no other connection belongs to this member
+    const stillConnected = Object.values(this.state.connectionMemberMap).includes(memberId);
+    if (!stillConnected) {
+      this.state.checkedIn = this.state.checkedIn.filter((m) => m.memberId !== memberId);
+      delete this.state.votes[memberId];
+      this.broadcast({ type: "PRESENCE_UPDATE", checkedIn: this.state.checkedIn });
+      await this.persist();
+    }
   }
 
   async onMessage(raw: string, sender: Party.Connection) {
@@ -191,6 +206,7 @@ export default class ScrumPokerRoom implements Party.Server {
       }
 
       case "CHECKIN": {
+        this.state.connectionMemberMap[sender.id] = msg.memberId;
         const already = this.state.checkedIn.find((m) => m.memberId === msg.memberId);
         if (!already) {
           this.state.checkedIn.push({
@@ -402,8 +418,11 @@ export default class ScrumPokerRoom implements Party.Server {
       case "KICK_MEMBER": {
         if (!this.isAdmin(sender)) return;
         this.state.checkedIn = this.state.checkedIn.filter((m) => m.memberId !== msg.memberId);
-        // Also remove their vote if pending
         delete this.state.votes[msg.memberId];
+        // Clear connection map entries for this member
+        for (const [connId, mId] of Object.entries(this.state.connectionMemberMap)) {
+          if (mId === msg.memberId) delete this.state.connectionMemberMap[connId];
+        }
         this.broadcast({ type: "MEMBER_KICKED", memberId: msg.memberId });
         this.broadcast({ type: "PRESENCE_UPDATE", checkedIn: this.state.checkedIn });
         await this.persist();

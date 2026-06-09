@@ -341,7 +341,8 @@ export default class ScrumPokerRoom implements Party.Server {
       }
 
       case "PUSH_CALENDAR": {
-        if (!this.isAdmin(sender)) return;
+        // No admin gate — data mutation is REST-API-protected; this is just a
+        // "refresh your holiday cache" signal so anyone can safely send it.
         this.broadcast({ type: "CALENDAR_UPDATED" });
         break;
       }

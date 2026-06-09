@@ -288,14 +288,15 @@ export function HostView({ session, productId }: { session: PokerSession; produc
       .then((data: { token?: string }) => {
         if (!data.token) return;
         adminTokenRef.current = data.token;
-        // Send immediately — if socket isn't open yet, PartySocket queues it.
+        // Send immediately — PartySocket buffers if not yet open.
         sendRef.current({ type: "REGISTER_ADMIN", token: data.token });
-        // Also send 800 ms later as a safety net for slow socket handshakes.
-        setTimeout(() => {
-          if (adminTokenRef.current) {
-            sendRef.current({ type: "REGISTER_ADMIN", token: adminTokenRef.current });
-          }
-        }, 800);
+        // Retry every 500 ms for 5 s to cover slow handshakes and edge cold starts.
+        let attempt = 0;
+        const retryInterval = setInterval(() => {
+          attempt++;
+          if (!adminTokenRef.current || attempt >= 10) { clearInterval(retryInterval); return; }
+          sendRef.current({ type: "REGISTER_ADMIN", token: adminTokenRef.current });
+        }, 500);
       })
       .catch(() => {});
   }, [session.id]);
@@ -469,8 +470,18 @@ export function HostView({ session, productId }: { session: PokerSession; produc
   const openTicket = (t: TicketWithVotes) => {
     const note = getNote(t.id);
     const rNotes = ticketRoleNotes[t.id];
+    // Update host UI immediately — don't wait for TICKET_OPENED echo which
+    // requires admin registration to have completed first.
     setPendingTicket(null);
+    setCurrentTicketId(t.id);
+    setVotedMemberIds([]);
+    setVotedCount(0);
+    setRevealedVotes(null);
+    setRevealMeta(null);
+    setSelectedEstimate(null);
+    setSelectedAssigneeId(null);
     setTimerExpired(false);
+    if (timerDuration) setTimerStartedAt(new Date().toISOString());
     send({
       type: "OPEN_TICKET",
       ticketId: t.id,

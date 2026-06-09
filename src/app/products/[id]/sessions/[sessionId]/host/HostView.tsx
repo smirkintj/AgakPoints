@@ -564,7 +564,14 @@ export function HostView({ session, productId }: { session: PokerSession; produc
   const sprintEnd = session.sprintEndDate ? new Date(session.sprintEndDate) : null;
 
   return (
-    <div className="h-screen flex flex-col">
+    <div className="h-screen flex flex-col" style={{ background: "#060810" }}>
+      {/* Aurora background layers */}
+      <div aria-hidden style={{ position: "fixed", inset: 0, zIndex: 0, pointerEvents: "none" }}>
+        <div style={{ position: "absolute", top: "-20%", left: "-10%", width: "55%", height: "60%", background: "radial-gradient(ellipse, rgba(109,40,217,0.18) 0%, transparent 70%)", filter: "blur(40px)" }} />
+        <div style={{ position: "absolute", bottom: "-15%", right: "-8%", width: "50%", height: "55%", background: "radial-gradient(ellipse, rgba(67,56,202,0.15) 0%, transparent 70%)", filter: "blur(40px)" }} />
+        <div style={{ position: "absolute", bottom: "10%", left: "5%", width: "35%", height: "40%", background: "radial-gradient(ellipse, rgba(13,148,136,0.08) 0%, transparent 70%)", filter: "blur(50px)" }} />
+        <div style={{ position: "absolute", inset: 0, backgroundImage: "url(\"data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='1'/%3E%3C/svg%3E\")", opacity: 0.025 }} />
+      </div>
       {/* Header */}
       <header className="border-b border-white/8 bg-black/20 backdrop-blur-sm px-5 py-3 flex items-center justify-between shrink-0">
         <div className="flex items-center gap-3">

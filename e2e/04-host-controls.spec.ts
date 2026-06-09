@@ -74,7 +74,7 @@ test.describe("HostView — WAITING state", () => {
     await expect(page.getByText("ACTIVE")).toBeVisible({ timeout: 5000 });
   });
 
-  test("member counter shows X/3 in the header", async ({ page }) => {
+  test("member counter shows X/10 in the header", async ({ page }) => {
     await page.goto(FIXTURE_URL);
     await page.waitForLoadState("networkidle");
 
@@ -84,7 +84,7 @@ test.describe("HostView — WAITING state", () => {
     ];
     wsServer.broadcast({ type: "PRESENCE_UPDATE", checkedIn: wsServer.state.checkedIn });
 
-    await expect(page.getByText("2/3")).toBeVisible({ timeout: 5000 });
+    await expect(page.getByText("2/10")).toBeVisible({ timeout: 5000 });
   });
 
   test("Share link button is visible", async ({ page }) => {

@@ -146,10 +146,8 @@ test.describe("8-Member Simulation", () => {
       wsServer.broadcast({ type: "PRESENCE_UPDATE", checkedIn: wsServer.state.checkedIn });
     }
 
-    // Host sees 8/3 (fixture only has 3 tickets but all 8 members checked in)
-    // The "X/3" counter in the header reflects session member count
     await expect(startBtn).toBeEnabled({ timeout: 5000 });
-    await expect(hostPage.getByText("8/3")).toBeVisible({ timeout: 5000 });
+    await expect(hostPage.getByText("8/10")).toBeVisible({ timeout: 5000 });
 
     await hostCtx.close();
   });
@@ -416,7 +414,7 @@ test.describe("8-Member Simulation", () => {
       wsServer.broadcast({ type: "PRESENCE_UPDATE", checkedIn: wsServer.state.checkedIn });
     }
     await expect(hostPage.getByRole("button", { name: /Start session/i })).toBeEnabled({ timeout: 5000 });
-    await expect(hostPage.getByText("8/3")).toBeVisible({ timeout: 5000 });
+    await expect(hostPage.getByText("8/10")).toBeVisible({ timeout: 5000 });
 
     // Host starts session
     wsServer.state.sessionStatus = "ACTIVE";

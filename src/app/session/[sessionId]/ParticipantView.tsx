@@ -337,6 +337,14 @@ export function ParticipantView({ session }: { session: SessionWithDetails }) {
     }
   }, [member, session.id, session.tickets]));
 
+  // Poll for state every 4 s — ensures members catch up if any push event was dropped
+  const sendRef = useRef(send);
+  sendRef.current = send;
+  useEffect(() => {
+    const id = setInterval(() => sendRef.current({ type: "REQUEST_STATE" }), 4000);
+    return () => clearInterval(id);
+  }, []);
+
   const PRESET_TAGS = session.product.tagPresets?.length
     ? session.product.tagPresets
     : ["backend", "frontend", "infra", "data-migration", "third-party", "auth", "performance"];
@@ -587,11 +595,12 @@ export function ParticipantView({ session }: { session: SessionWithDetails }) {
         </div>
         {(phDuringSprint.length > 0 || myLeaves.length > 0 || deployEvents.length > 0) && (
           <div className="flex flex-wrap gap-2">
-            {phDuringSprint.map((h) => (
-              <span key={h.date} className="flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-red-500/15 border border-red-500/25 text-red-300">
-                <BeachIcon size={14} className="inline" /> PH: {fmtDateStr(h.date)} {h.name}
+            {phDuringSprint.length > 0 && (
+              <span className="flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-red-500/15 border border-red-500/25 text-red-300">
+                <BeachIcon size={14} className="inline" />
+                PH: {phDuringSprint.map((h) => fmtDateStr(h.date)).join(", ")}
               </span>
-            ))}
+            )}
             {deployEvents.map((de) => (
               <span key={de.date} className="flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-violet-500/15 border border-violet-500/25 text-violet-300">
 <RocketIcon size={14} className="inline" /> Deploy: {fmtDateStr(de.date)}
@@ -687,9 +696,12 @@ export function ParticipantView({ session }: { session: SessionWithDetails }) {
                     : member.role === "QA" && roleNotes.QA ? "QA note"
                     : member.role === "UI_UX" && roleNotes.UI_UX ? "UI/UX note"
                     : "Host note";
-                  const primaryColor = member.role === "DEV" && roleNotes.DEV ? "blue"
-                    : member.role === "QA" && roleNotes.QA ? "pink"
-                    : "amber";
+                  // Static colour tokens — Tailwind can't purge dynamic class names
+                  const primaryStyle = member.role === "DEV" && roleNotes.DEV
+                    ? { bg: "rgba(59,130,246,0.08)", border: "rgba(59,130,246,0.2)", label: "rgba(96,165,250,0.8)" }
+                    : member.role === "QA" && roleNotes.QA
+                    ? { bg: "rgba(236,72,153,0.08)", border: "rgba(236,72,153,0.2)", label: "rgba(244,114,182,0.8)" }
+                    : { bg: "rgba(245,158,11,0.08)", border: "rgba(245,158,11,0.2)", label: "rgba(251,191,36,0.8)" };
 
                   if (!primaryNote && !isSM) return null;
                   if (!primaryNote && !roleNotes.DEV && !roleNotes.QA && !roleNotes.UI_UX && !roleNotes.general) return null;
@@ -698,8 +710,8 @@ export function ParticipantView({ session }: { session: SessionWithDetails }) {
                     <div className="space-y-2">
                       {/* Primary note for this role */}
                       {primaryNote && (
-                        <div className={`rounded-lg bg-${primaryColor}-500/8 border border-${primaryColor}-500/20 px-3 py-2.5`}>
-                          <p className={`text-[10px] text-${primaryColor}-400/80 font-semibold uppercase tracking-widest mb-1`}>{primaryLabel}</p>
+                        <div className="rounded-lg px-3 py-2.5" style={{ background: primaryStyle.bg, border: `1px solid ${primaryStyle.border}` }}>
+                          <p className="text-[10px] font-semibold uppercase tracking-widest mb-1" style={{ color: primaryStyle.label }}>{primaryLabel}</p>
                           <p className="text-sm text-white/60 leading-relaxed">{primaryNote}</p>
                         </div>
                       )}

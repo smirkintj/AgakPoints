@@ -77,6 +77,9 @@ export interface Ticket {
   designComplexity: 'LOW' | 'MEDIUM' | 'HIGH' | null;
   designLink: string | null;
   tags: string[];
+  noteForDev: string | null;
+  noteForQA: string | null;
+  noteForUIUX: string | null;
   createdAt: Date;
 }
 

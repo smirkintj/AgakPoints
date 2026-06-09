@@ -248,6 +248,12 @@ export default class ScrumPokerRoom implements Party.Server {
 
       case "OPEN_TICKET": {
         if (!this.isAdmin(sender)) return;
+        // Auto-start session if it hasn't been started yet (covers the race where
+        // START_SESSION was dropped before admin registration completed)
+        if (this.state.sessionStatus === "WAITING") {
+          this.state.sessionStatus = "ACTIVE";
+          this.broadcast({ type: "SESSION_STARTED" });
+        }
         const timerStartedAt = this.state.timerDuration ? new Date().toISOString() : null;
         this.state.currentTicket = {
           ticketId: msg.ticketId,

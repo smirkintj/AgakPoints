@@ -137,10 +137,14 @@ export function ParticipantView({ session }: { session: SessionWithDetails }) {
           (STATUS_RANK[s.sessionStatus] ?? 0) >= (STATUS_RANK[prev] ?? 0) ? s.sessionStatus : prev
         );
         setCheckedIn(s.checkedIn);
-        setCurrentTicket(s.currentTicket
-          ? { ticketId: s.currentTicket.ticketId, jiraKey: s.currentTicket.jiraKey, title: s.currentTicket.title, description: s.currentTicket.description, contextNote: s.currentTicket.contextNote, issueType: s.currentTicket.issueType, priority: s.currentTicket.priority, deps: s.currentTicket.deps }
-          : null
-        );
+        if (s.currentTicket) {
+          setCurrentTicket({ ticketId: s.currentTicket.ticketId, jiraKey: s.currentTicket.jiraKey, title: s.currentTicket.title, description: s.currentTicket.description, contextNote: s.currentTicket.contextNote, issueType: s.currentTicket.issueType, priority: s.currentTicket.priority, deps: s.currentTicket.deps });
+          // Hydrate role notes from DB-loaded ticket data (available from page load)
+          const dbTicket = session.tickets.find((t) => t.id === s.currentTicket!.ticketId);
+          setRoleNotes({ general: s.currentTicket.contextNote, DEV: dbTicket?.noteForDev ?? undefined, QA: dbTicket?.noteForQA ?? undefined, UI_UX: dbTicket?.noteForUIUX ?? undefined });
+        } else {
+          setCurrentTicket(null);
+        }
         setVotedMemberIds(s.votedMemberIds);
         setRevealedVotes(s.revealedVotes);
         setLockedTickets(new Set(s.lockedTickets));
@@ -178,11 +182,13 @@ export function ParticipantView({ session }: { session: SessionWithDetails }) {
         setTicketTags([]);
         setTicketFlags([]);
         setTimerExpired(false);
+        // Merge broadcast notes with DB-loaded notes; broadcast takes precedence (latest edit)
+        const dbT = session.tickets.find((t) => t.id === msg.ticketId);
         setRoleNotes({
-          general: msg.contextNote,
-          DEV: msg.noteForDev,
-          QA: msg.noteForQA,
-          UI_UX: msg.noteForUIUX,
+          general: msg.contextNote ?? dbT?.contextNote ?? undefined,
+          DEV: msg.noteForDev ?? dbT?.noteForDev ?? undefined,
+          QA: msg.noteForQA ?? dbT?.noteForQA ?? undefined,
+          UI_UX: msg.noteForUIUX ?? dbT?.noteForUIUX ?? undefined,
         });
         if (msg.timerDuration !== undefined) setTimerDuration(msg.timerDuration ?? null);
         if (msg.timerStartedAt) setTimerStartedAt(msg.timerStartedAt);
@@ -667,47 +673,64 @@ export function ParticipantView({ session }: { session: SessionWithDetails }) {
                   </p>
                 )}
 
-                {/* Role-filtered notes */}
-                {(roleNotes.general || (member.role === "DEV" && roleNotes.DEV) || (member.role === "QA" && roleNotes.QA) || ((member.role === "UI_UX" || member.role === "SM" || member.role === "TECH_LEAD") && roleNotes.UI_UX)) && (
-                  <div className="space-y-2">
-                    {roleNotes.general && (
-                      <div className="rounded-lg bg-amber-500/8 border border-amber-500/20 px-3 py-2.5">
-                        <p className="text-[10px] text-amber-400/80 font-semibold uppercase tracking-widest mb-1">Host note</p>
-                        <p className="text-sm text-white/60 leading-relaxed">{roleNotes.general}</p>
-                      </div>
-                    )}
-                    {member.role === "DEV" && roleNotes.DEV && (
-                      <div className="rounded-lg bg-blue-500/8 border border-blue-500/20 px-3 py-2.5">
-                        <p className="text-[10px] text-blue-400/80 font-semibold uppercase tracking-widest mb-1">Dev note</p>
-                        <p className="text-sm text-white/60 leading-relaxed">{roleNotes.DEV}</p>
-                      </div>
-                    )}
-                    {member.role === "QA" && roleNotes.QA && (
-                      <div className="rounded-lg bg-pink-500/8 border border-pink-500/20 px-3 py-2.5">
-                        <p className="text-[10px] text-pink-400/80 font-semibold uppercase tracking-widest mb-1">QA note</p>
-                        <p className="text-sm text-white/60 leading-relaxed">{roleNotes.QA}</p>
-                      </div>
-                    )}
-                    {(member.role === "UI_UX" || member.role === "SM" || member.role === "TECH_LEAD") && roleNotes.UI_UX && (
-                      <div className="rounded-lg bg-amber-500/8 border border-amber-500/20 px-3 py-2.5">
-                        <p className="text-[10px] text-amber-400/80 font-semibold uppercase tracking-widest mb-1">UI/UX note</p>
-                        <p className="text-sm text-white/60 leading-relaxed">{roleNotes.UI_UX}</p>
-                      </div>
-                    )}
-                    {(member.role === "SM" || member.role === "TECH_LEAD") && roleNotes.DEV && (
-                      <div className="rounded-lg bg-blue-500/8 border border-blue-500/20 px-3 py-2.5">
-                        <p className="text-[10px] text-blue-400/80 font-semibold uppercase tracking-widest mb-1">Dev note</p>
-                        <p className="text-sm text-white/60 leading-relaxed">{roleNotes.DEV}</p>
-                      </div>
-                    )}
-                    {(member.role === "SM" || member.role === "TECH_LEAD") && roleNotes.QA && (
-                      <div className="rounded-lg bg-pink-500/8 border border-pink-500/20 px-3 py-2.5">
-                        <p className="text-[10px] text-pink-400/80 font-semibold uppercase tracking-widest mb-1">QA note</p>
-                        <p className="text-sm text-white/60 leading-relaxed">{roleNotes.QA}</p>
-                      </div>
-                    )}
-                  </div>
-                )}
+                {/* Role notes — role-specific note replaces general host note for that role */}
+                {(() => {
+                  const isSM = member.role === "SM" || member.role === "TECH_LEAD";
+                  // Determine which note to show as primary for this member
+                  const roleNote = member.role === "DEV" ? roleNotes.DEV
+                    : member.role === "QA" ? roleNotes.QA
+                    : member.role === "UI_UX" ? roleNotes.UI_UX
+                    : null;
+                  // Primary note: role-specific if available, else general fallback
+                  const primaryNote = roleNote ?? roleNotes.general;
+                  const primaryLabel = member.role === "DEV" && roleNotes.DEV ? "Dev note"
+                    : member.role === "QA" && roleNotes.QA ? "QA note"
+                    : member.role === "UI_UX" && roleNotes.UI_UX ? "UI/UX note"
+                    : "Host note";
+                  const primaryColor = member.role === "DEV" && roleNotes.DEV ? "blue"
+                    : member.role === "QA" && roleNotes.QA ? "pink"
+                    : "amber";
+
+                  if (!primaryNote && !isSM) return null;
+                  if (!primaryNote && !roleNotes.DEV && !roleNotes.QA && !roleNotes.UI_UX && !roleNotes.general) return null;
+
+                  return (
+                    <div className="space-y-2">
+                      {/* Primary note for this role */}
+                      {primaryNote && (
+                        <div className={`rounded-lg bg-${primaryColor}-500/8 border border-${primaryColor}-500/20 px-3 py-2.5`}>
+                          <p className={`text-[10px] text-${primaryColor}-400/80 font-semibold uppercase tracking-widest mb-1`}>{primaryLabel}</p>
+                          <p className="text-sm text-white/60 leading-relaxed">{primaryNote}</p>
+                        </div>
+                      )}
+                      {/* SM / TL see all additional notes */}
+                      {isSM && roleNotes.DEV && (
+                        <div className="rounded-lg bg-blue-500/8 border border-blue-500/20 px-3 py-2.5">
+                          <p className="text-[10px] text-blue-400/80 font-semibold uppercase tracking-widest mb-1">Dev note</p>
+                          <p className="text-sm text-white/60 leading-relaxed">{roleNotes.DEV}</p>
+                        </div>
+                      )}
+                      {isSM && roleNotes.QA && (
+                        <div className="rounded-lg bg-pink-500/8 border border-pink-500/20 px-3 py-2.5">
+                          <p className="text-[10px] text-pink-400/80 font-semibold uppercase tracking-widest mb-1">QA note</p>
+                          <p className="text-sm text-white/60 leading-relaxed">{roleNotes.QA}</p>
+                        </div>
+                      )}
+                      {isSM && roleNotes.UI_UX && (
+                        <div className="rounded-lg bg-amber-500/8 border border-amber-500/20 px-3 py-2.5">
+                          <p className="text-[10px] text-amber-400/80 font-semibold uppercase tracking-widest mb-1">UI/UX note</p>
+                          <p className="text-sm text-white/60 leading-relaxed">{roleNotes.UI_UX}</p>
+                        </div>
+                      )}
+                      {isSM && roleNotes.general && (
+                        <div className="rounded-lg bg-amber-500/8 border border-amber-500/20 px-3 py-2.5">
+                          <p className="text-[10px] text-amber-400/80 font-semibold uppercase tracking-widest mb-1">Host note</p>
+                          <p className="text-sm text-white/60 leading-relaxed">{roleNotes.general}</p>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
                 {/* Risk flags */}
                 {ticketFlags.length > 0 && (
                   <div className="flex flex-wrap gap-1.5 pt-1">

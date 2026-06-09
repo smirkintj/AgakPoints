@@ -168,6 +168,9 @@ export function ParticipantView({ session }: { session: SessionWithDetails }) {
         }
         break;
       }
+      case "SESSION_STARTED":
+        setSessionStatus("ACTIVE");
+        break;
       case "PRESENCE_UPDATE":
         setCheckedIn(msg.checkedIn);
         break;

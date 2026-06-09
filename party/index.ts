@@ -177,7 +177,7 @@ export default class ScrumPokerRoom implements Party.Server {
     const memberId = this.state.connectionMemberMap[conn.id];
     if (!memberId) return;
     delete this.state.connectionMemberMap[conn.id];
-    // Only remove from checkedIn if no other connection belongs to this member
+    // Only remove from presence if they have no other active connections
     const stillConnected = Object.values(this.state.connectionMemberMap).includes(memberId);
     if (!stillConnected) {
       this.state.checkedIn = this.state.checkedIn.filter((m) => m.memberId !== memberId);
@@ -195,8 +195,8 @@ export default class ScrumPokerRoom implements Party.Server {
       return;
     }
 
-    // Inline admin token: any message may carry adminToken to self-authenticate.
-    // This eliminates the REGISTER_ADMIN pre-registration race condition.
+    // Inline admin token: every message from HostView carries adminToken so we
+    // can authenticate even before the async REGISTER_ADMIN resolves.
     const inlineToken = (msg as Record<string, unknown>).adminToken;
     if (typeof inlineToken === "string" && !this.isAdmin(sender)) {
       const valid = await verifyAdminToken(this.room.id, inlineToken);
@@ -248,8 +248,7 @@ export default class ScrumPokerRoom implements Party.Server {
 
       case "OPEN_TICKET": {
         if (!this.isAdmin(sender)) return;
-        // Auto-start session if it hasn't been started yet (covers the race where
-        // START_SESSION was dropped before admin registration completed)
+        // Auto-start session when host opens the first ticket
         if (this.state.sessionStatus === "WAITING") {
           this.state.sessionStatus = "ACTIVE";
           this.broadcast({ type: "SESSION_STARTED" });
@@ -433,7 +432,7 @@ export default class ScrumPokerRoom implements Party.Server {
         if (!this.isAdmin(sender)) return;
         this.state.checkedIn = this.state.checkedIn.filter((m) => m.memberId !== msg.memberId);
         delete this.state.votes[msg.memberId];
-        // Clear connection map entries for this member
+        // Clear all connections for this member
         for (const [connId, mId] of Object.entries(this.state.connectionMemberMap)) {
           if (mId === msg.memberId) delete this.state.connectionMemberMap[connId];
         }

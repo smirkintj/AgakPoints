@@ -240,12 +240,17 @@ export function HostView({ session, productId }: { session: PokerSession; produc
     if (!sessionStartedAt.current) sessionStartedAt.current = new Date();
     const tick = () => {
       const elapsed = Date.now() - (sessionStartedAt.current?.getTime() ?? Date.now());
-      const mins = Math.floor(elapsed / 60000);
-      const hrs = Math.floor(mins / 60);
-      setSessionTimer(hrs > 0 ? `${hrs}h ${mins % 60}m` : `${mins}m`);
+      const totalSecs = Math.floor(elapsed / 1000);
+      const h = Math.floor(totalSecs / 3600);
+      const m = Math.floor((totalSecs % 3600) / 60);
+      const s = totalSecs % 60;
+      setSessionTimer(h > 0
+        ? `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`
+        : `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`
+      );
     };
     tick();
-    const id = setInterval(tick, 30000);
+    const id = setInterval(tick, 1000);
     return () => clearInterval(id);
   }, [sessionStatus]);
 

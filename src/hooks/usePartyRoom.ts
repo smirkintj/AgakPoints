@@ -8,13 +8,16 @@ const PARTYKIT_HOST = process.env.NEXT_PUBLIC_PARTYKIT_HOST ?? "localhost:1999";
 export function usePartyRoom(
   sessionId: string,
   onMessage: (msg: MsgOut) => void,
-  onOpen?: () => void
+  onOpen?: () => void,
+  getAdminToken?: () => string | null
 ) {
   const socketRef = useRef<PartySocket | null>(null);
   const onMessageRef = useRef(onMessage);
   onMessageRef.current = onMessage;
   const onOpenRef = useRef(onOpen);
   onOpenRef.current = onOpen;
+  const getAdminTokenRef = useRef(getAdminToken);
+  getAdminTokenRef.current = getAdminToken;
 
   useEffect(() => {
     const socket = new PartySocket({
@@ -49,7 +52,9 @@ export function usePartyRoom(
   }, [sessionId]);
 
   const send = useCallback((msg: MsgIn) => {
-    socketRef.current?.send(JSON.stringify(msg));
+    const token = getAdminTokenRef.current?.();
+    const payload = token ? { ...msg, adminToken: token } : msg;
+    socketRef.current?.send(JSON.stringify(payload));
   }, []);
 
   return { send };

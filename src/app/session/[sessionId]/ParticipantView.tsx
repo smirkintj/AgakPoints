@@ -736,7 +736,7 @@ export function ParticipantView({ session }: { session: SessionWithDetails }) {
 
               {/* Countdown ring */}
               {timerDuration && timerStartedAt && !revealedVotes && !isObserver && (
-                <div className="flex flex-col items-center gap-2">
+                <div className="flex flex-col items-center gap-2 w-full">
                   <CountdownRing
                     duration={timerDuration}
                     startedAt={timerStartedAt}

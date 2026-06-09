@@ -219,6 +219,7 @@ export function HostView({ session, productId }: { session: PokerSession; produc
   const [recapOpen, setRecapOpen] = useState(session.status === "COMPLETED");
   const [confirmEnd, setConfirmEnd] = useState(false);
   const [confirmKickId, setConfirmKickId] = useState<string | null>(null);
+  const [switchConfirmTicket, setSwitchConfirmTicket] = useState<TicketWithVotes | null>(null);
 
   // Auto-redirect to product page when recap is closed
   const closeRecap = () => {
@@ -420,7 +421,7 @@ export function HostView({ session, productId }: { session: PokerSession; produc
       sendRef.current({ type: "REGISTER_ADMIN", token: adminTokenRef.current });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []));
+  }, []), useCallback(() => adminTokenRef.current, []));
 
   // Keep sendRef in sync so the onOpen callback can call send
   sendRef.current = send;
@@ -481,7 +482,7 @@ export function HostView({ session, productId }: { session: PokerSession; produc
     setSelectedEstimate(null);
     setSelectedAssigneeId(null);
     setTimerExpired(false);
-    if (timerDuration) setTimerStartedAt(new Date().toISOString());
+    setTimerStartedAt(null); // server will send authoritative startedAt via TICKET_OPENED
     send({
       type: "OPEN_TICKET",
       ticketId: t.id,
@@ -798,7 +799,13 @@ export function HostView({ session, productId }: { session: PokerSession; produc
                       if (sessionStatus !== "ACTIVE") return;
                       if (isCurrent) return;
                       if (currentTicketId) {
-                        openTicket(ticket);
+                        // Voting in progress (not yet revealed and not locked) — ask before discarding votes
+                        const votingInProgress = votedMemberIds.length > 0 && !revealedVotes && !lockedTickets.has(currentTicketId);
+                        if (votingInProgress) {
+                          setSwitchConfirmTicket(ticket);
+                        } else {
+                          openTicket(ticket);
+                        }
                       } else {
                         setPendingTicket(ticket);
                       }
@@ -1231,6 +1238,49 @@ export function HostView({ session, productId }: { session: PokerSession; produc
           />
         )}
       </div>
+
+      {/* Switch-ticket confirmation dialog */}
+      <AnimatePresence>
+        {switchConfirmTicket && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-6"
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-[#1a1625] border border-white/10 rounded-2xl p-6 max-w-sm w-full shadow-2xl space-y-4"
+            >
+              <div>
+                <h3 className="text-white font-semibold text-lg">Switch ticket?</h3>
+                <p className="text-white/50 text-sm mt-1">
+                  Voting is in progress. Switching will reset all current votes.
+                </p>
+                <p className="text-violet-300 text-sm mt-2 font-medium truncate">
+                  → {switchConfirmTicket.jiraKey}: {switchConfirmTicket.title}
+                </p>
+              </div>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setSwitchConfirmTicket(null)}
+                  className="flex-1 px-4 py-2 rounded-xl border border-white/15 text-white/60 hover:text-white/80 hover:border-white/25 transition-colors text-sm"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => { openTicket(switchConfirmTicket); setSwitchConfirmTicket(null); }}
+                  className="flex-1 px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-medium transition-colors text-sm"
+                >
+                  Switch &amp; reset votes
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Session Recap overlay */}
       <AnimatePresence>

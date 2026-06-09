@@ -195,6 +195,14 @@ export default class ScrumPokerRoom implements Party.Server {
       return;
     }
 
+    // Inline admin token: any message may carry adminToken to self-authenticate.
+    // This eliminates the REGISTER_ADMIN pre-registration race condition.
+    const inlineToken = (msg as Record<string, unknown>).adminToken;
+    if (typeof inlineToken === "string" && !this.isAdmin(sender)) {
+      const valid = await verifyAdminToken(this.room.id, inlineToken);
+      if (valid) this.state.adminConnectionIds.add(sender.id);
+    }
+
     switch (msg.type) {
       case "REGISTER_ADMIN": {
         verifyAdminToken(this.room.id, msg.token).then((valid) => {

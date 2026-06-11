@@ -1,0 +1,845 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>AgakPoints · Host View v3 Wireframe</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #05060f;
+    --surface: rgba(255,255,255,0.04);
+    --border: rgba(255,255,255,0.08);
+    --violet: #7c3aed;
+    --violet-light: #a78bfa;
+    --emerald: #10b981;
+    --amber: #f59e0b;
+    --rose: #f43f5e;
+    --cyan: #06b6d4;
+    --text: #f1f0ff;
+    --muted: rgba(255,255,255,0.4);
+    --dim: rgba(255,255,255,0.18);
+  }
+  html, body { height: 100%; overflow: hidden; font-family: 'Inter', -apple-system, sans-serif; background: var(--bg); color: var(--text); }
+
+  /* Three.js canvas */
+  #bg-canvas { position: fixed; inset: 0; z-index: 0; pointer-events: none; }
+
+  /* Layout */
+  #app { position: relative; z-index: 1; height: 100vh; display: flex; flex-direction: column; }
+
+  /* ── Header ── */
+  header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 10px 20px; border-bottom: 1px solid var(--border);
+    background: rgba(5,6,15,0.7); backdrop-filter: blur(20px);
+    flex-shrink: 0;
+  }
+  .header-left { display: flex; align-items: center; gap: 12px; }
+  .logo { width: 30px; height: 30px; border-radius: 8px; background: linear-gradient(135deg, var(--violet), #4f46e5); display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 800; color: white; }
+  .session-meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .session-name { font-weight: 700; font-size: 13px; color: var(--text); }
+  .sep { color: var(--dim); font-size: 12px; }
+  .sprint-dates { font-size: 11px; color: var(--muted); }
+  .timer-pill {
+    display: flex; align-items: center; gap: 4px; font-size: 10px; font-family: monospace;
+    background: rgba(124,58,237,0.12); border: 1px solid rgba(124,58,237,0.25);
+    color: var(--violet-light); border-radius: 20px; padding: 3px 10px;
+  }
+  .status-badge {
+    font-size: 10px; font-weight: 700; padding: 3px 9px; border-radius: 20px;
+    background: rgba(245,158,11,0.15); border: 1px solid rgba(245,158,11,0.3);
+    color: var(--amber); text-transform: uppercase; letter-spacing: 0.08em;
+  }
+  .header-right { display: flex; align-items: center; gap: 8px; }
+  .btn {
+    display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px;
+    border-radius: 8px; font-size: 12px; font-weight: 600; cursor: pointer;
+    border: 1px solid transparent; transition: all 0.18s ease;
+  }
+  .btn-ghost { background: transparent; border-color: var(--border); color: var(--muted); }
+  .btn-ghost:hover { border-color: rgba(255,255,255,0.25); color: var(--text); }
+  .btn-danger { background: rgba(244,63,94,0.12); border-color: rgba(244,63,94,0.3); color: #fb7185; }
+  .share-btn {
+    display: flex; align-items: center; gap: 5px; padding: 5px 12px; border-radius: 8px;
+    border: 1px solid var(--border); background: transparent; color: var(--dim);
+    font-size: 11px; cursor: pointer; transition: all 0.18s;
+  }
+  .share-btn:hover { border-color: rgba(255,255,255,0.25); color: var(--text); }
+  .member-count { display: flex; align-items: center; gap: 4px; font-size: 11px; color: var(--dim); }
+
+  /* ── Body ── */
+  .body { display: flex; flex: 1; min-height: 0; overflow: hidden; }
+
+  /* ── Sidebar ── */
+  aside {
+    width: 260px; flex-shrink: 0; border-right: 1px solid var(--border);
+    background: rgba(5,6,15,0.5); display: flex; flex-direction: column;
+  }
+  .sidebar-header {
+    padding: 10px 14px; border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .sidebar-label { font-size: 9px; text-transform: uppercase; letter-spacing: 0.12em; color: var(--dim); font-weight: 700; }
+  .refresh-btn { color: var(--dim); cursor: pointer; font-size: 14px; transition: color 0.2s; }
+  .refresh-btn:hover { color: var(--violet-light); }
+  .sidebar-scroll { flex: 1; overflow-y: auto; padding: 4px 0; }
+  .section-head {
+    display: flex; align-items: center; gap: 6px; padding: 6px 12px;
+    font-size: 9px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--dim); font-weight: 700;
+  }
+  .section-count {
+    margin-left: auto; font-size: 9px; font-family: monospace; padding: 1px 6px;
+    border-radius: 4px; background: rgba(255,255,255,0.08); color: var(--dim);
+  }
+  .section-count.done { background: rgba(16,185,129,0.15); color: var(--emerald); }
+  .ticket-row {
+    padding: 8px 12px 8px 14px; cursor: pointer; transition: background 0.15s;
+    border-left: 2px solid transparent; display: flex; align-items: flex-start; gap: 8px;
+  }
+  .ticket-row:hover { background: rgba(255,255,255,0.03); border-left-color: rgba(255,255,255,0.15); }
+  .ticket-row.active { background: rgba(124,58,237,0.12); border-left-color: var(--violet); }
+  .ticket-row.estimated { opacity: 0.5; }
+  .ticket-icon { width: 12px; height: 12px; border-radius: 2px; flex-shrink: 0; margin-top: 1px; }
+  .ticket-icon.story { background: #4ade80; }
+  .ticket-icon.bug { background: #f87171; border-radius: 50%; }
+  .ticket-icon.task { background: #60a5fa; }
+  .ticket-info { flex: 1; min-width: 0; }
+  .ticket-key { font-size: 10px; font-family: monospace; color: var(--violet-light); font-weight: 600; }
+  .ticket-title { font-size: 11px; color: var(--muted); line-height: 1.4; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; margin-top: 1px; }
+  .ticket-pts { font-size: 10px; font-family: monospace; color: var(--emerald); font-weight: 700; margin-left: auto; flex-shrink: 0; }
+
+  /* ── Main ── */
+  main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+
+  /* Sprint calendar strip */
+  .calendar-strip {
+    padding: 12px 20px; border-bottom: 1px solid var(--border);
+    background: rgba(255,255,255,0.015); flex-shrink: 0;
+  }
+  .calendar-strip-inner { display: flex; align-items: center; gap: 6px; }
+  .cal-label { font-size: 9px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--dim); font-weight: 700; margin-right: 4px; }
+  .cal-day {
+    width: 28px; height: 28px; border-radius: 6px; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; font-size: 8px; gap: 1px;
+    border: 1px solid var(--border); background: var(--surface);
+  }
+  .cal-day.today { border-color: var(--violet); background: rgba(124,58,237,0.15); }
+  .cal-day.ph { border-color: rgba(244,63,94,0.3); background: rgba(244,63,94,0.08); }
+  .cal-day.leave { border-color: rgba(245,158,11,0.3); background: rgba(245,158,11,0.08); }
+  .cal-day-num { font-weight: 700; font-size: 9px; color: var(--text); }
+  .cal-day-dot { width: 4px; height: 4px; border-radius: 50%; background: var(--emerald); }
+  .cal-day.ph .cal-day-dot { background: var(--rose); }
+  .cal-day.leave .cal-day-dot { background: var(--amber); }
+
+  /* Main scroll area */
+  .main-scroll { flex: 1; overflow-y: auto; padding: 24px; display: flex; flex-direction: column; align-items: center; gap: 20px; }
+
+  /* Ticket card */
+  .ticket-card {
+    width: 100%; max-width: 680px; border-radius: 16px;
+    border: 1px solid rgba(255,255,255,0.1);
+    background: linear-gradient(145deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.02) 100%);
+    backdrop-filter: blur(20px); overflow: hidden;
+    box-shadow: 0 8px 40px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.06);
+  }
+  .ticket-card-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 20px 12px; border-bottom: 1px solid var(--border);
+  }
+  .ticket-meta { display: flex; align-items: center; gap: 6px; }
+  .ticket-type-badge {
+    display: flex; align-items: center; gap: 3px; font-size: 9px; color: var(--dim);
+  }
+  .priority-pill {
+    font-size: 9px; padding: 2px 7px; border-radius: 10px; font-weight: 700;
+    border: 1px solid currentColor; opacity: 0.8;
+    display: flex; align-items: center; gap: 3px;
+  }
+  .priority-pill::before { content: ''; display: inline-block; width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
+  .priority-medium { color: #eab308; }
+  .priority-high { color: #f97316; }
+  .assignee-chip {
+    display: flex; align-items: center; gap: 5px; padding: 3px 10px 3px 5px;
+    border-radius: 20px; border: 1px solid var(--border); background: var(--surface);
+    font-size: 10px; color: var(--muted);
+  }
+  .avatar-sm { width: 18px; height: 18px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 7px; font-weight: 800; }
+  .ticket-card-body { padding: 18px 20px; }
+  .ticket-card-title { font-size: 20px; font-weight: 800; color: var(--text); line-height: 1.3; margin-bottom: 10px; letter-spacing: -0.02em; }
+  .ticket-card-desc { font-size: 13px; color: var(--muted); line-height: 1.6; }
+  .ticket-card-footer { padding: 12px 20px; }
+
+  /* Notes + deps row */
+  .notes-row { width: 100%; max-width: 680px; display: flex; gap: 12px; }
+  .note-box {
+    flex: 1; border-radius: 12px; border: 1px solid rgba(245,158,11,0.25);
+    background: rgba(245,158,11,0.04); padding: 12px;
+  }
+  .note-label { font-size: 8px; text-transform: uppercase; letter-spacing: 0.12em; color: rgba(251,191,36,0.7); font-weight: 700; margin-bottom: 6px; }
+  .note-tabs { display: flex; gap: 4px; margin-bottom: 8px; }
+  .note-tab {
+    padding: 3px 8px; border-radius: 6px; font-size: 9px; font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.08em; cursor: pointer; border: 1px solid transparent;
+    color: var(--dim);
+  }
+  .note-tab.active { background: rgba(124,58,237,0.25); border-color: rgba(124,58,237,0.4); color: var(--violet-light); }
+  .note-text { font-size: 11px; color: var(--muted); min-height: 36px; line-height: 1.5; }
+
+  .deps-box {
+    width: 200px; flex-shrink: 0; border-radius: 12px; border: 1px solid var(--border);
+    background: var(--surface); padding: 12px;
+  }
+  .dep-tag {
+    display: inline-flex; margin: 2px; padding: 3px 8px; border-radius: 20px; font-size: 9px;
+    font-weight: 600; cursor: pointer; transition: all 0.15s;
+    border: 1px solid var(--border); color: var(--dim);
+  }
+  .dep-tag.active { border-color: rgba(245,158,11,0.5); background: rgba(245,158,11,0.1); color: var(--amber); }
+
+  /* Vote progress */
+  .vote-section { width: 100%; max-width: 680px; }
+  .vote-header { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
+  .progress-bar-wrap { flex: 1; height: 6px; background: rgba(255,255,255,0.06); border-radius: 3px; overflow: hidden; }
+  .progress-fill { height: 100%; background: linear-gradient(90deg, var(--violet), var(--cyan)); border-radius: 3px; transition: width 0.5s cubic-bezier(0.34,1.56,0.64,1); }
+  .vote-count { font-size: 11px; font-family: monospace; color: var(--dim); }
+  .voting-badge { font-size: 9px; padding: 2px 8px; border-radius: 10px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; background: rgba(245,158,11,0.12); border: 1px solid rgba(245,158,11,0.3); color: var(--amber); }
+
+  .member-votes { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 16px; }
+  .member-vote-chip { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+  .avatar-ring {
+    width: 42px; height: 42px; border-radius: 50%; display: flex; align-items: center;
+    justify-content: center; font-size: 12px; font-weight: 800;
+    border: 2px solid rgba(255,255,255,0.08); transition: all 0.3s;
+    position: relative;
+  }
+  .avatar-ring.voted {
+    border-color: var(--violet);
+    box-shadow: 0 0 0 3px rgba(124,58,237,0.2), 0 0 12px rgba(124,58,237,0.3);
+  }
+  .avatar-ring.voted::after {
+    content: '✓'; position: absolute; bottom: -2px; right: -2px;
+    width: 14px; height: 14px; border-radius: 50%; background: var(--violet);
+    font-size: 7px; display: flex; align-items: center; justify-content: center;
+    color: white; font-weight: 900;
+  }
+  .avatar-name { font-size: 8px; color: var(--dim); max-width: 42px; text-align: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  .reveal-btn {
+    display: inline-flex; align-items: center; gap: 8px; padding: 10px 22px;
+    border-radius: 10px; font-size: 13px; font-weight: 700; cursor: pointer;
+    background: linear-gradient(135deg, #059669, #10b981);
+    border: none; color: white; position: relative; overflow: hidden;
+    box-shadow: 0 4px 20px rgba(16,185,129,0.3);
+  }
+  .reveal-btn::before {
+    content: ''; position: absolute; inset: 0;
+    background: linear-gradient(135deg, transparent 40%, rgba(255,255,255,0.08));
+  }
+
+  /* Countdown ring */
+  .countdown-wrap { display: flex; align-items: center; gap: 14px; margin-bottom: 16px; }
+  .countdown-svg { transform: rotate(-90deg); }
+  .countdown-bg { fill: none; stroke: rgba(255,255,255,0.06); stroke-width: 3; }
+  .countdown-fg { fill: none; stroke-width: 3; stroke-linecap: round; transition: stroke-dashoffset 1s linear; }
+  .countdown-label { font-family: monospace; font-size: 11px; font-weight: 700; }
+
+  /* ── Bandwidth Rail ── */
+  .bandwidth-rail {
+    width: 240px; flex-shrink: 0; border-left: 1px solid var(--border);
+    background: rgba(5,6,15,0.4); display: flex; flex-direction: column;
+  }
+  .rail-header { padding: 10px 14px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+  .rail-scroll { flex: 1; overflow-y: auto; padding: 10px; display: flex; flex-direction: column; gap: 8px; }
+  .member-card {
+    border-radius: 10px; border: 1px solid var(--border); background: var(--surface);
+    padding: 10px; transition: border-color 0.2s;
+  }
+  .member-card:hover { border-color: rgba(124,58,237,0.3); }
+  .member-card-head { display: flex; align-items: center; gap: 7px; margin-bottom: 8px; }
+  .member-role-badge { font-size: 7px; padding: 1px 5px; border-radius: 3px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
+  .role-dev { background: rgba(96,165,250,0.15); color: #60a5fa; }
+  .role-qa { background: rgba(244,114,182,0.15); color: #f472b6; }
+  .role-sm { background: rgba(167,139,250,0.15); color: var(--violet-light); }
+  .member-load { font-size: 9px; color: var(--dim); margin-bottom: 5px; }
+  .load-bar { height: 3px; border-radius: 2px; background: rgba(255,255,255,0.06); overflow: hidden; }
+  .load-fill { height: 100%; border-radius: 2px; }
+  .load-fill.ok { background: var(--emerald); }
+  .load-fill.warn { background: var(--amber); }
+  .load-fill.over { background: var(--rose); }
+
+  /* Session log */
+  .log-section { border-top: 1px solid var(--border); padding: 10px; max-height: 140px; overflow-y: auto; }
+  .log-entry { font-size: 9px; color: var(--dim); padding: 2px 0; display: flex; gap: 6px; }
+  .log-time { color: rgba(255,255,255,0.15); flex-shrink: 0; font-family: monospace; }
+
+  /* Risk flags */
+  .flags-row { display: flex; flex-wrap: wrap; gap: 5px; }
+  .flag-tag { font-size: 9px; padding: 2px 8px; border-radius: 10px; border: 1px solid var(--border); color: var(--dim); cursor: pointer; transition: all 0.15s; }
+  .flag-tag.active { border-color: rgba(244,63,94,0.4); background: rgba(244,63,94,0.1); color: #fb7185; }
+
+  /* Sticky lock bar */
+  .lock-bar {
+    flex-shrink: 0; border-top: 1px solid var(--border);
+    background: rgba(5,6,15,0.85); backdrop-filter: blur(20px);
+    padding: 14px 24px; display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+  }
+  .sp-chips { display: flex; gap: 5px; flex-wrap: wrap; }
+  .sp-chip {
+    width: 36px; height: 36px; border-radius: 8px; border: 2px solid var(--border);
+    font-weight: 800; font-size: 13px; display: flex; align-items: center; justify-content: center;
+    cursor: pointer; transition: all 0.18s; color: var(--dim);
+  }
+  .sp-chip:hover { border-color: rgba(124,58,237,0.5); color: var(--text); }
+  .sp-chip.selected { border-color: var(--violet-light); background: rgba(124,58,237,0.25); color: white; transform: scale(1.1); }
+  .divider-v { width: 1px; height: 32px; background: var(--border); flex-shrink: 0; }
+  .lock-btn {
+    display: inline-flex; align-items: center; gap: 8px; padding: 9px 20px;
+    border-radius: 10px; font-size: 13px; font-weight: 700; cursor: pointer;
+    background: linear-gradient(135deg, #059669, #10b981); border: none; color: white;
+    box-shadow: 0 4px 20px rgba(16,185,129,0.25); opacity: 0.5; transition: all 0.2s;
+  }
+  .lock-btn.ready { opacity: 1; box-shadow: 0 4px 24px rgba(16,185,129,0.4); }
+
+  /* Wireframe annotation */
+  .annotation {
+    position: fixed; top: 0; left: 0; right: 0;
+    background: linear-gradient(135deg, rgba(124,58,237,0.9), rgba(79,70,229,0.9));
+    backdrop-filter: blur(10px); padding: 8px 20px;
+    display: flex; align-items: center; justify-between; gap: 12px;
+    font-size: 11px; font-weight: 600; color: rgba(255,255,255,0.9);
+    border-bottom: 1px solid rgba(255,255,255,0.2); z-index: 100;
+  }
+  .anno-tag { background: rgba(255,255,255,0.15); padding: 2px 8px; border-radius: 4px; font-size: 9px; text-transform: uppercase; letter-spacing: 0.1em; }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 4px; } ::-webkit-scrollbar-track { background: transparent; } ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 2px; }
+
+  /* Glow pulses */
+  @keyframes pulse-glow { 0%,100% { box-shadow: 0 0 12px rgba(124,58,237,0.3); } 50% { box-shadow: 0 0 24px rgba(124,58,237,0.5); } }
+  @keyframes float { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
+  .float { animation: float 3s ease-in-out infinite; }
+</style>
+</head>
+<body>
+
+<canvas id="bg-canvas"></canvas>
+
+<div class="annotation">
+  <div style="display:flex;align-items:center;gap:8px;">
+    <span class="anno-tag">Wireframe</span>
+    <span>AgakPoints · Host View v3 — GSAP + Three.js Concept</span>
+  </div>
+  <div style="display:flex;align-items:center;gap:8px;margin-left:auto;">
+    <span style="opacity:0.6">State: ACTIVE · Voting in progress</span>
+    <span class="anno-tag">3/7 voted</span>
+  </div>
+</div>
+
+<div id="app" style="padding-top:36px;">
+  <!-- Header -->
+  <header>
+    <div class="header-left">
+      <div class="logo">A</div>
+      <div class="session-meta">
+        <span class="session-name">Sprint 42 — Q2 Refinement</span>
+        <span class="sep">·</span>
+        <span class="sprint-dates">3 Jun – 18 Jun</span>
+        <div class="timer-pill">
+          <span>⏱</span>
+          <span id="session-timer">14:32</span>
+        </div>
+        <span class="sep">·</span>
+        <span style="font-size:11px;color:var(--dim)">Refinement</span>
+      </div>
+      <div class="status-badge">Active</div>
+    </div>
+    <div class="header-right">
+      <button class="btn btn-ghost">End Session</button>
+      <select style="font-size:11px;background:rgba(255,255,255,0.04);border:1px solid var(--border);color:var(--muted);border-radius:8px;padding:5px 10px;cursor:pointer;">
+        <option>20s timer</option>
+        <option>30s timer</option>
+        <option>Timer off</option>
+      </select>
+      <button class="share-btn">📋 Share link</button>
+      <div class="member-count">👥 <span>6/8</span></div>
+    </div>
+  </header>
+
+  <!-- Body -->
+  <div class="body">
+
+    <!-- Sidebar -->
+    <aside>
+      <div class="sidebar-header">
+        <span class="sidebar-label">Issues · 12</span>
+        <span class="refresh-btn">↻</span>
+      </div>
+      <div class="sidebar-scroll">
+        <!-- Estimated section -->
+        <div class="section-head">
+          <span>▾</span>
+          <span>Estimated</span>
+          <span class="section-count done">4</span>
+        </div>
+        <div class="ticket-row estimated">
+          <div class="ticket-icon story"></div>
+          <div class="ticket-info">
+            <div class="ticket-key">PROJ-101</div>
+            <div class="ticket-title">Implement OAuth2 login flow</div>
+          </div>
+          <div class="ticket-pts">5pt</div>
+        </div>
+        <div class="ticket-row estimated">
+          <div class="ticket-icon bug"></div>
+          <div class="ticket-info">
+            <div class="ticket-key">PROJ-102</div>
+            <div class="ticket-title">Fix session timeout redirect</div>
+          </div>
+          <div class="ticket-pts">2pt</div>
+        </div>
+
+        <!-- To estimate -->
+        <div class="section-head" style="margin-top:6px;">
+          <span>To estimate</span>
+          <span class="section-count">8</span>
+        </div>
+        <div class="ticket-row active">
+          <div class="ticket-icon story"></div>
+          <div class="ticket-info">
+            <div class="ticket-key">PROJ-107</div>
+            <div class="ticket-title">Redesign dashboard analytics widget</div>
+          </div>
+        </div>
+        <div class="ticket-row">
+          <div class="ticket-icon task"></div>
+          <div class="ticket-info">
+            <div class="ticket-key">PROJ-108</div>
+            <div class="ticket-title">Add export CSV feature to reports</div>
+          </div>
+        </div>
+        <div class="ticket-row">
+          <div class="ticket-icon bug"></div>
+          <div class="ticket-info">
+            <div class="ticket-key">PROJ-109</div>
+            <div class="ticket-title">Fix race condition in notification queue</div>
+          </div>
+        </div>
+        <div class="ticket-row">
+          <div class="ticket-icon story"></div>
+          <div class="ticket-info">
+            <div class="ticket-key">PROJ-110</div>
+            <div class="ticket-title">Pagination for audit log page</div>
+          </div>
+        </div>
+        <div class="ticket-row">
+          <div class="ticket-icon story"></div>
+          <div class="ticket-info">
+            <div class="ticket-key">PROJ-111</div>
+            <div class="ticket-title">Email digest for weekly summaries</div>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main -->
+    <main>
+      <!-- Calendar strip -->
+      <div class="calendar-strip">
+        <div class="calendar-strip-inner">
+          <span class="cal-label">Sprint</span>
+          <div class="cal-day"><div class="cal-day-num">3</div><div class="cal-day-dot"></div></div>
+          <div class="cal-day"><div class="cal-day-num">4</div><div class="cal-day-dot"></div></div>
+          <div class="cal-day ph"><div class="cal-day-num">5</div><div class="cal-day-dot"></div></div>
+          <div class="cal-day"><div class="cal-day-num">6</div><div class="cal-day-dot"></div></div>
+          <div class="cal-day today"><div class="cal-day-num">7</div><div class="cal-day-dot" style="background:var(--violet-light)"></div></div>
+          <div class="cal-day leave"><div class="cal-day-num">10</div><div class="cal-day-dot"></div></div>
+          <div class="cal-day"><div class="cal-day-num">11</div><div class="cal-day-dot"></div></div>
+          <div class="cal-day"><div class="cal-day-num">12</div><div class="cal-day-dot"></div></div>
+          <div class="cal-day"><div class="cal-day-num">13</div><div class="cal-day-dot"></div></div>
+          <div class="cal-day"><div class="cal-day-num">14</div><div class="cal-day-dot"></div></div>
+          <div class="cal-day"><div class="cal-day-num">17</div><div class="cal-day-dot"></div></div>
+          <div class="cal-day"><div class="cal-day-num">18</div><div class="cal-day-dot"></div></div>
+          <div style="margin-left:auto;display:flex;gap:10px;font-size:9px;align-items:center;">
+            <span style="color:var(--rose)">■ PH (5 Jun)</span>
+            <span style="color:var(--amber)">■ Leave (10 Jun)</span>
+            <span style="color:var(--emerald)">12 working days</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="main-scroll">
+
+        <!-- Ticket card -->
+        <div class="ticket-card float" id="ticket-card">
+          <div class="ticket-card-header">
+            <div class="ticket-meta">
+              <div class="ticket-type-badge">
+                <div class="ticket-icon story" style="width:13px;height:13px;border-radius:3px;"></div>
+                <span style="font-size:9px;color:var(--dim);">Story</span>
+                <span style="color:var(--dim);font-size:9px;">·</span>
+                <span style="font-family:monospace;color:var(--violet-light);font-size:11px;font-weight:700;">PROJ-107</span>
+              </div>
+              <div class="priority-pill priority-medium">Medium</div>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;">
+              <div class="assignee-chip">
+                <div class="avatar-sm" style="background:linear-gradient(135deg,#7c3aed,#4f46e5);">AK</div>
+                <span>Ahmad</span>
+                <span class="member-role-badge role-dev" style="font-size:7px;padding:1px 4px;border-radius:2px;">Dev</span>
+              </div>
+              <button style="background:none;border:none;color:var(--dim);cursor:pointer;font-size:13px;">↗</button>
+            </div>
+          </div>
+          <div class="ticket-card-body">
+            <h2 class="ticket-card-title">Redesign dashboard analytics widget with chart interactions</h2>
+            <p class="ticket-card-desc">The current analytics widget needs to be updated to support interactive chart elements including hover tooltips, drill-down navigation, and date range pickers aligned with the new design system.</p>
+          </div>
+        </div>
+
+        <!-- Notes + Deps -->
+        <div class="notes-row">
+          <div class="note-box">
+            <div class="note-label">Host notes — auto-synced to members</div>
+            <div class="note-tabs">
+              <span class="note-tab active">General</span>
+              <span class="note-tab">Dev</span>
+              <span class="note-tab">QA</span>
+              <span class="note-tab">UI/UX</span>
+            </div>
+            <div class="note-text">Focus on the charting lib — Recharts v3 breaking changes may add complexity. QA should account for cross-browser canvas rendering.</div>
+          </div>
+          <div class="deps-box">
+            <div class="note-label">Dependencies</div>
+            <div style="margin-top:6px;">
+              <span class="dep-tag active">UI/UX</span>
+              <span class="dep-tag">SAP</span>
+              <span class="dep-tag">Data</span>
+              <span class="dep-tag">Network Team</span>
+              <span class="dep-tag">Security</span>
+            </div>
+            <div style="margin-top:10px;">
+              <div class="note-label">Risk Flags</div>
+              <div class="flags-row" style="margin-top:5px;">
+                <span class="flag-tag active">⚑ Needs spike</span>
+                <span class="flag-tag">⚐ Missing AC</span>
+                <span class="flag-tag">⚐ Blocked</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Countdown + voting -->
+        <div class="vote-section">
+          <!-- Countdown -->
+          <div class="countdown-wrap">
+            <svg class="countdown-svg" width="52" height="52" viewBox="0 0 52 52">
+              <circle class="countdown-bg" cx="26" cy="26" r="22" />
+              <circle class="countdown-fg" cx="26" cy="26" r="22"
+                stroke="url(#countdown-gradient)"
+                stroke-dasharray="138.2" stroke-dashoffset="40"
+                id="countdown-circle" />
+              <defs>
+                <linearGradient id="countdown-gradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                  <stop offset="0%" stop-color="#7c3aed"/>
+                  <stop offset="100%" stop-color="#06b6d4"/>
+                </linearGradient>
+              </defs>
+              <text x="26" y="26" text-anchor="middle" dominant-baseline="central" fill="#a78bfa" font-size="11" font-weight="800" font-family="monospace" transform="rotate(90,26,26)">14s</text>
+            </svg>
+            <div>
+              <div style="font-size:11px;color:var(--muted);font-weight:600;">Voting in progress</div>
+              <div style="font-size:9px;color:var(--dim);margin-top:2px;">Timer running — <span style="color:var(--violet-light)">3 of 6 voted</span></div>
+            </div>
+          </div>
+
+          <!-- Progress bar -->
+          <div class="vote-header">
+            <div class="progress-bar-wrap">
+              <div class="progress-fill" id="vote-progress" style="width:50%;"></div>
+            </div>
+            <span class="vote-count" id="vote-count-text">3 / 6</span>
+            <span class="voting-badge">Voting</span>
+          </div>
+
+          <!-- Members -->
+          <div class="member-votes">
+            <div class="member-vote-chip">
+              <div class="avatar-ring voted" style="background:linear-gradient(135deg,#7c3aed,#4f46e5);">AK</div>
+              <span class="avatar-name">Ahmad</span>
+            </div>
+            <div class="member-vote-chip">
+              <div class="avatar-ring voted" style="background:linear-gradient(135deg,#0891b2,#0e7490);">SL</div>
+              <span class="avatar-name">Sarah</span>
+            </div>
+            <div class="member-vote-chip">
+              <div class="avatar-ring voted" style="background:linear-gradient(135deg,#be185d,#9d174d);">NR</div>
+              <span class="avatar-name">Nora</span>
+            </div>
+            <div class="member-vote-chip">
+              <div class="avatar-ring" style="background:rgba(255,255,255,0.06);color:var(--dim);">ZM</div>
+              <span class="avatar-name">Zaki</span>
+            </div>
+            <div class="member-vote-chip">
+              <div class="avatar-ring" style="background:rgba(255,255,255,0.06);color:var(--dim);">FH</div>
+              <span class="avatar-name">Farah</span>
+            </div>
+            <div class="member-vote-chip">
+              <div class="avatar-ring" style="background:rgba(255,255,255,0.06);color:var(--dim);">AM</div>
+              <span class="avatar-name">Ali</span>
+            </div>
+          </div>
+
+          <!-- Reveal button -->
+          <button class="reveal-btn" id="reveal-btn" onclick="triggerReveal()">
+            👁 Reveal votes <span style="opacity:0.6;font-size:11px;">(3)</span>
+          </button>
+        </div>
+
+      </div><!-- /main-scroll -->
+
+      <!-- Sticky lock bar (hidden until reveal) -->
+      <div class="lock-bar" id="lock-bar" style="display:none;">
+        <div class="sp-chips">
+          <div class="sp-chip">1</div><div class="sp-chip">2</div>
+          <div class="sp-chip selected">3</div><div class="sp-chip">5</div>
+          <div class="sp-chip">8</div><div class="sp-chip">13</div>
+          <div class="sp-chip">21</div>
+        </div>
+        <div class="divider-v"></div>
+        <div class="assignee-chip" style="padding:5px 12px 5px 6px;">
+          <div class="avatar-sm" style="background:linear-gradient(135deg,#7c3aed,#4f46e5);width:22px;height:22px;font-size:8px;">AK</div>
+          <span style="font-size:11px;">Ahmad Kamil</span>
+          <span style="color:var(--dim);font-size:10px;">▾</span>
+        </div>
+        <div class="divider-v"></div>
+        <button class="lock-btn ready">🔒 Lock — 3 pts</button>
+      </div>
+    </main>
+
+    <!-- Bandwidth Rail -->
+    <div class="bandwidth-rail">
+      <div class="rail-header">
+        <span class="sidebar-label">Team Bandwidth</span>
+        <span style="font-size:9px;color:var(--emerald);">Sprint 42</span>
+      </div>
+      <div class="rail-scroll">
+
+        <div class="member-card" style="border-color:rgba(124,58,237,0.3);">
+          <div class="member-card-head">
+            <div class="avatar-sm" style="background:linear-gradient(135deg,#7c3aed,#4f46e5);width:24px;height:24px;font-size:8px;">AK</div>
+            <div>
+              <div style="font-size:11px;font-weight:600;color:var(--text);">Ahmad Kamil</div>
+              <span class="member-role-badge role-dev">Dev</span>
+            </div>
+          </div>
+          <div class="member-load">13 / 20 SP</div>
+          <div class="load-bar"><div class="load-fill ok" style="width:65%;"></div></div>
+        </div>
+
+        <div class="member-card">
+          <div class="member-card-head">
+            <div class="avatar-sm" style="background:linear-gradient(135deg,#0891b2,#0e7490);width:24px;height:24px;font-size:8px;">SL</div>
+            <div>
+              <div style="font-size:11px;font-weight:600;color:var(--text);">Sarah Lim</div>
+              <span class="member-role-badge role-qa">QA</span>
+            </div>
+          </div>
+          <div class="member-load">8 / 20 SP</div>
+          <div class="load-bar"><div class="load-fill ok" style="width:40%;"></div></div>
+        </div>
+
+        <div class="member-card">
+          <div class="member-card-head">
+            <div class="avatar-sm" style="background:linear-gradient(135deg,#be185d,#9d174d);width:24px;height:24px;font-size:8px;">NR</div>
+            <div>
+              <div style="font-size:11px;font-weight:600;color:var(--text);">Nora Rahman</div>
+              <span class="member-role-badge role-dev">Dev</span>
+            </div>
+          </div>
+          <div class="member-load">18 / 20 SP</div>
+          <div class="load-bar"><div class="load-fill warn" style="width:90%;"></div></div>
+        </div>
+
+        <div class="member-card">
+          <div class="member-card-head">
+            <div class="avatar-sm" style="background:linear-gradient(135deg,#d97706,#b45309);width:24px;height:24px;font-size:8px;">ZM</div>
+            <div>
+              <div style="font-size:11px;font-weight:600;color:var(--text);">Zaki Mohd</div>
+              <span class="member-role-badge role-dev">Dev</span>
+            </div>
+          </div>
+          <div class="member-load">5 / 20 SP</div>
+          <div class="load-bar"><div class="load-fill ok" style="width:25%;"></div></div>
+        </div>
+
+        <div class="member-card">
+          <div class="member-card-head">
+            <div class="avatar-sm" style="background:linear-gradient(135deg,#7c3aed,#6d28d9);width:24px;height:24px;font-size:8px;">MA</div>
+            <div>
+              <div style="font-size:11px;font-weight:600;color:var(--text);">Melissa A</div>
+              <span class="member-role-badge role-sm">SM</span>
+            </div>
+          </div>
+          <div class="member-load">Observer</div>
+          <div class="load-bar"><div class="load-fill ok" style="width:0%;"></div></div>
+        </div>
+
+      </div>
+
+      <!-- Session log -->
+      <div class="log-section">
+        <div style="font-size:8px;text-transform:uppercase;letter-spacing:0.1em;color:var(--dim);margin-bottom:6px;font-weight:700;">Session Log</div>
+        <div class="log-entry"><span class="log-time">14:01</span><span>Session started</span></div>
+        <div class="log-entry"><span class="log-time">14:03</span><span>Ahmad checked in</span></div>
+        <div class="log-entry"><span class="log-time">14:04</span><span>Opened PROJ-101</span></div>
+        <div class="log-entry"><span class="log-time">14:08</span><span>Locked PROJ-101 @ 5pts → Ahmad</span></div>
+        <div class="log-entry"><span class="log-time">14:12</span><span>Opened PROJ-107: Redesign dashboard…</span></div>
+        <div class="log-entry" style="color:var(--violet-light);"><span class="log-time">14:14</span><span>3 votes cast (3/6)</span></div>
+      </div>
+    </div>
+
+  </div><!-- /body -->
+</div><!-- /app -->
+
+<script>
+// ── Three.js background ──────────────────────────────────────────────────────
+const canvas = document.getElementById('bg-canvas');
+const renderer = new THREE.WebGLRenderer({ canvas, alpha: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 200);
+camera.position.z = 60;
+
+// Particle field
+const COUNT = 320;
+const geo = new THREE.BufferGeometry();
+const pos = new Float32Array(COUNT * 3);
+const col = new Float32Array(COUNT * 3);
+const speeds = new Float32Array(COUNT);
+const palettes = [
+  [0.49, 0.23, 0.93], // violet
+  [0.31, 0.44, 0.80], // indigo
+  [0.02, 0.71, 0.83], // cyan
+  [0.06, 0.73, 0.51], // emerald
+];
+for (let i = 0; i < COUNT; i++) {
+  pos[i*3]   = (Math.random() - 0.5) * 160;
+  pos[i*3+1] = (Math.random() - 0.5) * 100;
+  pos[i*3+2] = (Math.random() - 0.5) * 80;
+  const c = palettes[Math.floor(Math.random() * palettes.length)];
+  col[i*3] = c[0]; col[i*3+1] = c[1]; col[i*3+2] = c[2];
+  speeds[i] = 0.02 + Math.random() * 0.06;
+}
+geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+const mat = new THREE.PointsMaterial({ size: 0.7, vertexColors: true, transparent: true, opacity: 0.55, sizeAttenuation: true });
+const points = new THREE.Points(geo, mat);
+scene.add(points);
+
+// Soft aurora blobs (simple large spheres with additive blending)
+const blobMat = new THREE.MeshBasicMaterial({ color: 0x7c3aed, transparent: true, opacity: 0.04 });
+for (const [x, y, s] of [[-40, 30, 50], [50, -20, 45], [10, -40, 35]]) {
+  const blob = new THREE.Mesh(new THREE.SphereGeometry(s, 12, 12), blobMat.clone());
+  blob.position.set(x, y, -40);
+  scene.add(blob);
+}
+
+let t = 0;
+function animate() {
+  requestAnimationFrame(animate);
+  t += 0.005;
+  const positions = geo.attributes.position.array;
+  for (let i = 0; i < COUNT; i++) {
+    positions[i*3+1] += speeds[i] * 0.15;
+    if (positions[i*3+1] > 55) positions[i*3+1] = -55;
+  }
+  geo.attributes.position.needsUpdate = true;
+  points.rotation.y = t * 0.04;
+  camera.position.x = Math.sin(t * 0.2) * 3;
+  camera.position.y = Math.cos(t * 0.15) * 2;
+  renderer.render(scene, camera);
+}
+animate();
+
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+// ── GSAP animations ──────────────────────────────────────────────────────────
+gsap.registerPlugin(ScrollTrigger);
+
+// Entrance animation
+gsap.from('#ticket-card', { opacity: 0, y: 30, duration: 0.8, ease: 'power3.out', delay: 0.2 });
+gsap.from('.notes-row', { opacity: 0, y: 20, duration: 0.6, ease: 'power2.out', delay: 0.4 });
+gsap.from('.vote-section', { opacity: 0, y: 20, duration: 0.6, ease: 'power2.out', delay: 0.5 });
+gsap.from('.member-vote-chip', { opacity: 0, scale: 0.8, duration: 0.4, ease: 'back.out(1.7)', stagger: 0.07, delay: 0.6 });
+gsap.from('.bandwidth-rail', { opacity: 0, x: 30, duration: 0.7, ease: 'power2.out', delay: 0.3 });
+gsap.from('.member-card', { opacity: 0, x: 20, duration: 0.4, ease: 'power2.out', stagger: 0.08, delay: 0.5 });
+gsap.from('aside', { opacity: 0, x: -20, duration: 0.6, ease: 'power2.out', delay: 0.1 });
+
+// Session timer
+let seconds = 14*60 + 32;
+setInterval(() => {
+  seconds++;
+  const m = Math.floor(seconds/60), s = seconds%60;
+  document.getElementById('session-timer').textContent = `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+}, 1000);
+
+// Vote progress animation — simulate members voting in
+let votes = 3, total = 6;
+setTimeout(() => addVote(), 2800);
+setTimeout(() => addVote(), 5500);
+setTimeout(() => addVote(), 8200);
+
+function addVote() {
+  if (votes >= total) return;
+  votes++;
+  const chips = document.querySelectorAll('.avatar-ring:not(.voted)');
+  if (chips[0]) {
+    chips[0].classList.add('voted');
+    gsap.from(chips[0], { scale: 1.4, duration: 0.4, ease: 'back.out(2)' });
+  }
+  const pct = (votes/total)*100;
+  gsap.to('#vote-progress', { width: pct+'%', duration: 0.5, ease: 'power2.out' });
+  document.getElementById('vote-count-text').textContent = `${votes} / ${total}`;
+
+  if (votes === total) {
+    // All voted — pulse reveal button
+    gsap.to('#reveal-btn', { boxShadow: '0 0 30px rgba(16,185,129,0.6)', repeat: -1, yoyo: true, duration: 0.8 });
+  }
+}
+
+// Countdown animation
+let countTime = 14;
+const circumference = 138.2;
+const circle = document.getElementById('countdown-circle');
+const timerText = circle?.parentElement?.querySelector('text');
+
+const countInterval = setInterval(() => {
+  countTime--;
+  if (countTime <= 0) { clearInterval(countInterval); countTime = 0; }
+  const offset = circumference * (1 - countTime / 20);
+  gsap.to(circle, { strokeDashoffset: offset, duration: 0.9, ease: 'linear' });
+  if (timerText) timerText.textContent = countTime + 's';
+  const hue = countTime > 10 ? '#a78bfa' : countTime > 5 ? '#f59e0b' : '#f43f5e';
+  gsap.to(circle, { stroke: hue, duration: 0.3 });
+}, 1000);
+
+// Reveal interaction
+function triggerReveal() {
+  gsap.to('#lock-bar', { display: 'flex', opacity: 0, y: 20, duration: 0 });
+  document.getElementById('lock-bar').style.display = 'flex';
+  gsap.to('#lock-bar', { opacity: 1, y: 0, duration: 0.5, ease: 'power3.out' });
+  gsap.to('#reveal-btn', { opacity: 0.4, scale: 0.96, duration: 0.2 });
+}
+</script>
+</body>
+</html>

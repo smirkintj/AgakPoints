@@ -1,0 +1,534 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>AgakPoints · Member View v3 Wireframe</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #05060f;
+    --violet: #7c3aed;
+    --violet-light: #a78bfa;
+    --emerald: #10b981;
+    --amber: #f59e0b;
+    --rose: #f43f5e;
+    --cyan: #06b6d4;
+    --text: #f1f0ff;
+    --muted: rgba(255,255,255,0.45);
+    --dim: rgba(255,255,255,0.2);
+    --border: rgba(255,255,255,0.08);
+    --surface: rgba(255,255,255,0.04);
+  }
+  html, body { height: 100%; overflow: hidden; font-family: 'Inter', -apple-system, sans-serif; background: var(--bg); color: var(--text); }
+  #bg-canvas { position: fixed; inset: 0; z-index: 0; pointer-events: none; }
+  #app { position: relative; z-index: 1; height: 100vh; display: flex; flex-direction: column; }
+
+  /* Annotation bar */
+  .annotation {
+    background: linear-gradient(135deg, rgba(6,182,212,0.9), rgba(79,70,229,0.9));
+    backdrop-filter: blur(10px); padding: 7px 20px;
+    display: flex; align-items: center; gap: 12px;
+    font-size: 11px; font-weight: 600; color: rgba(255,255,255,0.9);
+    border-bottom: 1px solid rgba(255,255,255,0.15); flex-shrink: 0;
+  }
+  .anno-tag { background: rgba(255,255,255,0.15); padding: 2px 8px; border-radius: 4px; font-size: 9px; text-transform: uppercase; letter-spacing: 0.1em; }
+
+  /* Header */
+  header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 10px 16px; border-bottom: 1px solid var(--border);
+    background: rgba(5,6,15,0.7); backdrop-filter: blur(20px); flex-shrink: 0;
+  }
+  .member-identity { display: flex; align-items: center; gap: 10px; }
+  .avatar-lg {
+    width: 34px; height: 34px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 12px; font-weight: 800;
+    border: 2px solid var(--violet); box-shadow: 0 0 0 3px rgba(124,58,237,0.2);
+  }
+  .member-name { font-weight: 700; font-size: 13px; }
+  .member-role { font-size: 10px; color: var(--muted); }
+  .load-chip {
+    display: flex; align-items: center; gap: 5px; padding: 4px 12px;
+    border-radius: 20px; background: var(--surface); border: 1px solid var(--border);
+    font-size: 11px;
+  }
+
+  /* Sprint bar */
+  .sprint-bar {
+    padding: 10px 16px; border-bottom: 1px solid var(--border);
+    background: rgba(255,255,255,0.01); flex-shrink: 0;
+    display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+  }
+  .sprint-item { display: flex; flex-direction: column; gap: 2px; }
+  .sprint-item-label { font-size: 8px; text-transform: uppercase; letter-spacing: 0.12em; color: var(--dim); font-weight: 700; }
+  .sprint-item-value { font-size: 12px; color: var(--text); font-weight: 600; }
+  .sprint-divider { width: 1px; height: 32px; background: var(--border); }
+  .info-pill {
+    display: flex; align-items: center; gap: 5px; padding: 3px 10px;
+    border-radius: 20px; font-size: 10px; font-weight: 600;
+  }
+  .pill-ph { background: rgba(244,63,94,0.1); border: 1px solid rgba(244,63,94,0.25); color: #fb7185; }
+  .pill-al { background: rgba(245,158,11,0.1); border: 1px solid rgba(245,158,11,0.25); color: var(--amber); }
+  .pill-deploy { background: rgba(124,58,237,0.1); border: 1px solid rgba(124,58,237,0.25); color: var(--violet-light); }
+
+  /* Main scroll */
+  main { flex: 1; overflow-y: auto; padding: 20px 16px; display: flex; flex-direction: column; align-items: center; gap: 18px; }
+
+  /* Ticket card */
+  .ticket-card {
+    width: 100%; max-width: 480px; border-radius: 18px;
+    border: 1px solid rgba(255,255,255,0.1);
+    background: linear-gradient(155deg, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0.02) 100%);
+    backdrop-filter: blur(20px); overflow: hidden;
+    box-shadow: 0 8px 48px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.07);
+  }
+  .tc-header { padding: 14px 18px 10px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+  .tc-meta { display: flex; align-items: center; gap: 6px; }
+  .tc-key { font-family: monospace; font-size: 11px; font-weight: 700; color: var(--violet-light); }
+  .tc-type { font-size: 9px; color: var(--dim); }
+  .priority-badge {
+    font-size: 9px; padding: 2px 7px; border-radius: 8px; font-weight: 700;
+    background: rgba(234,179,8,0.12); border: 1px solid rgba(234,179,8,0.25); color: #eab308;
+  }
+  .tc-body { padding: 16px 18px 14px; }
+  .tc-title { font-size: 17px; font-weight: 800; color: var(--text); line-height: 1.3; letter-spacing: -0.02em; margin-bottom: 8px; }
+  .tc-desc { font-size: 12px; color: var(--muted); line-height: 1.6; }
+  .host-note {
+    margin: 0 18px 14px; border-radius: 10px; padding: 10px 12px;
+    background: rgba(245,158,11,0.07); border: 1px solid rgba(245,158,11,0.2);
+  }
+  .note-label-sm { font-size: 8px; text-transform: uppercase; letter-spacing: 0.1em; color: rgba(251,191,36,0.7); font-weight: 700; margin-bottom: 4px; }
+  .note-text-sm { font-size: 11px; color: var(--muted); line-height: 1.5; }
+  .flag-row { display: flex; flex-wrap: wrap; gap: 5px; padding: 10px 18px; border-top: 1px solid var(--border); }
+  .flag-chip { font-size: 9px; padding: 2px 8px; border-radius: 10px; border: 1px solid rgba(244,63,94,0.35); background: rgba(244,63,94,0.08); color: #fb7185; }
+
+  /* Countdown ring */
+  .countdown-center { display: flex; flex-direction: column; align-items: center; gap: 8px; width: 100%; max-width: 480px; }
+  .countdown-svg { transform: rotate(-90deg); filter: drop-shadow(0 0 12px rgba(124,58,237,0.4)); }
+  .countdown-expire { font-size: 11px; font-weight: 700; color: var(--rose); background: rgba(244,63,94,0.1); border: 1px solid rgba(244,63,94,0.25); border-radius: 20px; padding: 3px 12px; }
+
+  /* Voting cards grid */
+  .voting-section { width: 100%; max-width: 480px; }
+  .voting-label { font-size: 12px; color: var(--muted); text-align: center; margin-bottom: 14px; font-weight: 500; }
+  .card-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+  .vote-card {
+    aspect-ratio: 2/3; border-radius: 12px; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; cursor: pointer;
+    border: 2px solid var(--border); background: var(--surface);
+    transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+    font-size: 22px; font-weight: 800; color: var(--dim);
+    position: relative; overflow: hidden; user-select: none;
+  }
+  .vote-card::before {
+    content: ''; position: absolute; inset: 0;
+    background: radial-gradient(circle at 50% 30%, rgba(124,58,237,0.15), transparent 70%);
+    opacity: 0; transition: opacity 0.2s;
+  }
+  .vote-card:hover { border-color: var(--violet-light); color: var(--text); transform: translateY(-4px) scale(1.04); box-shadow: 0 12px 32px rgba(124,58,237,0.3); }
+  .vote-card:hover::before { opacity: 1; }
+  .vote-card.selected {
+    border-color: var(--violet); background: rgba(124,58,237,0.2); color: white;
+    transform: translateY(-6px) scale(1.06);
+    box-shadow: 0 16px 40px rgba(124,58,237,0.4), inset 0 1px 0 rgba(255,255,255,0.12);
+  }
+  .vote-card.selected::before { opacity: 1; }
+  .card-suit { font-size: 9px; position: absolute; top: 7px; left: 9px; color: inherit; opacity: 0.4; }
+
+  /* Voted state */
+  .voted-display {
+    display: flex; flex-direction: column; align-items: center; gap: 12px;
+    padding: 24px; width: 100%; max-width: 480px;
+  }
+  .voted-card {
+    width: 100px; height: 150px; border-radius: 14px; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 4px;
+    background: linear-gradient(145deg, rgba(124,58,237,0.3), rgba(79,70,229,0.15));
+    border: 2px solid var(--violet); font-size: 42px; font-weight: 900;
+    box-shadow: 0 0 0 4px rgba(124,58,237,0.15), 0 20px 50px rgba(124,58,237,0.25);
+    animation: votedFloat 2s ease-in-out infinite;
+  }
+  @keyframes votedFloat { 0%,100% { transform: translateY(0) rotate(-1deg); } 50% { transform: translateY(-5px) rotate(1deg); } }
+  .voted-label { font-size: 13px; color: var(--muted); }
+  .voted-dots { display: flex; gap: 6px; margin-top: 4px; }
+  .dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: rgba(255,255,255,0.15); transition: all 0.3s;
+  }
+  .dot.filled { background: var(--violet); box-shadow: 0 0 8px rgba(124,58,237,0.5); }
+
+  /* Member progress dots */
+  .progress-dots { display: flex; justify-content: center; gap: 8px; width: 100%; max-width: 480px; }
+  .member-dot { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+  .member-dot-avatar {
+    width: 32px; height: 32px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center; font-size: 9px; font-weight: 800;
+    border: 2px solid var(--border); transition: all 0.3s;
+  }
+  .member-dot-avatar.voted { border-color: var(--violet); box-shadow: 0 0 10px rgba(124,58,237,0.3); }
+  .member-dot-name { font-size: 8px; color: var(--dim); }
+
+  /* My assigned tickets */
+  .my-tickets { width: 100%; max-width: 480px; margin-top: auto; }
+  .my-tickets-toggle {
+    width: 100%; display: flex; align-items: center; gap: 8px;
+    padding: 9px 14px; border-radius: 10px 10px 0 0; cursor: pointer;
+    border: 1px solid var(--border); background: var(--surface);
+    font-size: 10px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--dim); font-weight: 700;
+  }
+  .my-tickets-body {
+    border: 1px solid var(--border); border-top: none;
+    border-radius: 0 0 10px 10px; background: rgba(255,255,255,0.02);
+    overflow: hidden;
+  }
+  .ticket-row-sm {
+    display: flex; align-items: center; gap: 10px;
+    padding: 9px 14px; border-bottom: 1px solid var(--border);
+  }
+  .ticket-row-sm:last-child { border-bottom: none; }
+  .ticket-icon-sm { width: 10px; height: 10px; border-radius: 2px; flex-shrink: 0; background: #4ade80; }
+  .ticket-key-sm { font-family: monospace; font-size: 9px; color: var(--violet-light); font-weight: 700; flex-shrink: 0; }
+  .ticket-title-sm { font-size: 11px; color: var(--muted); flex: 1; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  .ticket-sp { font-family: monospace; font-size: 11px; color: var(--emerald); font-weight: 700; flex-shrink: 0; }
+
+  ::-webkit-scrollbar { width: 4px; } ::-webkit-scrollbar-track { background: transparent; } ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 2px; }
+</style>
+</head>
+<body>
+
+<canvas id="bg-canvas"></canvas>
+
+<div id="app">
+  <div class="annotation">
+    <span class="anno-tag">Wireframe</span>
+    <span>AgakPoints · Member View v3 — GSAP + Three.js Concept</span>
+    <span style="margin-left:auto;opacity:0.6;display:flex;gap:8px;align-items:center;">
+      <span>State: ACTIVE · Ticket open · Voting</span>
+      <span class="anno-tag">Ahmad Kamil · Dev</span>
+    </span>
+  </div>
+
+  <!-- Header -->
+  <header>
+    <div class="member-identity">
+      <div class="avatar-lg" style="background:linear-gradient(135deg,#7c3aed,#4f46e5);">AK</div>
+      <div>
+        <div class="member-name">Ahmad Kamil</div>
+        <div class="member-role">Developer · Sprint 42</div>
+      </div>
+    </div>
+    <div class="load-chip">
+      <span style="color:var(--dim);font-size:10px;">Load:</span>
+      <span style="font-weight:800;font-family:monospace;">13 SP</span>
+    </div>
+  </header>
+
+  <!-- Sprint info bar -->
+  <div class="sprint-bar">
+    <div class="sprint-item">
+      <div class="sprint-item-label">Session</div>
+      <div class="sprint-item-value">Sprint 42 — Q2</div>
+    </div>
+    <div class="sprint-divider"></div>
+    <div class="sprint-item">
+      <div class="sprint-item-label">Sprint</div>
+      <div class="sprint-item-value">3 Jun – 18 Jun</div>
+    </div>
+    <div class="sprint-divider"></div>
+    <div class="sprint-item">
+      <div class="sprint-item-label">Duration</div>
+      <div class="sprint-item-value">12 WDs</div>
+    </div>
+    <span class="info-pill pill-ph">🏖 PH: 5 Jun</span>
+    <span class="info-pill pill-al">📅 AL: 10 Jun</span>
+    <span class="info-pill pill-deploy">🚀 Deploy: 17 Jun</span>
+  </div>
+
+  <!-- Main -->
+  <main id="main-content">
+
+    <!-- Ticket card -->
+    <div class="ticket-card" id="ticket-card">
+      <div class="tc-header">
+        <div class="tc-meta">
+          <div style="width:12px;height:12px;border-radius:3px;background:#4ade80;flex-shrink:0;"></div>
+          <span class="tc-type">Story ·</span>
+          <span class="tc-key">PROJ-107</span>
+        </div>
+        <span class="priority-badge">Medium</span>
+      </div>
+      <div class="tc-body">
+        <h2 class="tc-title">Redesign dashboard analytics widget with chart interactions</h2>
+        <p class="tc-desc">The current analytics widget needs to be updated to support interactive chart elements including hover tooltips, drill-down navigation, and date range pickers.</p>
+      </div>
+      <div class="host-note">
+        <div class="note-label-sm">Dev note</div>
+        <div class="note-text-sm">Focus on the charting lib — Recharts v3 breaking changes may add complexity. Check for breaking API changes in the tooltip component.</div>
+      </div>
+      <div class="flag-row">
+        <span class="flag-chip">⚑ Needs spike</span>
+        <span class="flag-chip">⚑ Has dependency</span>
+      </div>
+    </div>
+
+    <!-- Countdown ring -->
+    <div class="countdown-center" id="countdown-section">
+      <svg class="countdown-svg" width="72" height="72" viewBox="0 0 72 72">
+        <circle fill="none" stroke="rgba(255,255,255,0.05)" stroke-width="4" cx="36" cy="36" r="30"/>
+        <circle id="cd-circle" fill="none" stroke-width="4" stroke-linecap="round"
+          cx="36" cy="36" r="30"
+          stroke-dasharray="188.5" stroke-dashoffset="0"
+          stroke="url(#cd-grad)" />
+        <defs>
+          <linearGradient id="cd-grad" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" stop-color="#7c3aed"/><stop offset="100%" stop-color="#06b6d4"/>
+          </linearGradient>
+        </defs>
+        <text id="cd-text" x="36" y="36" text-anchor="middle" dominant-baseline="central"
+          fill="#a78bfa" font-size="14" font-weight="900" font-family="monospace" transform="rotate(90,36,36)">14s</text>
+      </svg>
+      <div style="text-align:center;">
+        <div style="font-size:12px;color:var(--muted);font-weight:600;">Time to vote</div>
+        <div style="font-size:10px;color:var(--dim);margin-top:2px;">Pick your estimate before the timer runs out</div>
+      </div>
+    </div>
+
+    <!-- Voting cards (shown first) -->
+    <div class="voting-section" id="voting-section">
+      <div class="voting-label">Pick your estimate →</div>
+      <div class="card-grid" id="card-grid">
+        <div class="vote-card" onclick="selectCard(this,1)"><span class="card-suit">♠</span>1</div>
+        <div class="vote-card" onclick="selectCard(this,2)"><span class="card-suit">♣</span>2</div>
+        <div class="vote-card" onclick="selectCard(this,3)"><span class="card-suit">♥</span>3</div>
+        <div class="vote-card" onclick="selectCard(this,5)"><span class="card-suit">♦</span>5</div>
+        <div class="vote-card" onclick="selectCard(this,8)"><span class="card-suit">♠</span>8</div>
+        <div class="vote-card" onclick="selectCard(this,13)"><span class="card-suit">♣</span>13</div>
+        <div class="vote-card" onclick="selectCard(this,21)"><span class="card-suit">♥</span>21</div>
+        <div class="vote-card" onclick="selectCard(this,'?')">
+          <span class="card-suit">♦</span>
+          <span style="font-size:26px;">?</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Progress dots -->
+    <div class="progress-dots" id="progress-dots">
+      <div class="member-dot">
+        <div class="member-dot-avatar voted" style="background:linear-gradient(135deg,#7c3aed,#4f46e5);">AK</div>
+        <span class="member-dot-name">Ahmad</span>
+      </div>
+      <div class="member-dot">
+        <div class="member-dot-avatar voted" style="background:linear-gradient(135deg,#0891b2,#0e7490);">SL</div>
+        <span class="member-dot-name">Sarah</span>
+      </div>
+      <div class="member-dot">
+        <div class="member-dot-avatar" style="background:rgba(255,255,255,0.05);color:var(--dim);">NR</div>
+        <span class="member-dot-name">Nora</span>
+      </div>
+      <div class="member-dot">
+        <div class="member-dot-avatar" style="background:rgba(255,255,255,0.05);color:var(--dim);">ZM</div>
+        <span class="member-dot-name">Zaki</span>
+      </div>
+      <div class="member-dot">
+        <div class="member-dot-avatar" style="background:rgba(255,255,255,0.05);color:var(--dim);">FH</div>
+        <span class="member-dot-name">Farah</span>
+      </div>
+      <div class="member-dot">
+        <div class="member-dot-avatar" style="background:rgba(255,255,255,0.05);color:var(--dim);">AM</div>
+        <span class="member-dot-name">Ali</span>
+      </div>
+    </div>
+
+    <!-- My assigned tickets -->
+    <div class="my-tickets">
+      <div class="my-tickets-toggle" onclick="toggleTickets()">
+        <span id="toggle-arrow">▾</span>
+        <span style="flex:1;">Your tickets</span>
+        <span style="color:var(--emerald);font-family:monospace;font-weight:800;font-size:11px;">13 SP</span>
+      </div>
+      <div class="my-tickets-body" id="my-tickets-body">
+        <div class="ticket-row-sm">
+          <div class="ticket-icon-sm"></div>
+          <span class="ticket-key-sm">PROJ-101</span>
+          <span class="ticket-title-sm">Implement OAuth2 login flow</span>
+          <span class="ticket-sp">5pt</span>
+        </div>
+        <div class="ticket-row-sm">
+          <div class="ticket-icon-sm" style="border-radius:50%;background:#f87171;"></div>
+          <span class="ticket-key-sm">PROJ-103</span>
+          <span class="ticket-title-sm">Fix session timeout redirect bug</span>
+          <span class="ticket-sp">3pt</span>
+        </div>
+        <div class="ticket-row-sm">
+          <div class="ticket-icon-sm"></div>
+          <span class="ticket-key-sm">PROJ-105</span>
+          <span class="ticket-title-sm">Dashboard performance optimisation</span>
+          <span class="ticket-sp">5pt</span>
+        </div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<!-- Voted overlay (hidden initially) -->
+<div id="voted-overlay" style="display:none;position:fixed;inset:0;z-index:20;background:rgba(5,6,15,0.85);backdrop-filter:blur(12px);display:none;flex-direction:column;align-items:center;justify-content:center;gap:16px;">
+  <div class="voted-card" id="voted-card">
+    <span id="voted-value">5</span>
+    <span style="font-size:9px;color:rgba(255,255,255,0.4);font-weight:600;text-transform:uppercase;letter-spacing:0.1em;">Points</span>
+  </div>
+  <div class="voted-label">Waiting for host to reveal...</div>
+  <div class="voted-dots" id="voted-dots">
+    <div class="dot filled"></div><div class="dot filled"></div>
+    <div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div>
+  </div>
+  <div style="font-size:10px;color:var(--dim);">2 of 6 voted</div>
+  <button onclick="backToVoting()" style="margin-top:8px;background:transparent;border:1px solid var(--border);color:var(--dim);padding:6px 14px;border-radius:8px;font-size:11px;cursor:pointer;">← Change vote</button>
+</div>
+
+<script>
+// ── Three.js background ──────────────────────────────────────────────────────
+const canvas = document.getElementById('bg-canvas');
+const renderer = new THREE.WebGLRenderer({ canvas, alpha: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 200);
+camera.position.z = 50;
+
+// Particle rings — more vibrant for the member view
+const COUNT = 200;
+const geo = new THREE.BufferGeometry();
+const pos = new Float32Array(COUNT * 3);
+const col = new Float32Array(COUNT * 3);
+const palettes = [[0.49,0.23,0.93],[0.06,0.71,0.83],[0.06,0.73,0.51],[0.96,0.62,0.04]];
+const sizes = new Float32Array(COUNT);
+for (let i = 0; i < COUNT; i++) {
+  const angle = Math.random() * Math.PI * 2;
+  const radius = 15 + Math.random() * 40;
+  pos[i*3]   = Math.cos(angle) * radius;
+  pos[i*3+1] = (Math.random() - 0.5) * 80;
+  pos[i*3+2] = Math.sin(angle) * radius - 30;
+  const c = palettes[Math.floor(Math.random() * palettes.length)];
+  col[i*3] = c[0]; col[i*3+1] = c[1]; col[i*3+2] = c[2];
+  sizes[i] = 0.5 + Math.random() * 1;
+}
+geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+const mat = new THREE.PointsMaterial({ size: 0.8, vertexColors: true, transparent: true, opacity: 0.45 });
+const points = new THREE.Points(geo, mat);
+scene.add(points);
+
+let t = 0;
+function animate() {
+  requestAnimationFrame(animate);
+  t += 0.008;
+  points.rotation.y = t * 0.06;
+  points.rotation.x = Math.sin(t * 0.1) * 0.08;
+  mat.opacity = 0.35 + Math.sin(t) * 0.1;
+  renderer.render(scene, camera);
+}
+animate();
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+// ── GSAP entrance ────────────────────────────────────────────────────────────
+gsap.from('#ticket-card', { opacity: 0, y: 40, scale: 0.97, duration: 0.9, ease: 'power3.out', delay: 0.2 });
+gsap.from('#countdown-section', { opacity: 0, scale: 0.85, duration: 0.6, ease: 'back.out(1.8)', delay: 0.5 });
+gsap.from('.vote-card', { opacity: 0, y: 20, scale: 0.9, duration: 0.4, ease: 'back.out(1.5)', stagger: 0.06, delay: 0.6 });
+gsap.from('.progress-dots', { opacity: 0, y: 10, duration: 0.5, ease: 'power2.out', delay: 0.9 });
+
+// Countdown
+let ctime = 14;
+const circleEl = document.getElementById('cd-circle');
+const textEl = document.getElementById('cd-text');
+const circumference = 188.5;
+
+const cdInterval = setInterval(() => {
+  ctime--;
+  if (ctime <= 0) { clearInterval(cdInterval); ctime = 0; }
+  const offset = circumference * (1 - ctime / 20);
+  gsap.to(circleEl, { strokeDashoffset: offset, duration: 0.9, ease: 'linear' });
+  if (textEl) textEl.textContent = ctime + 's';
+  if (ctime <= 5) gsap.to(circleEl, { attr: { stroke: 'url(#cd-grad-warn)' }, duration: 0.3 });
+}, 1000);
+
+// Simulate teammates voting
+let votedCount = 2;
+const dots = document.querySelectorAll('.member-dot-avatar:not(.voted)');
+setTimeout(() => markVoted(dots[0]), 3500);
+setTimeout(() => markVoted(dots[1]), 6200);
+
+function markVoted(el) {
+  if (!el) return;
+  el.classList.add('voted');
+  gsap.from(el, { scale: 1.5, duration: 0.4, ease: 'back.out(2)' });
+  votedCount++;
+}
+
+// Vote card selection
+function selectCard(el, value) {
+  document.querySelectorAll('.vote-card').forEach(c => c.classList.remove('selected'));
+  el.classList.add('selected');
+  gsap.to(el, { scale: 1.08, duration: 0.25, ease: 'back.out(2)', yoyo: true, repeat: 1 });
+
+  // Show voted overlay after a delay
+  setTimeout(() => showVoted(value), 600);
+}
+
+function showVoted(value) {
+  document.getElementById('voted-value').textContent = value;
+  const overlay = document.getElementById('voted-overlay');
+  overlay.style.display = 'flex';
+  gsap.from(overlay, { opacity: 0, duration: 0.4 });
+  gsap.from('#voted-card', { scale: 0.5, rotationY: 180, duration: 0.8, ease: 'back.out(1.5)' });
+  gsap.from('.voted-label', { opacity: 0, y: 10, duration: 0.4, delay: 0.3 });
+
+  // Animate dots filling
+  const d = document.querySelectorAll('.dot');
+  gsap.to(d[2], { backgroundColor: '#7c3aed', boxShadow: '0 0 8px rgba(124,58,237,0.5)', duration: 0.3, delay: 0.5 });
+}
+
+function backToVoting() {
+  gsap.to('#voted-overlay', { opacity: 0, duration: 0.3, onComplete: () => {
+    document.getElementById('voted-overlay').style.display = 'none';
+    document.querySelectorAll('.vote-card').forEach(c => c.classList.remove('selected'));
+  }});
+}
+
+// Toggle my tickets
+let ticketsOpen = true;
+function toggleTickets() {
+  ticketsOpen = !ticketsOpen;
+  const body = document.getElementById('my-tickets-body');
+  const arrow = document.getElementById('toggle-arrow');
+  if (ticketsOpen) {
+    gsap.to(body, { height: 'auto', opacity: 1, duration: 0.3, ease: 'power2.out' });
+    arrow.textContent = '▾';
+  } else {
+    gsap.to(body, { height: 0, opacity: 0, duration: 0.3, ease: 'power2.in' });
+    arrow.textContent = '▸';
+  }
+}
+
+// Hover magic on vote cards
+document.querySelectorAll('.vote-card').forEach(card => {
+  card.addEventListener('mousemove', e => {
+    const r = card.getBoundingClientRect();
+    const x = (e.clientX - r.left) / r.width - 0.5;
+    const y = (e.clientY - r.top) / r.height - 0.5;
+    gsap.to(card, { rotateY: x * 12, rotateX: -y * 12, duration: 0.3, ease: 'power2.out', transformPerspective: 400 });
+  });
+  card.addEventListener('mouseleave', () => {
+    gsap.to(card, { rotateY: 0, rotateX: 0, duration: 0.4, ease: 'power2.out' });
+  });
+});
+</script>
+</body>
+</html>

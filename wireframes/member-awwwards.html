@@ -712,6 +712,7 @@ function animWaiting(){
 
 // ── Anim: Voting ──────────────────────────────────────────────────────────────
 function animVoting(){
+  gsap.from('#sv',{opacity:0,duration:.35,ease:'power2.out'});
   const vt=document.getElementById('vtitle');
   if(typeof SplitText!=='undefined'){
     const sp=new SplitText(vt,{type:'chars,words'});
@@ -750,7 +751,7 @@ function gs(name){
   gsap.to(from,{opacity:0,duration:.25,onComplete:()=>{
     from.style.display='none';
     to.style.display='flex';
-    gsap.set(to,{opacity:0});
+    gsap.set(to,{opacity:1});
     cur=name;updateHeader(name);updateNav(name);
     if(name==='waiting')animWaiting();
     if(name==='voting')animVoting();

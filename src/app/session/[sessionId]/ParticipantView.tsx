@@ -75,6 +75,18 @@ export function ParticipantView({ session }: { session: SessionWithDetails }) {
   const [roleNotes, setRoleNotes] = useState<{ general?: string; DEV?: string; QA?: string; UI_UX?: string }>({});
   const [myLeaves, setMyLeaves] = useState<string[]>([]);
   const recapRef = useRef<HTMLDivElement>(null);
+  const [abandonLoading, setAbandonLoading] = useState(false);
+
+  // True if session has been running > 24h (host forgot to end)
+  const isStuckSession = sessionStatus === "ACTIVE" && !sessionEnded &&
+    Date.now() - new Date(session.createdAt).getTime() > 24 * 60 * 60 * 1000;
+
+  const handleAbandon = async () => {
+    setAbandonLoading(true);
+    const res = await fetch(`/api/sessions/${session.id}/abandon`, { method: "POST" }).catch(() => null);
+    setAbandonLoading(false);
+    if (res?.ok) setSessionEnded(true);
+  };
 
   // Design fields (UI/UX only)
   const [ticketDesign, setTicketDesign] = useState<{
@@ -654,6 +666,19 @@ export function ParticipantView({ session }: { session: SessionWithDetails }) {
                       {c.memberName}
                     </span>
                   ))}
+                </div>
+              )}
+              {isStuckSession && (
+                <div className="mt-4 max-w-xs w-full rounded-xl border border-amber-500/25 bg-amber-500/8 px-4 py-3 text-center">
+                  <p className="text-amber-300 text-xs font-semibold mb-1">Session running for over 24 hours</p>
+                  <p className="text-amber-200/50 text-xs mb-3">Looks like the host forgot to end it. You can close it yourself.</p>
+                  <button
+                    onClick={handleAbandon}
+                    disabled={abandonLoading}
+                    className="text-xs font-semibold px-4 py-1.5 rounded-lg border border-amber-500/30 bg-amber-500/12 text-amber-300 hover:bg-amber-500/20 transition-colors disabled:opacity-40"
+                  >
+                    {abandonLoading ? "Ending…" : "End Session"}
+                  </button>
                 </div>
               )}
             </motion.div>

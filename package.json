@@ -6,6 +6,7 @@
     "postinstall": "prisma generate",
     "dev": "next dev",
     "dev:party": "npx partykit dev",
+    "dev:all": "concurrently -n next,party -c blue,magenta \"npm:dev\" \"npm:dev:party\"",
     "build": "prisma db push --accept-data-loss && next build",
     "start": "next start",
     "lint": "eslint",

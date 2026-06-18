@@ -1,9 +1,11 @@
 "use client";
-import { useEffect, useRef, useCallback } from "react";
+import { useEffect, useRef, useCallback, useState } from "react";
 import PartySocket from "partysocket";
 import type { MsgIn, MsgOut } from "@/types/partykit";
 
 const PARTYKIT_HOST = process.env.NEXT_PUBLIC_PARTYKIT_HOST ?? "localhost:1999";
+
+export type PartyConnectionStatus = "connecting" | "open" | "disconnected";
 
 export function usePartyRoom(
   sessionId: string,
@@ -18,6 +20,7 @@ export function usePartyRoom(
   onOpenRef.current = onOpen;
   const getAdminTokenRef = useRef(getAdminToken);
   getAdminTokenRef.current = getAdminToken;
+  const [status, setStatus] = useState<PartyConnectionStatus>("connecting");
 
   useEffect(() => {
     const socket = new PartySocket({
@@ -39,12 +42,18 @@ export function usePartyRoom(
 
     // Request full state sync on connect (handles reconnects too)
     socket.addEventListener("open", () => {
+      setStatus("open");
       socket.send(JSON.stringify({ type: "REQUEST_STATE" } satisfies MsgIn));
       onOpenRef.current?.();
     });
 
+    socket.addEventListener("close", () => {
+      setStatus("disconnected");
+    });
+
     socket.addEventListener("error", (event) => {
       console.error("[PartyKit] WebSocket error:", event);
+      setStatus("disconnected");
     });
 
     socketRef.current = socket;
@@ -57,5 +66,5 @@ export function usePartyRoom(
     socketRef.current?.send(JSON.stringify(payload));
   }, []);
 
-  return { send };
+  return { send, status };
 }

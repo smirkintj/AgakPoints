@@ -3,6 +3,7 @@ import { useState, useCallback, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { usePartyRoom } from "@/hooks/usePartyRoom";
+import { ConnectionStatusBanner } from "@/components/session/ConnectionStatusBanner";
 import type { MsgOut, CheckedInMember, RevealedVote, PublicState } from "@/types/partykit";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -307,7 +308,7 @@ export function HostView({ session, productId }: { session: PokerSession; produc
       .catch(() => {});
   }, [session.id]);
 
-  const { send } = usePartyRoom(session.id, useCallback((msg: MsgOut) => {
+  const { send, status: connectionStatus } = usePartyRoom(session.id, useCallback((msg: MsgOut) => {
     switch (msg.type) {
       case "STATE_SYNC": applyState(msg.state); break;
       case "PRESENCE_UPDATE":
@@ -565,6 +566,7 @@ export function HostView({ session, productId }: { session: PokerSession; produc
 
   return (
     <div className="h-screen flex flex-col" style={{ background: "#060810" }}>
+      <ConnectionStatusBanner status={connectionStatus} />
       {/* Aurora background layers */}
       <div aria-hidden style={{ position: "fixed", inset: 0, zIndex: 0, pointerEvents: "none" }}>
         <div style={{ position: "absolute", top: "-20%", left: "-10%", width: "55%", height: "60%", background: "radial-gradient(ellipse, rgba(109,40,217,0.18) 0%, transparent 70%)", filter: "blur(40px)" }} />

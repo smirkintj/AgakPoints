@@ -3,6 +3,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { usePartyRoom } from "@/hooks/usePartyRoom";
+import { ConnectionStatusBanner } from "@/components/session/ConnectionStatusBanner";
 import type { MsgOut, CheckedInMember } from "@/types/partykit";
 import type { Member, PokerSession, Product, SessionParticipant } from "@/types/models";
 import { Check, Layers, ChevronDown, ChevronRight } from "lucide-react";
@@ -59,7 +60,7 @@ export function WaitingRoom({ session }: { session: SessionWithDetails }) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const { send } = usePartyRoom(session.id, (msg: MsgOut) => {
+  const { send, status: connectionStatus } = usePartyRoom(session.id, (msg: MsgOut) => {
     if (msg.type === "PRESENCE_UPDATE") setCheckedIn(msg.checkedIn);
     if (msg.type === "STATE_SYNC") {
       setCheckedIn(msg.state.checkedIn);
@@ -98,6 +99,7 @@ export function WaitingRoom({ session }: { session: SessionWithDetails }) {
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center px-6 py-10 relative overflow-hidden">
+      <ConnectionStatusBanner status={connectionStatus} />
       <div className="absolute top-1/3 left-1/4 w-64 h-64 bg-violet-600/10 rounded-full blur-3xl" />
       <div className="absolute bottom-1/3 right-1/4 w-64 h-64 bg-indigo-600/10 rounded-full blur-3xl" />
 

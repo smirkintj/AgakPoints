@@ -18,7 +18,7 @@ const securityHeaders = [
       "style-src 'self' 'unsafe-inline'",
       "img-src 'self' data: https:",
       "font-src 'self'",
-      "connect-src 'self' wss: https:",
+      "connect-src 'self' ws: wss: https:",
       "frame-ancestors 'none'",
     ].join("; "),
   },

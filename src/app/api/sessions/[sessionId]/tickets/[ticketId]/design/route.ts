@@ -7,7 +7,16 @@ const VALID_READINESS = ["READY", "IN_PROGRESS", "NOT_STARTED", null];
 const VALID_COMPLEXITY = ["LOW", "MEDIUM", "HIGH", null];
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ sessionId: string; ticketId: string }> }) {
+  const userSession = await auth();
+  if (!userSession?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
   const { sessionId, ticketId } = await params;
+
+  const owned = await prisma.pokerSession.findFirst({
+    where: { id: sessionId, product: { adminId: userSession.user.id } },
+    select: { id: true },
+  });
+  if (!owned) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   let body: unknown;
   try {
@@ -29,7 +38,10 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ se
       return NextResponse.json({ error: "Invalid designLink" }, { status: 400 });
     }
     try {
-      new URL(designLink);
+      const parsed = new URL(designLink);
+      if (!["http:", "https:"].includes(parsed.protocol)) {
+        return NextResponse.json({ error: "Only http and https links are allowed" }, { status: 400 });
+      }
     } catch {
       return NextResponse.json({ error: "Invalid URL" }, { status: 400 });
     }

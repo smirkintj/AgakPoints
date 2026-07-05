@@ -89,8 +89,35 @@ interface RoomState {
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
+function timingSafeEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  let result = 0;
+  for (let i = 0; i < a.length; i++) {
+    result |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  }
+  return result === 0;
+}
+
 async function verifyAdminToken(sessionId: string, token: string): Promise<boolean> {
-  const secret = process.env.PARTYKIT_SECRET ?? "dev-secret";
+  const secret = process.env.PARTYKIT_SECRET;
+  if (!secret) {
+    if (process.env.NODE_ENV === "production") {
+      console.error("[PartyKit] PARTYKIT_SECRET is not set — all admin token verification disabled");
+      return false;
+    }
+    return _verifyToken(sessionId, token, "dev-secret");
+  }
+  return _verifyToken(sessionId, token, secret);
+}
+
+async function _verifyToken(sessionId: string, token: string, secret: string): Promise<boolean> {
+  // Token format: "<hmac-hex>.<expiresAtMs>"
+  const dotIdx = token.lastIndexOf(".");
+  if (dotIdx === -1) return false;
+  const hmacPart = token.slice(0, dotIdx);
+  const expiresAt = parseInt(token.slice(dotIdx + 1), 10);
+  if (isNaN(expiresAt) || Date.now() > expiresAt) return false;
+
   const enc = new TextEncoder();
   const key = await crypto.subtle.importKey(
     "raw",
@@ -99,11 +126,11 @@ async function verifyAdminToken(sessionId: string, token: string): Promise<boole
     false,
     ["sign"]
   );
-  const sig = await crypto.subtle.sign("HMAC", key, enc.encode(sessionId));
+  const sig = await crypto.subtle.sign("HMAC", key, enc.encode(`${sessionId}:${expiresAt}`));
   const expected = Array.from(new Uint8Array(sig))
     .map((b) => b.toString(16).padStart(2, "0"))
     .join("");
-  return token === expected;
+  return timingSafeEqual(hmacPart, expected);
 }
 
 function median(values: number[]): number {
@@ -294,8 +321,10 @@ export default class ScrumPokerRoom implements Party.Server {
 
       case "VOTE_CAST": {
         if (this.state.revealed) break; // too late
-        if (!this.state.checkedIn.some((m) => m.memberId === msg.memberId)) return;
-        this.state.votes[msg.memberId] = msg.value;
+        // Resolve identity from the connection map — never trust client-supplied memberId
+        const votingMemberId = this.state.connectionMemberMap[sender.id];
+        if (!votingMemberId) return;
+        this.state.votes[votingMemberId] = msg.value;
 
         this.broadcast({
           type: "VOTE_PROGRESS",
@@ -348,13 +377,27 @@ export default class ScrumPokerRoom implements Party.Server {
       }
 
       case "REACTION": {
-        if (!this.state.checkedIn.some((m) => m.memberId === msg.memberId)) return;
-        this.broadcast({
-          type: "REACTION_RECEIVED",
-          memberId: msg.memberId,
-          memberName: msg.memberName,
-          emoji: msg.emoji,
-        });
+        if (this.isAdmin(sender)) {
+          // Host reactions are allowed as-is (admin token is server-verified)
+          this.broadcast({
+            type: "REACTION_RECEIVED",
+            memberId: msg.memberId,
+            memberName: msg.memberName,
+            emoji: msg.emoji,
+          });
+        } else {
+          // Participants: resolve identity from connection map, ignore client-supplied memberId
+          const reactionMemberId = this.state.connectionMemberMap[sender.id];
+          if (!reactionMemberId) return;
+          const member = this.state.checkedIn.find((m) => m.memberId === reactionMemberId);
+          if (!member) return;
+          this.broadcast({
+            type: "REACTION_RECEIVED",
+            memberId: reactionMemberId,
+            memberName: member.memberName,
+            emoji: msg.emoji,
+          });
+        }
         break;
       }
 
@@ -364,8 +407,10 @@ export default class ScrumPokerRoom implements Party.Server {
       }
 
       case "UPDATE_LEAVE": {
-        if (!this.state.checkedIn.some((m) => m.memberId === msg.memberId)) return;
-        this.broadcast({ type: "LEAVE_UPDATED", memberId: msg.memberId, date: msg.date, active: msg.active });
+        // Resolve identity from connection map — reject impersonation
+        const leaveMemberId = this.state.connectionMemberMap[sender.id];
+        if (!leaveMemberId || leaveMemberId !== msg.memberId) return;
+        this.broadcast({ type: "LEAVE_UPDATED", memberId: leaveMemberId, date: msg.date, active: msg.active });
         break;
       }
 

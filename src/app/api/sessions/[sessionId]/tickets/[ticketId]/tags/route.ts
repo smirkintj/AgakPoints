@@ -3,7 +3,16 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ sessionId: string; ticketId: string }> }) {
+  const userSession = await auth();
+  if (!userSession?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
   const { sessionId, ticketId } = await params;
+
+  const owned = await prisma.pokerSession.findFirst({
+    where: { id: sessionId, product: { adminId: userSession.user.id } },
+    select: { id: true },
+  });
+  if (!owned) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   let body: unknown;
   try {

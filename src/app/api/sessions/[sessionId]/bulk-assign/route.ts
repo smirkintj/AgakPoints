@@ -18,26 +18,34 @@ export async function POST(
     return NextResponse.json({ error: "No assignments provided" }, { status: 400 });
   }
 
-  // Update all tickets in parallel
+  // Verify ownership and fetch tickets in one query
+  const pokerSession = await prisma.pokerSession.findFirst({
+    where: { id: sessionId, product: { adminId: session.user.id } },
+    include: {
+      product: true,
+      tickets: { where: { id: { in: assignments.map((a) => a.ticketId) } } },
+    },
+  });
+  if (!pokerSession) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+
+  // Ensure every ticketId belongs to this session
+  const validIds = new Set(pokerSession.tickets.map((t) => t.id));
+  if (assignments.some((a) => !validIds.has(a.ticketId))) {
+    return NextResponse.json({ error: "Invalid ticket IDs" }, { status: 400 });
+  }
+
+  // Apply assignments
   await Promise.all(
     assignments.map(({ ticketId, memberId }) =>
       prisma.ticket.update({ where: { id: ticketId }, data: { assigneeId: memberId } })
     )
   );
 
-  // Fire-and-forget JIRA writes
-  const pokerSession = await prisma.pokerSession.findUnique({
-    where: { id: sessionId },
-    include: {
-      product: true,
-      tickets: { where: { id: { in: assignments.map((a) => a.ticketId) } } },
-    },
-  });
-
-  const sessionProduct = pokerSession ? decryptProduct(pokerSession.product) : null;
+  // Fire-and-forget Jira writes
+  const sessionProduct = decryptProduct(pokerSession.product);
   if (sessionProduct?.jiraBaseUrl && sessionProduct.jiraEmail && sessionProduct.jiraApiToken) {
     const { jiraBaseUrl, jiraEmail, jiraApiToken } = sessionProduct;
-    const ticketMap = Object.fromEntries(pokerSession!.tickets.map((t) => [t.id, t.jiraKey]));
+    const ticketMap = Object.fromEntries(pokerSession.tickets.map((t) => [t.id, t.jiraKey]));
     void Promise.all(
       assignments.map(({ ticketId, memberId }) => {
         const jiraKey = ticketMap[ticketId];

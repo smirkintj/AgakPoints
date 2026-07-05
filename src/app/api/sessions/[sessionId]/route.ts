@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
 export async function GET(
@@ -52,9 +53,18 @@ export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ sessionId: string }> }
 ) {
-  const { sessionId } = await params;
-  const body = await req.json();
+  const userSession = await auth();
+  if (!userSession?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+  const { sessionId } = await params;
+
+  const owned = await prisma.pokerSession.findFirst({
+    where: { id: sessionId, product: { adminId: userSession.user.id } },
+    select: { id: true },
+  });
+  if (!owned) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+
+  const body = await req.json();
   const allowed: Record<string, unknown> = {};
   if (typeof body.name === "string") allowed.name = body.name;
 

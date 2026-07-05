@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { encrypt } from "@/lib/crypto";
 
 export async function PATCH(
   req: NextRequest,
@@ -32,10 +33,14 @@ export async function PATCH(
     "dependencyTypes",
   ];
 
+  const credentialFields = new Set(["jiraApiToken", "confluenceToken"]);
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const data: Record<string, any> = {};
   for (const key of allowedFields) {
-    if (key in body) data[key] = body[key];
+    if (key in body) {
+      data[key] = credentialFields.has(key) ? encrypt(body[key] || null) : body[key];
+    }
   }
 
   const updated = await prisma.product.update({ where: { id }, data });

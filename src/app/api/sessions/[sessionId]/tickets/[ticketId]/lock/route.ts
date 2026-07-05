@@ -10,6 +10,13 @@ export async function POST(
   if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { sessionId, ticketId } = await params;
+
+  const owned = await prisma.pokerSession.findFirst({
+    where: { id: sessionId, product: { adminId: session.user.id } },
+    select: { id: true },
+  });
+  if (!owned) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+
   const body = await req.json();
   const { value, note, assigneeId } = body;
   const noteForDev: string | undefined = typeof body.noteForDev === "string" ? body.noteForDev.slice(0, 2000) : undefined;

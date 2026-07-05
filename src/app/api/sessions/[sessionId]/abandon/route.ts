@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
 const MIN_AGE_MS = 24 * 60 * 60 * 1000; // 24 hours
@@ -7,10 +8,13 @@ export async function POST(
   _req: NextRequest,
   { params }: { params: Promise<{ sessionId: string }> }
 ) {
+  const userSession = await auth();
+  if (!userSession?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
   const { sessionId } = await params;
 
-  const pokerSession = await prisma.pokerSession.findUnique({
-    where: { id: sessionId },
+  const pokerSession = await prisma.pokerSession.findFirst({
+    where: { id: sessionId, product: { adminId: userSession.user.id } },
     select: { id: true, status: true, createdAt: true },
   });
 

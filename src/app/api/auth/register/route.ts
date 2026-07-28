@@ -1,31 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { clientIp, consumeRateLimit } from "@/lib/rate-limit";
 import bcrypt from "bcryptjs";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-// Simple in-process rate limit: max 5 attempts per IP per 15 minutes
-const attempts = new Map<string, { count: number; resetAt: number }>();
 const WINDOW_MS = 15 * 60 * 1000;
 const MAX_ATTEMPTS = 5;
 
-function isRateLimited(ip: string): boolean {
-  const now = Date.now();
-  const entry = attempts.get(ip);
-  if (!entry || now > entry.resetAt) {
-    attempts.set(ip, { count: 1, resetAt: now + WINDOW_MS });
-    return false;
-  }
-  entry.count += 1;
-  return entry.count > MAX_ATTEMPTS;
-}
-
 export async function POST(req: NextRequest) {
-  const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
-  if (isRateLimited(ip)) {
+  const { limited, retryAfterSeconds } = await consumeRateLimit(
+    `register:ip:${clientIp(req)}`,
+    MAX_ATTEMPTS,
+    WINDOW_MS
+  );
+  if (limited) {
     return NextResponse.json(
       { error: "Too many requests. Please try again later." },
-      { status: 429 }
+      { status: 429, headers: { "Retry-After": String(retryAfterSeconds) } }
     );
   }
 
@@ -61,10 +52,18 @@ export async function POST(req: NextRequest) {
   }
 
   const passwordHash = await bcrypt.hash(password, 12);
-  const user = await prisma.user.create({
-    data: { name: name.trim(), email: email.trim().toLowerCase(), passwordHash },
-    select: { id: true, email: true, name: true },
-  });
-
-  return NextResponse.json(user, { status: 201 });
+  try {
+    const user = await prisma.user.create({
+      data: { name: name.trim(), email: email.trim().toLowerCase(), passwordHash },
+      select: { id: true, email: true, name: true },
+    });
+    return NextResponse.json(user, { status: 201 });
+  } catch (err) {
+    // Two concurrent signups for the same address both clear the check above;
+    // the unique index is what actually settles it.
+    if (typeof err === "object" && err !== null && "code" in err && err.code === "P2002") {
+      return NextResponse.json({ error: "Email already in use" }, { status: 409 });
+    }
+    throw err;
+  }
 }

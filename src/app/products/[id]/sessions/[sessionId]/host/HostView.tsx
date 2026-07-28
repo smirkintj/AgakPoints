@@ -3,6 +3,7 @@ import { useState, useCallback, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { usePartyRoom } from "@/hooks/usePartyRoom";
+import { useLatestRef } from "@/hooks/useLatestRef";
 import { ConnectionStatusBanner } from "@/components/session/ConnectionStatusBanner";
 import type { MsgOut, CheckedInMember, RevealedVote, PublicState } from "@/types/partykit";
 import { Button } from "@/components/ui/button";
@@ -23,7 +24,7 @@ import {
 } from "lucide-react";
 import type confettiType from "canvas-confetti";
 import { getAutoReaction } from "@/lib/gameReactions";
-import { TargetIcon, SpicyIcon, ThinkIcon, PartyIcon } from "@/components/ui/GameIcon";
+import { TargetIcon, SpicyIcon, ThinkIcon } from "@/components/ui/GameIcon";
 import { AchievementBadge, BADGE_CONFIG } from "@/components/session/AchievementBadge";
 import { CountdownRing } from "@/components/session/CountdownRing";
 import type { Achievement, AchievementType } from "@prisma/client";
@@ -193,9 +194,11 @@ export function HostView({ session, productId }: { session: PokerSession; produc
 
   // Session log
   const [sessionLog, setSessionLog] = useState<SessionLogEntry[]>([]);
-  const addLogRef = useRef<(text: string) => void>(null!);
-  addLogRef.current = (text: string) => setSessionLog((l) => [...l, { id: `${Date.now()}-${Math.random()}`, time: new Date(), text }]);
-  const addLog = (text: string) => addLogRef.current(text);
+  // Stable identity — setSessionLog never changes, so socket handlers can close
+  // over this without going stale.
+  const addLog = useCallback((text: string) => {
+    setSessionLog((l) => [...l, { id: `${Date.now()}-${Math.random()}`, time: new Date(), text }]);
+  }, []);
   const [sessionTimer, setSessionTimer] = useState<string>("");
 
   const [autoReaction, setAutoReaction] = useState<{ iconKey: string; label: string } | null>(null);
@@ -218,6 +221,10 @@ export function HostView({ session, productId }: { session: PokerSession; produc
     setTicketRoleNotes((p) => ({ ...p, [ticketId]: { ...(p[ticketId] ?? { general: "", DEV: "", QA: "", UI_UX: "" }), [role]: val } }));
 
   const [recapOpen, setRecapOpen] = useState(session.status === "COMPLETED");
+  // Frozen at the moment the session ends. Deriving it in render instead would
+  // mean calling Date.now() mid-render and make the figure creep upward on every
+  // unrelated re-render of an already-finished session.
+  const [recapDurationMin, setRecapDurationMin] = useState<number | null>(null);
   const [confirmEnd, setConfirmEnd] = useState(false);
   const [confirmKickId, setConfirmKickId] = useState<string | null>(null);
   const [switchConfirmTicket, setSwitchConfirmTicket] = useState<TicketWithVotes | null>(null);
@@ -228,16 +235,20 @@ export function HostView({ session, productId }: { session: PokerSession; produc
   };
 
   const sessionStartedAt = useRef<Date | null>(null);
-  const ticketsRef = useRef(tickets);
-  ticketsRef.current = tickets;
-  revealedVotesRef.current = revealedVotes;
-  const checkedInRef = useRef(checkedIn);
-  checkedInRef.current = checkedIn;
-  const membersRef = useRef(session.product.members);
-  membersRef.current = session.product.members;
+  const ticketsRef = useLatestRef(tickets);
+  const checkedInRef = useLatestRef(checkedIn);
+  const membersRef = useLatestRef(session.product.members);
+  useEffect(() => {
+    revealedVotesRef.current = revealedVotes;
+  });
 
   useEffect(() => {
-    if (sessionStatus !== "ACTIVE") { setSessionTimer(""); return; }
+    if (sessionStatus !== "ACTIVE") {
+      // Deferred rather than set synchronously: clearing during the effect pass
+      // re-renders before the browser paints, which React flags as a cascade.
+      const clearId = setTimeout(() => setSessionTimer(""), 0);
+      return () => clearTimeout(clearId);
+    }
     if (!sessionStartedAt.current) sessionStartedAt.current = new Date();
     const tick = () => {
       const elapsed = Date.now() - (sessionStartedAt.current?.getTime() ?? Date.now());
@@ -315,12 +326,12 @@ export function HostView({ session, productId }: { session: PokerSession; produc
         setCheckedIn((prev) => {
           const prevIds = new Set(prev.map((c) => c.memberId));
           for (const c of msg.checkedIn) {
-            if (!prevIds.has(c.memberId)) addLogRef.current(`${c.memberName} checked in`);
+            if (!prevIds.has(c.memberId)) addLog(`${c.memberName} checked in`);
           }
           return msg.checkedIn;
         });
         break;
-      case "SESSION_STARTED": setSessionStatus("ACTIVE"); sessionStartedAt.current = new Date(); addLogRef.current("Session started"); break;
+      case "SESSION_STARTED": setSessionStatus("ACTIVE"); sessionStartedAt.current = new Date(); addLog("Session started"); break;
       case "TICKET_OPENED":
         setCurrentTicketId(msg.ticketId);
         if (msg.contextNote) setTicketNotes((p) => ({ ...p, [msg.ticketId]: msg.contextNote! }));
@@ -341,7 +352,7 @@ export function HostView({ session, productId }: { session: PokerSession; produc
         setTimerExpired(false);
         if (msg.timerStartedAt) setTimerStartedAt(msg.timerStartedAt);
         if (msg.timerDuration !== undefined) setTimerDuration(msg.timerDuration ?? null);
-        addLogRef.current(`Opened ${msg.jiraKey}: ${msg.title.slice(0, 40)}${msg.title.length > 40 ? "…" : ""}`);
+        addLog(`Opened ${msg.jiraKey}: ${msg.title.slice(0, 40)}${msg.title.length > 40 ? "…" : ""}`);
         break;
       case "VOTE_PROGRESS":
         setVotedMemberIds(msg.votedMemberIds); setVotedCount(msg.votedCount); break;
@@ -354,7 +365,7 @@ export function HostView({ session, productId }: { session: PokerSession; produc
           setAutoReaction(ar);
           if (ar) setTimeout(() => setAutoReaction(null), 4000);
         }
-        addLogRef.current(`Votes revealed — median ${msg.median}${msg.isConsensus ? " (consensus)" : ""}`);
+        addLog(`Votes revealed — median ${msg.median}${msg.isConsensus ? " (consensus)" : ""}`);
         break;
       case "ESTIMATE_LOCKED": {
         setLockedTickets((l) => new Set([...l, msg.ticketId]));
@@ -392,7 +403,7 @@ export function HostView({ session, productId }: { session: PokerSession; produc
         setCurrentTicketId(null); setRevealedVotes(null); setRevealMeta(null);
         const lockedTicketTitle = ticketsRef.current.find((t) => t.id === msg.ticketId)?.jiraKey ?? msg.ticketId;
         const assigneeName = msg.assigneeId ? membersRef.current.find((m) => m.id === msg.assigneeId)?.name?.split(" ")[0] : null;
-        addLogRef.current(`Locked ${lockedTicketTitle} at ${msg.value}pts${assigneeName ? ` → ${assigneeName}` : ""}`);
+        addLog(`Locked ${lockedTicketTitle} at ${msg.value}pts${assigneeName ? ` → ${assigneeName}` : ""}`);
         break;
       }
       case "TICKET_DESIGN_UPDATED":
@@ -416,21 +427,21 @@ export function HostView({ session, productId }: { session: PokerSession; produc
       case "REACTION_RECEIVED": setReactions((r) => [...r.slice(-20), msg]); break;
       case "MEMBER_KICKED": {
         const kickedName = checkedInRef.current.find((c) => c.memberId === msg.memberId)?.memberName;
-        if (kickedName) addLogRef.current(`${kickedName} was kicked (can re-check-in)`);
+        if (kickedName) addLog(`${kickedName} was kicked (can re-check-in)`);
         setCheckedIn((prev) => prev.filter((c) => c.memberId !== msg.memberId));
         break;
       }
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [applyState]), useCallback(() => {
+  }, [applyState, addLog, checkedInRef, membersRef, ticketsRef]), useCallback(() => {
     if (adminTokenRef.current) {
       sendRef.current({ type: "REGISTER_ADMIN", token: adminTokenRef.current });
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []), useCallback(() => adminTokenRef.current, []));
 
   // Keep sendRef in sync so the onOpen callback can call send
-  sendRef.current = send;
+  useEffect(() => {
+    sendRef.current = send;
+  });
 
   const currentTicket = tickets.find((t) => t.id === currentTicketId) ?? null;
 
@@ -620,6 +631,10 @@ export function HostView({ session, productId }: { session: PokerSession; produc
                     }
                   }
                   setSessionStatus("COMPLETED");
+                  const startedAt = sessionStartedAt.current;
+                  if (startedAt) {
+                    setRecapDurationMin(Math.max(0, Math.round((Date.now() - startedAt.getTime()) / 60000)));
+                  }
                   setRecapOpen(true);
                 }}>Confirm</Button>
                 <Button variant="ghost" size="sm" onClick={() => setConfirmEnd(false)}>Cancel</Button>
@@ -1325,10 +1340,10 @@ export function HostView({ session, productId }: { session: PokerSession; produc
                   {sprintStart && sprintEnd && (
                     <p>{sprintStart.toLocaleDateString("en-MY", { day: "numeric", month: "short" })} – {sprintEnd.toLocaleDateString("en-MY", { day: "numeric", month: "short" })}</p>
                   )}
-                  {sessionStartedAt.current && (
+                  {recapDurationMin !== null && (
                     <p className="flex items-center gap-1 justify-end mt-0.5">
                       <Clock className="w-3 h-3" />
-                      Duration: {Math.round((Date.now() - sessionStartedAt.current.getTime()) / 60000)} min
+                      Duration: {recapDurationMin} min
                     </p>
                   )}
                 </div>

@@ -50,6 +50,9 @@ export function WaitingRoom({ session }: { session: SessionWithDetails }) {
     const stored = sessionStorage.getItem(`agakpoints_member_${session.id}`);
     if (stored) {
       try {
+        // sessionStorage only exists after mount, so hydrating from it always
+        // costs one extra render — there is no earlier point to read it.
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setSelectedMember(JSON.parse(stored));
         // Session was active when page loaded (SSR) — no need to wait for PartyKit
         if (session.status === "ACTIVE") {

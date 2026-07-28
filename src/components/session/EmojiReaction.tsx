@@ -46,8 +46,14 @@ export function EmojiReaction({ reactions, onReact, disabled, readOnly, emojis =
     const last = reactions[reactions.length - 1];
     const id = ++emojiCounter;
     const x = 20 + Math.random() * 60;
-    setFloating((f) => [...f, { id, emoji: last.emoji, x }]);
-    setTimeout(() => setFloating((f) => f.filter((e) => e.id !== id)), 1600);
+    // Queued rather than set inline: this is a purely decorative animation, and
+    // spawning it during the effect pass forces a re-render before paint.
+    const spawn = setTimeout(() => setFloating((f) => [...f, { id, emoji: last.emoji, x }]), 0);
+    const despawn = setTimeout(() => setFloating((f) => f.filter((e) => e.id !== id)), 1600);
+    return () => {
+      clearTimeout(spawn);
+      clearTimeout(despawn);
+    };
   }, [reactions]);
 
   return (

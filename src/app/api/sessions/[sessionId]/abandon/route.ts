@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { generateAdminToken } from "@/lib/partykit-token";
 
 const MIN_AGE_MS = 24 * 60 * 60 * 1000; // 24 hours
 
@@ -34,17 +35,27 @@ export async function POST(
     data: { status: "COMPLETED", completedAt: new Date() },
   });
 
-  // Broadcast SESSION_ENDED to all connected clients via PartyKit REST API
+  // Tell the live room so connected members are moved off the session now
+  // rather than on their next reload.
   try {
     const host = process.env.NEXT_PUBLIC_PARTYKIT_HOST ?? "localhost:1999";
     const protocol = host.startsWith("localhost") ? "http" : "https";
-    await fetch(`${protocol}://${host}/parties/main/${sessionId}`, {
+    const res = await fetch(`${protocol}://${host}/parties/main/${sessionId}`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        "x-admin-token": generateAdminToken(sessionId),
+      },
       body: JSON.stringify({ type: "SESSION_ENDED" }),
     });
-  } catch {
-    // Non-fatal — clients will see COMPLETED on next page load / poll
+    if (!res.ok) {
+      console.error(
+        `[abandon] PartyKit broadcast failed for ${sessionId}: ${res.status} ${res.statusText}`
+      );
+    }
+  } catch (err) {
+    // Non-fatal — clients will see COMPLETED on next page load / poll.
+    console.error(`[abandon] PartyKit broadcast threw for ${sessionId}:`, err);
   }
 
   return NextResponse.json({ success: true });

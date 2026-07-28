@@ -26,7 +26,11 @@ export default function LoginPage() {
         redirect: false,
       });
       if (res?.error) {
-        setError("Invalid email or password.");
+        setError(
+          res.code === "rate_limited"
+            ? "Too many sign-in attempts. Please try again in a few minutes."
+            : "Invalid email or password."
+        );
       } else {
         router.push("/dashboard");
         router.refresh();

@@ -1,9 +1,11 @@
 import { createCipheriv, createDecipheriv, randomBytes } from "crypto";
 
 const ALGORITHM = "aes-256-gcm";
-const KEY_HEX = process.env.SECRET_KEY ?? "";
 
 function getKey(): Buffer {
+  // Read at call time, not module load, so the value isn't frozen into the
+  // module the first time it's imported.
+  const KEY_HEX = process.env.SECRET_KEY ?? "";
   if (!KEY_HEX || KEY_HEX.length !== 64) {
     throw new Error(
       "SECRET_KEY env var must be a 64-character hex string (32 bytes). " +

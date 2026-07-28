@@ -214,3 +214,13 @@ model SprintHoliday {
   @@unique([sessionId, date])
   @@index([sessionId])
 }
+
+// Shared counter for rate limiting. Lives in Postgres rather than process
+// memory so limits hold across serverless instances and cold starts.
+model RateLimit {
+  key       String   @id
+  count     Int      @default(0)
+  expiresAt DateTime
+
+  @@index([expiresAt])
+}

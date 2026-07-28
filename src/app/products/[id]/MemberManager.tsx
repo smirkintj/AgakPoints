@@ -58,7 +58,6 @@ function groupByRole(members: Member[]): { role: string; members: Member[] }[] {
 
 function MemberRow({ m, onEdit, onDelete }: { m: Member; onEdit: () => void; onDelete: () => void }) {
   const [confirmDel, setConfirmDel] = useState(false);
-  const { hex } = getRoleColor(m.role);
 
   if (confirmDel) {
     return (

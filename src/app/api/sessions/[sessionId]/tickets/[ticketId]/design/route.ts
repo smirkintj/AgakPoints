@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { authorizeSessionMutation } from "@/lib/member-auth";
 import type { DesignReadiness, DesignComplexity } from "@prisma/client";
 
 const VALID_READINESS = ["READY", "IN_PROGRESS", "NOT_STARTED", null];
@@ -16,7 +16,17 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ se
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
-  const { designReadiness, designComplexity, designLink } = body as Record<string, unknown>;
+  const { designReadiness, designComplexity, designLink, memberId } = body as Record<string, unknown>;
+
+  // Design fields belong to the UI/UX member on the call, or the host.
+  const authorized = await authorizeSessionMutation(
+    sessionId,
+    typeof memberId === "string" ? memberId : undefined,
+    ["UI_UX"]
+  );
+  if (!authorized.ok) {
+    return NextResponse.json({ error: authorized.error }, { status: authorized.status });
+  }
 
   if (designReadiness !== undefined && !VALID_READINESS.includes(designReadiness as string | null)) {
     return NextResponse.json({ error: "Invalid designReadiness" }, { status: 400 });

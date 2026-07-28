@@ -2,6 +2,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { usePartyRoom } from "@/hooks/usePartyRoom";
+import { useLatestRef } from "@/hooks/useLatestRef";
 import { ConnectionStatusBanner } from "@/components/session/ConnectionStatusBanner";
 import type { MsgOut, RevealedVote, CheckedInMember } from "@/types/partykit";
 import type { Ticket, Member, Product, PokerSession } from "@/types/models";
@@ -78,9 +79,22 @@ export function ParticipantView({ session }: { session: SessionWithDetails }) {
   const recapRef = useRef<HTMLDivElement>(null);
   const [abandonLoading, setAbandonLoading] = useState(false);
 
-  // True if session has been running > 24h (host forgot to end)
-  const isStuckSession = sessionStatus === "ACTIVE" && !sessionEnded &&
-    Date.now() - new Date(session.createdAt).getTime() > 24 * 60 * 60 * 1000;
+  // True if session has been running > 24h (host forgot to end). Evaluated on a
+  // timer rather than in render, since Date.now() in render is impure and would
+  // make the result depend on when React happens to re-render.
+  const [isPastStuckThreshold, setIsPastStuckThreshold] = useState(false);
+  useEffect(() => {
+    const createdAtMs = new Date(session.createdAt).getTime();
+    const evaluate = () =>
+      setIsPastStuckThreshold(Date.now() - createdAtMs > 24 * 60 * 60 * 1000);
+    const initial = setTimeout(evaluate, 0);
+    const interval = setInterval(evaluate, 60_000);
+    return () => {
+      clearTimeout(initial);
+      clearInterval(interval);
+    };
+  }, [session.createdAt]);
+  const isStuckSession = sessionStatus === "ACTIVE" && !sessionEnded && isPastStuckThreshold;
 
   const handleAbandon = async () => {
     setAbandonLoading(true);
@@ -106,15 +120,27 @@ export function ParticipantView({ session }: { session: SessionWithDetails }) {
     consensusCount: 0,
     reEstimateCount: 0,
     avgTimePerTicket: 0,
-    ticketStartTime: Date.now(),
+    // 0 until the first ticket opens — reading the clock in render would make
+    // this value depend on when React re-rendered.
+    ticketStartTime: 0,
     tagDistribution: {} as Record<string, number>,
   });
-  const sessionHealthRef = useRef(sessionHealth);
-  sessionHealthRef.current = sessionHealth;
-  revealedVotesRef.current = revealedVotes;
+  useEffect(() => {
+    revealedVotesRef.current = revealedVotes;
+  });
+
+  // Ticks the "time on this ticket" readout in the SM/Tech Lead health panel.
+  const [nowMs, setNowMs] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setNowMs(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, []);
 
   useEffect(() => {
     const stored = sessionStorage.getItem(`agakpoints_member_${session.id}`);
+    // Hydrating from sessionStorage can only happen after mount — the store
+    // doesn't exist during SSR — so the one extra render is unavoidable here.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (stored) setMember(JSON.parse(stored));
   }, [session.id]);
 
@@ -354,36 +380,35 @@ export function ParticipantView({ session }: { session: SessionWithDetails }) {
   }, [member, session.id, session.tickets]));
 
   // Poll for state every 4 s — ensures members catch up if any push event was dropped
-  const sendRef = useRef(send);
-  sendRef.current = send;
+  const sendRef = useLatestRef(send);
   useEffect(() => {
     const id = setInterval(() => sendRef.current({ type: "REQUEST_STATE" }), 4000);
     return () => clearInterval(id);
-  }, []);
+  }, [sendRef]);
 
   const PRESET_TAGS = session.product.tagPresets?.length
     ? session.product.tagPresets
     : ["backend", "frontend", "infra", "data-migration", "third-party", "auth", "performance"];
 
   const updateDesign = async (patch: Partial<{ designReadiness: string | null; designComplexity: string | null; designLink: string | null }>) => {
-    if (!currentTicket) return;
+    if (!currentTicket || !member) return;
     setTicketDesign((d) => ({ ...d, ...patch }));
     send({ type: "UPDATE_TICKET_DESIGN", ticketId: currentTicket.ticketId, ...patch });
     await fetch(`/api/sessions/${session.id}/tickets/${currentTicket.ticketId}/design`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(patch),
+      body: JSON.stringify({ ...patch, memberId: member.id }),
     });
   };
 
   const updateTags = async (tags: string[]) => {
-    if (!currentTicket) return;
+    if (!currentTicket || !member) return;
     setTicketTags(tags);
     send({ type: "UPDATE_TICKET_TAGS", ticketId: currentTicket.ticketId, tags });
     await fetch(`/api/sessions/${session.id}/tickets/${currentTicket.ticketId}/tags`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ tags }),
+      body: JSON.stringify({ tags, memberId: member.id }),
     });
   };
 
@@ -904,7 +929,10 @@ export function ParticipantView({ session }: { session: SessionWithDetails }) {
                   }
                   // SM + TECH_LEAD get health panel
                   if (member.role === "SM" || member.role === "TECH_LEAD") {
-                    const ticketElapsed = (Date.now() - sessionHealth.ticketStartTime) / 1000;
+                    const ticketElapsed =
+                      sessionHealth.ticketStartTime && nowMs
+                        ? (nowMs - sessionHealth.ticketStartTime) / 1000
+                        : 0;
                     const timerPct = timerDuration ? ticketElapsed / timerDuration : null;
                     return (
                       <div className="space-y-4 py-2 w-full">

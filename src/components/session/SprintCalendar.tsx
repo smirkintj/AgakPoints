@@ -47,7 +47,7 @@ function subWorkingDays(date: string, n: number, phDates: Set<string>, allDays: 
   return isoDate(cur);
 }
 
-export function SprintCalendar({ sessionId, startDate, endDate, members, checkedIn, onLeaveToggle, onCalendarSaved }: SprintCalendarProps) {
+export function SprintCalendar({ sessionId, startDate, endDate, members, onLeaveToggle, onCalendarSaved }: SprintCalendarProps) {
   const [events, setEvents] = useState<SprintCalendarEvent[]>([]);
   const [leaveMap, setLeaveMap] = useState<Record<string, Set<string>>>({});
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
@@ -79,15 +79,22 @@ export function SprintCalendar({ sessionId, startDate, endDate, members, checked
       .catch(() => {});
   }, [sessionId]);
 
+  // Refill the edit panel whenever a different day is selected. These are
+  // user-editable fields seeded from the stored event, not derived values, so
+  // they have to live in state; the update is queued so selecting a day doesn't
+  // re-render twice before paint.
   useEffect(() => {
     if (!selectedDate) return;
     const ph = events.find((e) => e.date === selectedDate && e.type === "PH");
     const deploy = events.find((e) => e.date === selectedDate && e.type === "DEPLOY");
-    setPanelPH(!!ph);
-    setPanelPHName(ph?.name ?? "Public Holiday");
-    setPanelPHCountry(ph?.country ?? "");
-    setPanelDeploy(!!deploy);
-    setPanelDeployName(deploy?.name ?? "");
+    const id = setTimeout(() => {
+      setPanelPH(!!ph);
+      setPanelPHName(ph?.name ?? "Public Holiday");
+      setPanelPHCountry(ph?.country ?? "");
+      setPanelDeploy(!!deploy);
+      setPanelDeployName(deploy?.name ?? "");
+    }, 0);
+    return () => clearTimeout(id);
   }, [selectedDate, events]);
 
   if (!startDate || !endDate) return (

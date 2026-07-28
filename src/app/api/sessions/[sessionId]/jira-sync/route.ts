@@ -2,17 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { decryptProduct } from "@/lib/crypto";
-const syncAttempts = new Map<string, { count: number; resetAt: number }>();
-function isSyncRateLimited(sessionId: string): boolean {
-  const now = Date.now();
-  const entry = syncAttempts.get(sessionId);
-  if (!entry || now > entry.resetAt) {
-    syncAttempts.set(sessionId, { count: 1, resetAt: now + 60_000 });
-    return false;
-  }
-  entry.count++;
-  return entry.count > 3;
-}
+import { consumeRateLimit } from "@/lib/rate-limit";
+
+const SYNC_WINDOW_MS = 60_000;
+const MAX_SYNCS_PER_WINDOW = 3;
 
 export async function POST(
   _req: NextRequest,
@@ -23,7 +16,18 @@ export async function POST(
 
   const { sessionId } = await params;
 
-  if (isSyncRateLimited(sessionId)) return NextResponse.json({ error: "Too many sync requests" }, { status: 429 });
+  const { limited, retryAfterSeconds } = await consumeRateLimit(
+    `jira-sync:${sessionId}`,
+    MAX_SYNCS_PER_WINDOW,
+    SYNC_WINDOW_MS
+  );
+  if (limited) {
+    return NextResponse.json(
+      { error: "Too many sync requests" },
+      { status: 429, headers: { "Retry-After": String(retryAfterSeconds) } }
+    );
+  }
+
   const pokerSession = await prisma.pokerSession.findFirst({
     where: { id: sessionId, product: { adminId: session.user.id } },
     include: {

@@ -35,13 +35,6 @@ export interface SessionLogEntry {
   text: string;
 }
 
-function getStateTag(ratio: number) {
-  if (ratio < 0.5) return { label: "free", color: "#10b981" };
-  if (ratio < 0.8) return { label: "on-track", color: "#3b82f6" };
-  if (ratio <= 1.0) return { label: "heavy", color: "#f59e0b" };
-  return { label: "over", color: "#ef4444" };
-}
-
 function CapacityEditor({
   memberId,
   capacity,

@@ -1,4 +1,5 @@
 import type * as Party from "partykit/server";
+import { isConsensus, median } from "../src/lib/voting";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -89,8 +90,34 @@ interface RoomState {
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
-async function verifyAdminToken(sessionId: string, token: string): Promise<boolean> {
-  const secret = process.env.PARTYKIT_SECRET ?? "dev-secret";
+/**
+ * Read the HMAC secret shared with the Next.js app. Deployed secrets arrive on
+ * `room.env` (via `partykit env add`); `partykit dev` surfaces local `.env`
+ * values on `process.env`.
+ *
+ * There is no fallback value on purpose. An admin token is just
+ * HMAC-SHA256(sessionId) and session IDs travel in URLs, so a well-known secret
+ * would let anyone forge host credentials for any room. When the secret is
+ * missing we refuse every admin registration rather than accept forgeable ones.
+ */
+function readSecret(room: Party.Room): string | null {
+  const fromRoom = (room.env as Record<string, unknown> | undefined)?.PARTYKIT_SECRET;
+  if (typeof fromRoom === "string" && fromRoom) return fromRoom;
+  const fromProcess =
+    typeof process !== "undefined" ? process.env?.PARTYKIT_SECRET : undefined;
+  if (typeof fromProcess === "string" && fromProcess) return fromProcess;
+  return null;
+}
+
+/** Constant-time string compare, so token checks don't leak bytes via timing. */
+function timingSafeEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return diff === 0;
+}
+
+async function expectedAdminToken(secret: string, sessionId: string): Promise<string> {
   const enc = new TextEncoder();
   const key = await crypto.subtle.importKey(
     "raw",
@@ -100,23 +127,25 @@ async function verifyAdminToken(sessionId: string, token: string): Promise<boole
     ["sign"]
   );
   const sig = await crypto.subtle.sign("HMAC", key, enc.encode(sessionId));
-  const expected = Array.from(new Uint8Array(sig))
+  return Array.from(new Uint8Array(sig))
     .map((b) => b.toString(16).padStart(2, "0"))
     .join("");
-  return token === expected;
 }
 
-function median(values: number[]): number {
-  if (!values.length) return 0;
-  const sorted = [...values].sort((a, b) => a - b);
-  const mid = Math.floor(sorted.length / 2);
-  return sorted.length % 2 !== 0
-    ? sorted[mid]
-    : Math.round((sorted[mid - 1] + sorted[mid]) / 2);
-}
-
-function isConsensus(values: number[]): boolean {
-  return values.length > 0 && new Set(values).size === 1;
+async function verifyAdminToken(
+  room: Party.Room,
+  sessionId: string,
+  token: string
+): Promise<boolean> {
+  const secret = readSecret(room);
+  if (!secret) {
+    console.error(
+      "[PartyKit] PARTYKIT_SECRET is not configured — refusing admin registration. " +
+        "Set it with `npx partykit env add PARTYKIT_SECRET` (and in .env for local dev)."
+    );
+    return false;
+  }
+  return timingSafeEqual(token, await expectedAdminToken(secret, sessionId));
 }
 
 // ── Partykit Server ──────────────────────────────────────────────────────────
@@ -156,7 +185,8 @@ export default class ScrumPokerRoom implements Party.Server {
 
   private async persist() {
     try {
-      const { adminConnectionIds, connectionMemberMap, ...persistable } = this.state;
+      // Connection-scoped fields are meaningless across a room restart.
+      const { adminConnectionIds: _a, connectionMemberMap: _c, ...persistable } = this.state;
       await this.room.storage.put("state", persistable);
     } catch (err) {
       console.error("[PartyKit] persist failed:", err);
@@ -165,6 +195,25 @@ export default class ScrumPokerRoom implements Party.Server {
 
   private isAdmin(sender: Party.Connection): boolean {
     return this.state.adminConnectionIds.has(sender.id);
+  }
+
+  /**
+   * Role of the member behind a connection, or null if that connection hasn't
+   * checked in. Note the hop through connectionMemberMap: `sender.id` is a
+   * per-socket connection ID and never equals a memberId, so matching it
+   * against checkedIn directly silently denies everyone.
+   */
+  private senderRole(sender: Party.Connection): string | null {
+    const memberId = this.state.connectionMemberMap[sender.id];
+    if (!memberId) return null;
+    return this.state.checkedIn.find((m) => m.memberId === memberId)?.role ?? null;
+  }
+
+  /** Admins always pass; otherwise the connection must hold one of `roles`. */
+  private canActAs(sender: Party.Connection, ...roles: string[]): boolean {
+    if (this.isAdmin(sender)) return true;
+    const role = this.senderRole(sender);
+    return role !== null && roles.includes(role);
   }
 
   // Send current state to a newly connected client so they sync up immediately
@@ -187,6 +236,42 @@ export default class ScrumPokerRoom implements Party.Server {
     }
   }
 
+  /**
+   * Server-to-server hook. The Next.js `/abandon` route calls this to tell a
+   * live room its session was force-ended, since that path has no host socket
+   * to broadcast through. Without a handler here PartyKit 404s the request and
+   * connected members sit on a dead session until they reload.
+   *
+   * Authenticated with the same admin token as socket registration — otherwise
+   * anyone who knows a session ID could end other people's sessions.
+   */
+  async onRequest(req: Party.Request): Promise<Response> {
+    if (req.method !== "POST") {
+      return new Response("Method not allowed", { status: 405 });
+    }
+
+    const token = req.headers.get("x-admin-token");
+    if (!token || !(await verifyAdminToken(this.room, this.room.id, token))) {
+      return new Response("Forbidden", { status: 403 });
+    }
+
+    let body: { type?: string };
+    try {
+      body = (await req.json()) as { type?: string };
+    } catch {
+      return new Response("Invalid JSON", { status: 400 });
+    }
+
+    if (body.type !== "SESSION_ENDED") {
+      return new Response("Unsupported message type", { status: 400 });
+    }
+
+    this.state.sessionStatus = "COMPLETED";
+    this.broadcast({ type: "SESSION_ENDED" });
+    await this.persist();
+    return Response.json({ ok: true });
+  }
+
   async onMessage(raw: string, sender: Party.Connection) {
     let msg: MsgIn;
     try {
@@ -199,17 +284,18 @@ export default class ScrumPokerRoom implements Party.Server {
     // can authenticate even before the async REGISTER_ADMIN resolves.
     const inlineToken = (msg as Record<string, unknown>).adminToken;
     if (typeof inlineToken === "string" && !this.isAdmin(sender)) {
-      const valid = await verifyAdminToken(this.room.id, inlineToken);
+      const valid = await verifyAdminToken(this.room, this.room.id, inlineToken);
       if (valid) this.state.adminConnectionIds.add(sender.id);
     }
 
     switch (msg.type) {
       case "REGISTER_ADMIN": {
-        verifyAdminToken(this.room.id, msg.token).then((valid) => {
-          if (valid) {
-            this.state.adminConnectionIds.add(sender.id);
-          }
-        });
+        // Awaited rather than fire-and-forget: an unawaited verification lets a
+        // follow-up message arrive before the sender is marked admin, which is
+        // what the inline-token path above was bolted on to work around.
+        if (await verifyAdminToken(this.room, this.room.id, msg.token)) {
+          this.state.adminConnectionIds.add(sender.id);
+        }
         break;
       }
 
@@ -402,22 +488,19 @@ export default class ScrumPokerRoom implements Party.Server {
       }
 
       case "UPDATE_TICKET_DESIGN": {
-        const designSender = this.state.checkedIn.find((m) => m.memberId === sender.id);
-        if (!this.isAdmin(sender) && designSender?.role !== "UI_UX") return;
+        if (!this.canActAs(sender, "UI_UX")) return;
         this.broadcast({ type: "TICKET_DESIGN_UPDATED", ticketId: msg.ticketId, designReadiness: msg.designReadiness, designComplexity: msg.designComplexity, designLink: msg.designLink });
         break;
       }
 
       case "UPDATE_TICKET_TAGS": {
-        const tagSender = this.state.checkedIn.find((m) => m.memberId === sender.id);
-        if (!this.isAdmin(sender) && tagSender?.role !== "TECH_LEAD") return;
+        if (!this.canActAs(sender, "TECH_LEAD")) return;
         this.broadcast({ type: "TICKET_TAGS_UPDATED", ticketId: msg.ticketId, tags: msg.tags });
         break;
       }
 
       case "TICKET_FLAGGED": {
-        const flagSender = this.state.checkedIn.find((m) => m.memberId === sender.id);
-        if (!this.isAdmin(sender) && flagSender?.role !== "TECH_LEAD") return;
+        if (!this.canActAs(sender, "TECH_LEAD")) return;
         const current = this.state.ticketFlags[msg.ticketId] ?? [];
         const updated = msg.active
           ? [...new Set([...current, msg.flag])]

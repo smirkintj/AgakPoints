@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { authorizeSessionMutation } from "@/lib/member-auth";
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ sessionId: string; ticketId: string }> }) {
   const { sessionId, ticketId } = await params;
@@ -12,7 +12,17 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ se
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
-  const { tags } = body as Record<string, unknown>;
+  const { tags, memberId } = body as Record<string, unknown>;
+
+  // Tagging is the tech lead's call, or the host's.
+  const authorized = await authorizeSessionMutation(
+    sessionId,
+    typeof memberId === "string" ? memberId : undefined,
+    ["TECH_LEAD"]
+  );
+  if (!authorized.ok) {
+    return NextResponse.json({ error: authorized.error }, { status: authorized.status });
+  }
 
   if (!Array.isArray(tags)) return NextResponse.json({ error: "tags must be array" }, { status: 400 });
   if (tags.length > 20) return NextResponse.json({ error: "Too many tags" }, { status: 400 });
